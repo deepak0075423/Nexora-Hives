@@ -150,6 +150,36 @@ function StudentContent({ data, schoolModules }: { data: any; schoolModules?: Re
   const fees = data?.fees;
   const drops: any[] = data?.recentActivity ?? [];
 
+  // A module flag is "enabled" when: no schoolModules config (show all), or the flag is explicitly true
+  const isEnabled = (flag: string) => !schoolModules || schoolModules[flag] === true;
+
+  // Build only the stats whose module is enabled
+  type StatDef = { key: string; el: React.ReactElement };
+  const visibleStats: StatDef[] = [];
+  if (isEnabled('attendance')) visibleStats.push({
+    key: 'attendance',
+    el: <StatCard icon="checkmark-circle" iconColor={Colors.success} iconBg={Colors.successLight}
+          label="Attendance"
+          value={attendance?.percentage != null ? `${attendance.percentage}%` : '--'}
+          sub={attendance?.weekChange ? `+${attendance.weekChange} this wk` : undefined}
+          subColor={Colors.success} />,
+  });
+  if (isEnabled('result')) visibleStats.push({
+    key: 'result',
+    el: <StatCard icon="star" iconColor="#D97706" iconBg="#FEF3C7"
+          label="Avg Score"
+          value={avgScore?.score != null ? String(avgScore.score) : '--'}
+          sub={avgScore?.grade} />,
+  });
+  if (isEnabled('fees')) visibleStats.push({
+    key: 'fees',
+    el: <StatCard icon="card" iconColor={Colors.danger} iconBg={Colors.dangerLight}
+          label="Fees Due"
+          value={fees?.daysLeft != null ? `${fees.daysLeft}d` : '--'}
+          sub={fees?.amount ? `₹${fees.amount.toLocaleString('en-IN')}` : undefined}
+          subColor={Colors.danger} />,
+  });
+
   return (
     <>
       {/* Live Class Banner */}
@@ -180,28 +210,17 @@ function StudentContent({ data, schoolModules }: { data: any; schoolModules?: Re
         )}
       </View>
 
-      {/* Stats */}
-      <View style={s.row}>
-        <StatCard icon="checkmark-circle" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Attendance"
-          value={attendance?.percentage != null ? `${attendance.percentage}%` : '--'}
-          sub={attendance?.weekChange ? `+${attendance.weekChange} this wk` : undefined}
-          subColor={Colors.success}
-        />
-        <View style={{ width: 8 }} />
-        <StatCard icon="star" iconColor="#D97706" iconBg="#FEF3C7"
-          label="Avg Score"
-          value={avgScore?.score != null ? String(avgScore.score) : '--'}
-          sub={avgScore?.grade}
-        />
-        <View style={{ width: 8 }} />
-        <StatCard icon="card" iconColor={Colors.danger} iconBg={Colors.dangerLight}
-          label="Fees Due"
-          value={fees?.daysLeft != null ? `${fees.daysLeft}d` : '--'}
-          sub={fees?.amount ? `₹${fees.amount.toLocaleString('en-IN')}` : undefined}
-          subColor={Colors.danger}
-        />
-      </View>
+      {/* Stats — only renders cards whose module is enabled by super admin */}
+      {visibleStats.length > 0 && (
+        <View style={s.row}>
+          {visibleStats.map((item, i) => (
+            <React.Fragment key={item.key}>
+              {i > 0 && <View style={{ width: 8 }} />}
+              {item.el}
+            </React.Fragment>
+          ))}
+        </View>
+      )}
 
       {/* Modules */}
       <View style={s.section}>

@@ -22,6 +22,7 @@ export default function StatsScreen() {
   const [classTests, setClassTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [tab, setTab] = useState<'formal' | 'tests'>('formal');
 
   const load = async () => {
