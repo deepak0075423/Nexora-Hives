@@ -3,7 +3,8 @@ import storage from '@/utils/storage';
 
 // Use your machine's LAN IP so both emulator and physical devices can connect.
 // Find yours with: ipconfig | findstr IPv4
-export const BASE_URL = 'http://35.154.216.100:5000/api';
+// Override per-environment with EXPO_PUBLIC_API_URL (e.g. local testing).
+export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://35.154.216.100:5000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

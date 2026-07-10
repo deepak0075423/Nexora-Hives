@@ -76,15 +76,18 @@ export default function LeaveScreen() {
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
         ) : (
           <>
-            {/* Balance */}
-            {balance && (
+            {/* Balance — API returns { items: [{leaveType, remaining, used, …}], leaveSettings, … } */}
+            {(balance?.items ?? []).length > 0 && (
               <View style={s.balanceCard}>
-                <Text style={s.balanceTitle}>Leave Balance</Text>
+                <Text style={s.balanceTitle}>Leave Balance · {balance.academicYear ?? ''}</Text>
                 <View style={s.balanceRow}>
-                  {Object.entries(balance).map(([type, count]: [string, any]) => (
-                    <View key={type} style={s.balanceItem}>
-                      <Text style={s.balanceCount}>{count}</Text>
-                      <Text style={s.balanceType}>{type}</Text>
+                  {(balance.items as any[]).map((item: any, i: number) => (
+                    <View key={i} style={s.balanceItem}>
+                      <Text style={s.balanceCount}>{item.remaining ?? 0}</Text>
+                      <Text style={s.balanceType}>
+                        {item.leaveType?.code ?? item.leaveType?.name ?? 'Leave'}
+                      </Text>
+                      <Text style={s.balanceUsed}>used {item.used ?? 0}</Text>
                     </View>
                   ))}
                 </View>
@@ -105,15 +108,19 @@ export default function LeaveScreen() {
                   <View key={i} style={s.card}>
                     <View style={s.cardTop}>
                       <View>
-                        <Text style={s.leaveType}>{lv.leaveType ?? lv.type ?? 'Leave'}</Text>
+                        <Text style={s.leaveType}>
+                          {typeof lv.leaveType === 'string'
+                            ? lv.leaveType
+                            : lv.leaveType?.name ?? lv.leaveType?.code ?? lv.type ?? 'Leave'}
+                        </Text>
                         <Text style={s.dates}>
-                          {lv.startDate ? new Date(lv.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} â€“{' '}
-                          {lv.endDate ? new Date(lv.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                          {(lv.fromDate ?? lv.startDate) ? new Date(lv.fromDate ?? lv.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''} –{' '}
+                          {(lv.toDate ?? lv.endDate) ? new Date(lv.toDate ?? lv.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                         </Text>
                       </View>
                       <View style={[s.badge, { backgroundColor: st.bg }]}>
                         <Text style={[s.badgeText, { color: st.color }]}>
-                          {lv.status?.charAt(0).toUpperCase() + lv.status?.slice(1) ?? 'Pending'}
+                          {lv.status ? lv.status.charAt(0).toUpperCase() + lv.status.slice(1) : 'Pending'}
                         </Text>
                       </View>
                     </View>
@@ -144,6 +151,7 @@ const s = StyleSheet.create({
   balanceItem: { alignItems: 'center' },
   balanceCount: { fontSize: 24, fontWeight: '700', color: '#fff' },
   balanceType: { fontSize: 10, color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize', marginTop: 2 },
+  balanceUsed: { fontSize: 9, color: 'rgba(255,255,255,0.45)', marginTop: 1 },
   groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8 },
   empty: { alignItems: 'center', paddingTop: 40, gap: 12 },
   emptyText: { ...Typography.body, color: Colors.textSecondary },

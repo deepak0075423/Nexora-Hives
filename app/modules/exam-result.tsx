@@ -69,7 +69,7 @@ export default function ExamResultScreen() {
             </View>
 
             {/* Done button */}
-            <TouchableOpacity style={s.doneBtn} onPress={() => router.replace('/(tabs)/')}>
+            <TouchableOpacity style={s.doneBtn} onPress={() => router.replace('/(tabs)' as any)}>
               <Text style={s.doneBtnText}>Back to Home</Text>
             </TouchableOpacity>
 

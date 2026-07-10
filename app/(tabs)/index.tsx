@@ -11,7 +11,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
+import * as adminApi from '@/api/admin.api';
+import * as superApi from '@/api/superadmin.api';
 import * as notifApi from '@/api/notifications.api';
+import { useModules } from '@/hooks/useModules';
 
 // ─── Module lists per role ────────────────────────────────────────────────────
 // moduleFlag: the key in school.modules that must be true for this module to show.
@@ -41,8 +44,46 @@ const TEACHER_MODULES = [
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/leave',       moduleFlag: 'leave' },
+  { key: 'payroll',    label: 'Payroll',    icon: 'cash',             route: '/modules/teacher-payroll', moduleFlag: 'payroll' },
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
+  { key: 'manageLib',  label: 'Manage Lib', icon: 'albums',           route: '/modules/library-admin', moduleFlag: 'library', requires: 'isLibrarian' },
+  { key: 'chat',       label: 'Chat',       icon: 'chatbubbles',      route: '/modules/chat',        moduleFlag: 'chat' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },
+  { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
+];
+
+const ADMIN_MODULES = [
+  { key: 'students',   label: 'Students',   icon: 'school',           route: '/modules/admin/students' },
+  { key: 'teachers',   label: 'Teachers',   icon: 'people',           route: '/modules/admin/teachers' },
+  { key: 'admins',     label: 'Admins',     icon: 'shield-checkmark', route: '/modules/admin/admins' },
+  { key: 'classes',    label: 'Classes',    icon: 'business',         route: '/modules/admin/classes' },
+  { key: 'subjects',   label: 'Subjects',   icon: 'book',             route: '/modules/admin/subjects' },
+  { key: 'years',      label: 'Years',      icon: 'calendar-number',  route: '/modules/admin/academic-years' },
+  { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/admin/attendance',  moduleFlag: 'attendance' },
+  { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/admin/timetable',   moduleFlag: 'timetable' },
+  { key: 'exams',      label: 'Aptitude',   icon: 'bulb',             route: '/modules/admin/exams',       moduleFlag: 'aptitudeExam' },
+  { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/admin/results',     moduleFlag: 'result' },
+  { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/admin/fees',        moduleFlag: 'fees' },
+  { key: 'payroll',    label: 'Payroll',    icon: 'cash',             route: '/modules/admin/payroll',     moduleFlag: 'payroll' },
+  { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library-admin',     moduleFlag: 'library' },
+  { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/admin/leave',       moduleFlag: 'leave' },
+  { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/admin/documents',   moduleFlag: 'document' },
+  { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/admin/holidays',    moduleFlag: 'holiday' },
+  { key: 'sendAlert',  label: 'Send Alert', icon: 'megaphone',        route: '/modules/send-notification', moduleFlag: 'notification' },
+  { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',            moduleFlag: 'notification' },
+  { key: 'chat',       label: 'Chat',       icon: 'chatbubbles',      route: '/modules/chat',              moduleFlag: 'chat' },
+  { key: 'reports',    label: 'Reports',    icon: 'stats-chart',      route: '/modules/admin/reports' },
+  { key: 'settings',   label: 'Settings',   icon: 'settings',         route: '/modules/admin/school-settings' },
+  { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
+];
+
+const SUPER_ADMIN_MODULES = [
+  { key: 'schools',    label: 'Schools',    icon: 'business',         route: '/modules/super/schools' },
+  { key: 'users',      label: 'Users',      icon: 'people',           route: '/modules/super/users' },
+  { key: 'permissions',label: 'Permissions',icon: 'key',              route: '/modules/super/permissions' },
+  { key: 'logs',       label: 'Logs',       icon: 'list',             route: '/modules/super/logs' },
+  { key: 'sendAlert',  label: 'Send Alert', icon: 'megaphone',        route: '/modules/send-notification' },
+  { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts' },
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];
 
@@ -58,13 +99,16 @@ const PARENT_MODULES = [
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];
 
-// Returns only modules that are enabled for the school (or have no flag = always on)
+// Returns only modules that are enabled for the school (or have no flag = always on).
+// `requires` gates on extra flags like isLibrarian which must be explicitly true.
 function filterModules(
-  list: { key: string; label: string; icon: string; route: string; moduleFlag?: string }[],
+  list: { key: string; label: string; icon: string; route: string; moduleFlag?: string; requires?: string }[],
   schoolModules: Record<string, boolean> | undefined,
 ) {
-  if (!schoolModules) return list; // no school config = show all (fallback)
-  return list.filter(m => !m.moduleFlag || schoolModules[m.moduleFlag] === true);
+  if (!schoolModules) return list.filter(m => !m.requires); // no config = show all except designation-gated
+  return list.filter(m =>
+    (!m.moduleFlag || schoolModules[m.moduleFlag] === true) &&
+    (!m.requires || schoolModules[m.requires] === true));
 }
 
 function moduleColor(key: string) {
@@ -376,24 +420,134 @@ const pc = StyleSheet.create({
   cls: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
 });
 
+// ─── Admin content ────────────────────────────────────────────────────────────
+
+function AdminContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
+  const router = useRouter();
+  const modules = filterModules(ADMIN_MODULES, schoolModules);
+  const pending = data?.pending ?? {};
+  const pendingItems = [
+    { label: 'Leave requests',    count: pending.leaves,          route: '/modules/admin/leave',      flag: 'leave' },
+    { label: 'Fee payments',      count: pending.payments,        route: '/modules/admin/fees-payments', flag: 'fees' },
+    { label: 'Results to publish',count: pending.examsToPublish,  route: '/modules/admin/results',    flag: 'result' },
+    { label: 'Regularizations',   count: pending.regularizations, route: '/modules/admin/attendance', flag: 'attendance' },
+  ].filter(p => p.count > 0 && (!schoolModules || schoolModules[p.flag] === true));
+
+  return (
+    <>
+      <View style={s.row}>
+        <StatCard icon="people" iconColor={Colors.info} iconBg={Colors.infoLight}
+          label="Teachers" value={data?.teachers != null ? String(data.teachers) : '--'} />
+        <View style={{ width: 8 }} />
+        <StatCard icon="school" iconColor={Colors.success} iconBg={Colors.successLight}
+          label="Students" value={data?.students != null ? String(data.students) : '--'} />
+        <View style={{ width: 8 }} />
+        <StatCard icon="business" iconColor={Colors.warning} iconBg={Colors.warningLight}
+          label="Sections" value={data?.sections != null ? String(data.sections) : '--'} />
+      </View>
+
+      {pendingItems.length > 0 && (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Needs attention</Text>
+          {pendingItems.map((p) => (
+            <TouchableOpacity key={p.label} style={dr.card} onPress={() => router.push(p.route as any)} activeOpacity={0.7}>
+              <View style={[dr.iconBox, { backgroundColor: Colors.warningLight }]}>
+                <Ionicons name="alert-circle" size={18} color={Colors.warning} />
+              </View>
+              <View style={dr.body}>
+                <Text style={dr.title}>{p.label}</Text>
+                <Text style={dr.sub}>{p.count} pending</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={s.section}>
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Everything</Text>
+          <Text style={s.sectionMeta}>{modules.length} modules</Text>
+        </View>
+        <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
+      </View>
+    </>
+  );
+}
+
+// ─── Super admin content ──────────────────────────────────────────────────────
+
+function SuperAdminContent({ data }: { data: any }) {
+  const router = useRouter();
+  const roles = data?.roles ?? {};
+  return (
+    <>
+      <View style={s.row}>
+        <StatCard icon="business" iconColor={Colors.info} iconBg={Colors.infoLight}
+          label="Schools" value={data?.schoolCount != null ? String(data.schoolCount) : '--'} />
+        <View style={{ width: 8 }} />
+        <StatCard icon="people" iconColor={Colors.success} iconBg={Colors.successLight}
+          label="Users" value={data?.userCount != null ? String(data.userCount) : '--'} />
+        <View style={{ width: 8 }} />
+        <StatCard icon="school" iconColor={Colors.warning} iconBg={Colors.warningLight}
+          label="Students" value={roles.students != null ? String(roles.students) : '--'} />
+      </View>
+
+      <View style={s.section}>
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Everything</Text>
+          <Text style={s.sectionMeta}>{SUPER_ADMIN_MODULES.length} modules</Text>
+        </View>
+        <ModuleGrid modules={SUPER_ADMIN_MODULES as any} onPress={(r) => router.push(r as any)} />
+      </View>
+
+      {Array.isArray(data?.recentSchools) && data.recentSchools.length > 0 && (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Recent schools</Text>
+          {data.recentSchools.map((sc: any) => (
+            <TouchableOpacity key={sc._id} style={dr.card}
+              onPress={() => router.push({ pathname: '/modules/super/school-form', params: { id: sc._id } } as any)}
+              activeOpacity={0.7}>
+              <View style={dr.iconBox}>
+                <Ionicons name="business" size={18} color={Colors.accent} />
+              </View>
+              <View style={dr.body}>
+                <Text style={dr.title}>{sc.name}</Text>
+                <Text style={dr.sub}>{sc.code ?? ''}{sc.isActive === false ? ' · inactive' : ''}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const { user, reload } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { modules: fetchedModules } = useModules();
+  // Prefer live module flags (includes isLibrarian); fall back to school config from getMe
+  const moduleFlags = (fetchedModules ?? user?.school?.modules) as Record<string, boolean> | undefined;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchDashboard = useCallback(async () => {
+    if (!user?.role) return; // wait for the user record — role decides which dashboard to call
     try {
       // Refresh user to get latest school.modules state
       await reload().catch(() => {});
       let res: any;
       if (user?.role === 'teacher') res = await teacherApi.getDashboard();
       else if (user?.role === 'parent') res = await parentApi.getDashboard();
+      else if (user?.role === 'admin') res = await adminApi.getDashboard();
+      else if (user?.role === 'super-admin') res = await superApi.getDashboard();
       else res = await studentApi.getDashboard();
       setData((res as any)?.data ?? res);
     } catch {
@@ -405,10 +559,11 @@ export default function DashboardScreen() {
   }, [user?.role]);
 
   useEffect(() => {
+    if (!user) return;
     notifApi.getUnreadCount()
       .then((r: any) => setUnreadCount(r?.count ?? 0))
       .catch(() => {});
-  }, []);
+  }, [user?._id]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
@@ -445,11 +600,15 @@ export default function DashboardScreen() {
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
         ) : user?.role === 'teacher' ? (
-          <TeacherContent data={data} schoolModules={user?.school?.modules} />
+          <TeacherContent data={data} schoolModules={moduleFlags} />
         ) : user?.role === 'parent' ? (
-          <ParentContent data={data} schoolModules={user?.school?.modules} />
+          <ParentContent data={data} schoolModules={moduleFlags} />
+        ) : user?.role === 'admin' ? (
+          <AdminContent data={data} schoolModules={moduleFlags} />
+        ) : user?.role === 'super-admin' ? (
+          <SuperAdminContent data={data} />
         ) : (
-          <StudentContent data={data} schoolModules={user?.school?.modules} />
+          <StudentContent data={data} schoolModules={moduleFlags} />
         )}
       </ScrollView>
     </View>

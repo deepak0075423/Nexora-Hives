@@ -29,10 +29,15 @@ export default function MySectionScreen() {
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  const students: any[] = (data?.students ?? []).filter((st: any) =>
-    !searchQuery || st.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // API shape: { section: { class{className}, sectionName, enrolledStudents, … }, announcements, monitors }
+  // enrolledStudents may be unpopulated ids — only render the roster when we have objects with names
+  const section = data?.section;
+  const enrolled: any[] = section?.enrolledStudents ?? data?.students ?? [];
+  const students: any[] = enrolled
+    .filter((st: any) => st && typeof st === 'object' && st.name)
+    .filter((st: any) => !searchQuery || st.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const announcements: any[] = data?.announcements ?? [];
+  const monitors: any[] = data?.monitors ?? [];
 
   if (disabled) return (
     <>
@@ -56,38 +61,68 @@ export default function MySectionScreen() {
           <>
             {/* Section info */}
             <View style={s.infoCard}>
-              <Text style={s.infoTitle}>{data?.className ?? 'My Section'}</Text>
-              {data?.section && <Text style={s.infoSub}>Section {data.section}</Text>}
-              <Text style={s.infoCount}>{data?.students?.length ?? 0} students</Text>
+              <Text style={s.infoTitle}>{section?.class?.className ?? 'My Section'}</Text>
+              {section?.sectionName ? <Text style={s.infoSub}>Section {section.sectionName}</Text> : (
+                <Text style={s.infoSub}>No section assigned to you as class teacher</Text>
+              )}
+              <Text style={s.infoCount}>
+                {enrolled.length} students{section?.maxStudents ? ` · capacity ${section.maxStudents}` : ''}
+              </Text>
+              {(section?.startTime || section?.totalPeriods) ? (
+                <Text style={s.infoCount}>
+                  {section.startTime ?? ''}{section.endTime ? ` – ${section.endTime}` : ''}
+                  {section.totalPeriods ? ` · ${section.totalPeriods} periods` : ''}
+                </Text>
+              ) : null}
             </View>
 
-            {/* Search */}
-            <View style={s.searchBox}>
-              <Ionicons name="search-outline" size={16} color={Colors.textLight} />
-              <TextInput
-                style={s.searchInput}
-                placeholder="Search students..."
-                placeholderTextColor={Colors.textLight}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-
-            {/* Students */}
-            <View style={{ paddingHorizontal: Spacing.md }}>
-              <Text style={s.groupLabel}>Students ({students.length})</Text>
-              {students.map((st: any, i: number) => (
-                <View key={i} style={s.studentRow}>
-                  <View style={s.avatar}>
-                    <Text style={s.avatarText}>{st.name?.[0] ?? '?'}</Text>
-                  </View>
-                  <View style={s.studentInfo}>
-                    <Text style={s.studentName}>{st.name}</Text>
-                    {st.rollNumber && <Text style={s.roll}>Roll #{st.rollNumber}</Text>}
-                  </View>
+            {/* Students — roster names come from the enrolled list when populated */}
+            {students.length > 0 && (
+              <>
+                <View style={s.searchBox}>
+                  <Ionicons name="search-outline" size={16} color={Colors.textLight} />
+                  <TextInput
+                    style={s.searchInput}
+                    placeholder="Search students..."
+                    placeholderTextColor={Colors.textLight}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
                 </View>
-              ))}
-            </View>
+                <View style={{ paddingHorizontal: Spacing.md }}>
+                  <Text style={s.groupLabel}>Students ({students.length})</Text>
+                  {students.map((st: any, i: number) => (
+                    <View key={i} style={s.studentRow}>
+                      <View style={s.avatar}>
+                        <Text style={s.avatarText}>{st.name?.[0] ?? '?'}</Text>
+                      </View>
+                      <View style={s.studentInfo}>
+                        <Text style={s.studentName}>{st.name}</Text>
+                        {st.rollNumber && <Text style={s.roll}>Roll #{st.rollNumber}</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Monitors */}
+            {monitors.length > 0 && (
+              <View style={{ paddingHorizontal: Spacing.md }}>
+                <Text style={s.groupLabel}>Class Monitors</Text>
+                {monitors.map((m: any, i: number) => (
+                  <View key={i} style={s.studentRow}>
+                    <View style={s.avatar}>
+                      <Text style={s.avatarText}>{m.student?.name?.[0] ?? '★'}</Text>
+                    </View>
+                    <View style={s.studentInfo}>
+                      <Text style={s.studentName}>{m.student?.name ?? 'Monitor'}</Text>
+                      {m.role ? <Text style={s.roll}>{m.role}</Text> : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Announcements */}
             {announcements.length > 0 && (

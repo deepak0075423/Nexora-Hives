@@ -29,7 +29,8 @@ export default function FeesScreen() {
     }
   }, [user?.role]);
 
-  useEffect(() => { load(); }, [load]);
+  // Wait for the user record — firing before role is known would hit the wrong role's API
+  useEffect(() => { if (user?.role) load(); }, [user?.role, load]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
   if (disabled) return (

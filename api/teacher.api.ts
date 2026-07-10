@@ -1,6 +1,7 @@
 import api from './axios';
 
 export const getDashboard        = () => api.get('/teacher/dashboard');
+export const getModules          = () => api.get('/teacher/modules');
 export const getMySection        = () => api.get('/teacher/my-section');
 export const getTimetable        = () => api.get('/teacher/timetable');
 export const getAttendance       = () => api.get('/teacher/attendance');

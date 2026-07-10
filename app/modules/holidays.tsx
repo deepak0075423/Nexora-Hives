@@ -36,7 +36,8 @@ export default function HolidaysScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  // Wait for the user record — firing before role is known would hit the wrong role's API
+  useEffect(() => { if (user?.role) load(); }, [user?.role]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const upcoming = holidays.filter((h: any) => new Date(h.endDate ?? h.date) >= new Date());

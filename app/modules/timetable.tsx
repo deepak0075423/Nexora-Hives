@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -7,12 +7,17 @@ import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 
-const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat'];
-const COLORS = ['#DBEAFE','#DCFCE7','#FEF3C7','#EDE9FE','#FCE7F3','#CCFBF1','#FEE2E2','#FFF7ED'];
+const COLORS = ['#DBEAFE', '#DCFCE7', '#FEF3C7', '#EDE9FE', '#FCE7F3', '#CCFBF1', '#FEE2E2', '#FFF7ED'];
 
+/**
+ * Both /teacher/timetable and /student/timetable return:
+ *   { entries: [{ dayOfWeek: 'Monday', periodNumber, subject{subjectName}, teacher{name},
+ *                 timetable?{ section{sectionName, class{className}}, periodsStructure } }],
+ *     days: ['Monday', …], periodsStructure? (teacher), timetable?{periodsStructure} (student) }
+ */
 export default function TimetableScreen() {
   const { user } = useAuth();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
@@ -22,14 +27,15 @@ export default function TimetableScreen() {
       const res: any = user?.role === 'teacher'
         ? await teacherApi.getTimetable()
         : await studentApi.getTimetable();
-      setData((res as any)?.data?.timetable ?? (res as any)?.timetable ?? (res as any)?.data ?? res ?? []);
+      setData((res as any)?.data ?? res ?? null);
     } catch (err: any) {
       if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  // Wait for the user record — firing before role is known would hit the wrong role's API
+  useEffect(() => { if (user?.role) load(); }, [user?.role]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
   if (disabled) return (
@@ -38,6 +44,18 @@ export default function TimetableScreen() {
       <ModuleDisabled />
     </>
   );
+
+  const entries: any[] = Array.isArray(data?.entries) ? data.entries : [];
+  const days: string[] = Array.isArray(data?.days) && data.days.length
+    ? data.days
+    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const periods: any[] = data?.periodsStructure?.length
+    ? data.periodsStructure
+    : data?.timetable?.periodsStructure ?? [];
+  const timeFor = (periodNumber: number) => {
+    const p = periods.find((x: any) => x.periodNumber === periodNumber);
+    return p?.startTime ? `${p.startTime}${p.endTime ? `–${p.endTime}` : ''}` : '';
+  };
 
   return (
     <>
@@ -50,22 +68,32 @@ export default function TimetableScreen() {
       >
         {loading ? (
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
-        ) : data.length === 0 ? (
-          <Text style={s.empty}>No timetable available</Text>
+        ) : entries.length === 0 ? (
+          <Text style={s.empty}>No timetable available yet</Text>
         ) : (
-          DAYS.map((day) => {
-            const slots: any[] = data.filter((sl: any) => sl.day === day || sl.dayOfWeek === day);
+          days.map((day) => {
+            const slots = entries
+              .filter((e: any) => e.dayOfWeek === day)
+              .sort((a: any, b: any) => (a.periodNumber ?? 0) - (b.periodNumber ?? 0));
             if (!slots.length) return null;
             return (
               <View key={day} style={s.dayBlock}>
                 <Text style={s.dayLabel}>{day}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {slots.map((sl: any, i: number) => (
-                    <View key={i} style={[s.slot, { backgroundColor: COLORS[i % COLORS.length] }]}>
-                      <Text style={s.period}>P{sl.period ?? i + 1}</Text>
-                      <Text style={s.subject}>{sl.subject?.name ?? sl.subjectName ?? sl.subject ?? 'â€”'}</Text>
-                      <Text style={s.time}>{sl.startTime ?? ''}{sl.endTime ? `â€“${sl.endTime}` : ''}</Text>
-                      {sl.teacherName && <Text style={s.teacher}>{sl.teacherName}</Text>}
+                    <View key={i} style={[s.slot, { backgroundColor: COLORS[((sl.periodNumber ?? i) - 1 + COLORS.length) % COLORS.length] }]}>
+                      <Text style={s.period}>P{sl.periodNumber ?? i + 1}</Text>
+                      <Text style={s.subject} numberOfLines={2}>{sl.subject?.subjectName ?? '—'}</Text>
+                      <Text style={s.time}>{timeFor(sl.periodNumber)}</Text>
+                      {user?.role === 'teacher'
+                        ? (sl.timetable?.section
+                            ? <Text style={s.teacher} numberOfLines={1}>
+                                {sl.timetable.section.class?.className ?? ''} {sl.timetable.section.sectionName ?? ''}
+                              </Text>
+                            : null)
+                        : (sl.teacher?.name
+                            ? <Text style={s.teacher} numberOfLines={1}>{sl.teacher.name}</Text>
+                            : null)}
                     </View>
                   ))}
                 </ScrollView>

@@ -6,7 +6,9 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import * as parentApi from '@/api/parent.api';
+import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { Badge, Empty, fmtDate } from '@/components/ui/kit';
 
 const GRADE_COLOR: Record<string, string> = {
   'A+': '#059669', A: '#16A34A', 'B+': '#4ADE80', B: '#86EFAC',
@@ -21,19 +23,33 @@ export default function ResultsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
+  // Teacher sees marks-entry tasks + class tests; students/parents see published results
+  const [teacherTasks, setTeacherTasks] = useState<any[]>([]);
+  const [classTests, setClassTests] = useState<any[]>([]);
+
   const load = async () => {
     try {
-      const res: any = user?.role === 'parent'
-        ? await parentApi.getResults()
-        : await studentApi.getResults();
-      setResults((res as any)?.data ?? res ?? []);
+      if (user?.role === 'teacher') {
+        const [tasks, tests]: any[] = await Promise.all([
+          teacherApi.getMarksEntry().catch(() => null),
+          teacherApi.getClassTests().catch(() => null),
+        ]);
+        setTeacherTasks((tasks as any)?.data ?? []);
+        setClassTests((tests as any)?.data ?? []);
+      } else {
+        const res: any = user?.role === 'parent'
+          ? await parentApi.getResults()
+          : await studentApi.getResults();
+        setResults((res as any)?.data ?? res ?? []);
+      }
     } catch (err: any) {
       if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  // Wait for the user record — firing before role is known would hit the wrong role's API
+  useEffect(() => { if (user?.role) load(); }, [user?.role]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
   if (disabled) return (
@@ -54,6 +70,49 @@ export default function ResultsScreen() {
       >
         {loading ? (
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+        ) : user?.role === 'teacher' ? (
+          <>
+            <Text style={s.groupLabel}>Marks Entry Tasks</Text>
+            <Text style={s.note}>Enter and submit marks from the web portal. This list shows what is pending on you.</Text>
+            {teacherTasks.length === 0 ? (
+              <Empty icon="checkmark-done-outline" text="No marks-entry tasks assigned" />
+            ) : teacherTasks.map((t: any) => (
+              <View key={t._id} style={s.card}>
+                <View style={s.cardHeader}>
+                  <View style={s.examIcon}>
+                    <Ionicons name="create" size={18} color={Colors.primary} />
+                  </View>
+                  <View style={s.examInfo}>
+                    <Text style={s.examName}>{t.name ?? t.examName ?? 'Exam'}</Text>
+                    <Text style={s.examDate}>
+                      {t.section?.sectionName ? `Section ${t.section.sectionName} · ` : ''}
+                      {(t.mySubjects ?? []).map((sub: any) => sub?.subjectName ?? sub?.name).filter(Boolean).join(', ')}
+                    </Text>
+                  </View>
+                  <Badge label={String(t.status ?? '').replace('_', ' ').toLowerCase()} />
+                </View>
+              </View>
+            ))}
+            <Text style={[s.groupLabel, { marginTop: Spacing.md }]}>My Class Tests</Text>
+            {classTests.length === 0 ? (
+              <Empty icon="clipboard-outline" text="No class tests yet" />
+            ) : classTests.map((t: any) => (
+              <View key={t._id} style={s.card}>
+                <View style={s.cardHeader}>
+                  <View style={s.examIcon}>
+                    <Ionicons name="clipboard" size={18} color={Colors.primary} />
+                  </View>
+                  <View style={s.examInfo}>
+                    <Text style={s.examName}>{t.title ?? t.name ?? 'Class Test'}</Text>
+                    <Text style={s.examDate}>
+                      {t.subject?.subjectName ? `${t.subject.subjectName} · ` : ''}{fmtDate(t.testDate ?? t.date ?? t.createdAt)}
+                    </Text>
+                  </View>
+                  {t.maxMarks != null && <Text style={s.examDate}>/{t.maxMarks}</Text>}
+                </View>
+              </View>
+            ))}
+          </>
         ) : results.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="bar-chart-outline" size={48} color={Colors.textLight} />
@@ -110,6 +169,8 @@ export default function ResultsScreen() {
 
 const s = StyleSheet.create({
   center: { alignItems: 'center', paddingTop: 80 },
+  groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 6 },
+  note: { fontSize: 11, color: Colors.textSecondary, marginBottom: 10 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyText: { ...Typography.body, color: Colors.textSecondary },
   card: {

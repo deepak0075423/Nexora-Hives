@@ -27,8 +27,12 @@ export default function MyClassScreen() {
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  // API shape: { profile, section{class{className}, sectionName, classTeacher{name}, academicYear{yearName}},
+  //              subjectTeachers, monitors, classmates, announcements }
+  const section = data?.section;
   const classmates: any[] = data?.classmates ?? data?.students ?? [];
   const announcements: any[] = data?.announcements ?? [];
+  const subjectTeachers: any[] = data?.subjectTeachers ?? [];
 
   if (disabled) return (
     <>
@@ -54,13 +58,35 @@ export default function MyClassScreen() {
             <View style={s.infoCard}>
               <View style={s.infoRow}>
                 <Ionicons name="school" size={20} color={Colors.textInverse} />
-                <Text style={s.infoTitle}>{data?.className ?? data?.class ?? 'My Class'}</Text>
+                <Text style={s.infoTitle}>{section?.class?.className ?? 'My Class'}</Text>
               </View>
-              {data?.section && <Text style={s.infoSub}>Section {data.section}</Text>}
-              {data?.classTeacher?.name && (
-                <Text style={s.infoSub}>Class Teacher: {data.classTeacher.name}</Text>
+              {section?.sectionName ? (
+                <Text style={s.infoSub}>
+                  Section {section.sectionName}{section.academicYear?.yearName ? ` · ${section.academicYear.yearName}` : ''}
+                </Text>
+              ) : (
+                <Text style={s.infoSub}>You are not enrolled in a section yet</Text>
+              )}
+              {section?.classTeacher?.name && (
+                <Text style={s.infoSub}>Class Teacher: {section.classTeacher.name}</Text>
               )}
             </View>
+
+            {/* Subject teachers */}
+            {subjectTeachers.length > 0 && (
+              <View style={s.section}>
+                <Text style={s.sectionTitle}>Subject Teachers</Text>
+                {subjectTeachers.map((st: any, i: number) => (
+                  <View key={i} style={s.cmRow}>
+                    <View style={s.cmAvatar}>
+                      <Text style={s.cmAvatarText}>{st.subject?.subjectName?.[0] ?? 'S'}</Text>
+                    </View>
+                    <Text style={s.cmName}>{st.subject?.subjectName ?? 'Subject'}</Text>
+                    <Text style={s.cmRoll}>{st.teacher?.name ?? '--'}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Announcements */}
             {announcements.length > 0 && (

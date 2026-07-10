@@ -1,0 +1,84 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { Colors, Spacing } from '@/constants/theme';
+import * as superApi from '@/api/superadmin.api';
+import {
+  unwrap, LoaderView, Empty, RowItem, SearchBar, FAB, Badge, confirmAsync,
+} from '@/components/ui/kit';
+
+export default function SuperSchoolsScreen() {
+  const router = useRouter();
+  const [list, setList] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = async (p = 1, q = search) => {
+    try {
+      const d = unwrap(await superApi.getSchools({ page: p, limit: 20, search: q }));
+      const rows = d?.data ?? [];
+      if (p === 1) setList(rows); else setList(prev => [...prev, ...rows]);
+      setTotal(d?.total ?? rows.length);
+      setPage(p);
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setLoading(false); setRefreshing(false); }
+  };
+
+  useEffect(() => { load(1, ''); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { setLoading(true); load(1, search); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const handleDelete = async (sc: any) => {
+    if (!(await confirmAsync('Delete School', `Delete ${sc.name}? All its users and data references remain orphaned — this cannot be undone.`, 'Delete'))) return;
+    try { await superApi.deleteSchool(sc._id); load(1); }
+    catch (err: any) { Alert.alert('Error', err.message); }
+  };
+
+  return (
+    <>
+      <Stack.Screen options={{ title: `Schools (${total})` }} />
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <ScrollView
+          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1); }} tintColor={Colors.primary} />}
+        >
+          <SearchBar value={search} onChange={setSearch} placeholder="Search schools…" />
+          {loading ? <LoaderView /> : list.length === 0 ? (
+            <Empty icon="business-outline" text="No schools yet" />
+          ) : (
+            <>
+              {list.map((sc: any) => (
+                <RowItem
+                  key={sc._id}
+                  icon="business" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
+                  title={sc.name}
+                  sub={`${sc.code ?? ''}${sc.city ? ` · ${sc.city}` : ''}${sc.email ? `\n${sc.email}` : ''}`}
+                  right={<Badge label={sc.isActive === false ? 'inactive' : 'active'} />}
+                  onPress={() => {
+                    Alert.alert(sc.name, undefined, [
+                      { text: 'Close', style: 'cancel' },
+                      { text: 'Edit', onPress: () => router.push({ pathname: '/modules/super/school-form', params: { id: sc._id } } as any) },
+                      { text: 'Permissions', onPress: () => router.push('/modules/super/permissions' as any) },
+                      { text: 'Delete', style: 'destructive', onPress: () => handleDelete(sc) },
+                    ]);
+                  }}
+                />
+              ))}
+              {list.length < total && (
+                <TouchableOpacity onPress={() => load(page + 1)} style={{ padding: 14, alignItems: 'center' }}>
+                  <Text style={{ color: Colors.accent, fontWeight: '600', fontSize: 13 }}>Load more ({list.length}/{total})</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </ScrollView>
+        <FAB onPress={() => router.push('/modules/super/school-form' as any)} />
+      </View>
+    </>
+  );
+}

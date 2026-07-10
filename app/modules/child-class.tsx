@@ -47,13 +47,15 @@ export default function ChildClassScreen() {
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
         ) : (
           <>
+            {/* API shape: { student: StudentProfile, section: { class{className}, sectionName, classTeacher{name} } } */}
             <View style={s.card}>
-              <Text style={s.cardTitle}>{data?.className ?? 'â€”'}</Text>
-              {data?.section && <Text style={s.cardSub}>Section: {data.section}</Text>}
-              {data?.classTeacher?.name && (
+              <Text style={s.cardTitle}>{data?.section?.class?.className ?? 'No class assigned'}</Text>
+              {data?.section?.sectionName && <Text style={s.cardSub}>Section: {data.section.sectionName}</Text>}
+              {data?.student?.rollNumber ? <Text style={s.cardSub}>Roll No: {data.student.rollNumber}</Text> : null}
+              {data?.section?.classTeacher?.name && (
                 <View style={s.teacherRow}>
                   <Ionicons name="person-circle" size={16} color="rgba(255,255,255,0.7)" />
-                  <Text style={s.teacherName}>{data.classTeacher.name}</Text>
+                  <Text style={s.teacherName}>{data.section.classTeacher.name}</Text>
                 </View>
               )}
             </View>
