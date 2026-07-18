@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
+import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SegTabs, FAB, FormModal,
-  Input, Select, fmtMoney,
+  Input, Select, fmtMoney, SectionTitle, ActionBtn,
 } from '@/components/ui/kit';
 
 const TABS = [
@@ -27,6 +29,9 @@ export default function AdminFeesSetupScreen() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
+  // Fee-structure builder
+  const [classes, setClasses] = useState<any[]>([]);
+  const [structItems, setStructItems] = useState<{ feeHead: string; amount: string }[]>([{ feeHead: '', amount: '' }]);
 
   const load = async () => {
     try {
@@ -49,12 +54,35 @@ export default function AdminFeesSetupScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    adminApi.getClassesWithSections(true).then((r: any) => setClasses(unwrap(r) ?? [])).catch(() => {});
+  }, []);
+
+  const classOptions = useMemo(
+    () => (classes ?? []).map((c: any) => ({ label: c.className ?? c.name, value: c._id })), [classes]);
+  const sectionOptions = useMemo(() => {
+    const cls = (classes ?? []).find((c: any) => c._id === form.classId);
+    return (cls?.sections ?? []).map((sec: any) => ({ label: `Section ${sec.sectionName ?? sec.name}`, value: sec._id }));
+  }, [classes, form.classId]);
 
   const submit = async () => {
     setSaving(true);
     try {
-      if (tab === 'categories') {
+      if (tab === 'structures') {
+        if (!form.name?.trim()) throw { message: 'Name is required' };
+        if (!form.classId) throw { message: 'Pick a class' };
+        if (form.level === 'section' && !form.sectionId) throw { message: 'Pick a section' };
+        const items = structItems
+          .filter(it => it.feeHead && Number(it.amount) > 0)
+          .map(it => ({ feeHead: it.feeHead, amount: Number(it.amount) }));
+        if (!items.length) throw { message: 'Add at least one fee head with an amount' };
+        await feesApi.createFeeStructure({
+          name: form.name, level: form.level || 'class',
+          classId: form.classId, sectionId: form.level === 'section' ? form.sectionId : null,
+          dueDay: Number(form.dueDay) || null, items,
+        });
+      } else if (tab === 'categories') {
         if (!form.name?.trim()) throw { message: 'Name is required' };
         await feesApi.createFeeCategory({ name: form.name });
       } else if (tab === 'heads') {
@@ -79,6 +107,7 @@ export default function AdminFeesSetupScreen() {
       }
       setShowForm(false);
       setForm({});
+      setStructItems([{ feeHead: '', amount: '' }]);
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
@@ -92,7 +121,7 @@ export default function AdminFeesSetupScreen() {
   );
 
   const rows = data[tab] ?? [];
-  const canCreate = tab !== 'structures';
+  const canCreate = true;
 
   return (
     <>
@@ -106,7 +135,7 @@ export default function AdminFeesSetupScreen() {
           {loading ? <LoaderView /> : rows.length === 0 ? (
             <Empty icon="construct-outline"
               text={tab === 'structures'
-                ? 'No fee structures for the active year. Build structures on the web admin panel.'
+                ? 'No fee structures for the active year. Tap + to create one.'
                 : 'Nothing here yet'} />
           ) : (
             rows.map((r: any) => (
@@ -131,6 +160,50 @@ export default function AdminFeesSetupScreen() {
 
       <FormModal visible={showForm} title={`Add ${TABS.find(t => t.key === tab)?.label ?? ''}`} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input label="Name *" value={form.name ?? ''} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Name" />
+        {tab === 'structures' && (
+          <>
+            <Select label="Level" value={form.level ?? 'class'} onChange={v => setForm(f => ({ ...f, level: v }))}
+              options={[{ label: 'Whole class', value: 'class' }, { label: 'Single section', value: 'section' }]} />
+            <Select label="Class *" value={form.classId ?? ''} onChange={v => setForm(f => ({ ...f, classId: v, sectionId: '' }))} options={classOptions} />
+            {form.level === 'section' && (
+              <Select label="Section *" value={form.sectionId ?? ''} onChange={v => setForm(f => ({ ...f, sectionId: v }))} options={sectionOptions} />
+            )}
+            <Input label="Due day of month" value={form.dueDay ?? ''} onChange={v => setForm(f => ({ ...f, dueDay: v }))} keyboardType="numeric" placeholder="e.g. 10" />
+
+            <SectionTitle>Fee items</SectionTitle>
+            {(data.heads ?? []).length === 0 && (
+              <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: 8 }}>
+                Create fee heads first (Heads tab) — items are built from them.
+              </Text>
+            )}
+            {structItems.map((it, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                <View style={{ flex: 2 }}>
+                  <Select label={`Head ${i + 1}`} value={it.feeHead}
+                    onChange={v => setStructItems(prev => prev.map((x, j) => j === i ? { ...x, feeHead: v } : x))}
+                    options={(data.heads ?? []).map((h: any) => ({ label: h.name, value: h._id }))} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Input label="Amount" value={it.amount} keyboardType="numeric"
+                    onChange={v => setStructItems(prev => prev.map((x, j) => j === i ? { ...x, amount: v } : x))} />
+                </View>
+                <TouchableOpacity
+                  onPress={() => setStructItems(prev => prev.length > 1 ? prev.filter((_, j) => j !== i) : prev)}
+                  style={{ paddingTop: 30 }} hitSlop={8}
+                >
+                  <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+                </TouchableOpacity>
+              </View>
+            ))}
+            <View style={{ marginBottom: 8 }}>
+              <ActionBtn label="+ Add Item" tone="info" small
+                onPress={() => setStructItems(prev => [...prev, { feeHead: '', amount: '' }])} />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.text, marginBottom: 8 }}>
+              Total: {fmtMoney(structItems.reduce((s, it) => s + (Number(it.amount) || 0), 0))}
+            </Text>
+          </>
+        )}
         {tab === 'heads' && (
           <>
             <Select label="Category" value={form.categoryId ?? ''} onChange={v => setForm(f => ({ ...f, categoryId: v }))}

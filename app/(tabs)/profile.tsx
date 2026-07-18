@@ -11,6 +11,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { logout } from '@/api/auth.api';
 import { getProfile } from '@/api/profile.api';
+import { FormModal } from '@/components/ui/kit';
 
 interface ProfileData {
   user: { name: string; email: string; phone?: string; role: string; profileImage?: string };
@@ -109,13 +110,15 @@ function RoleInfoBlock({ role, p }: { role: string; p: Record<string, any> }) {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, accounts, switchAccount, addAccount } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [data, setData]         = useState<ProfileData | null>(null);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSwitch, setShowSwitch] = useState(false);
+  const [switching, setSwitching] = useState('');
 
   const fetchData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -212,6 +215,8 @@ export default function ProfileScreen() {
           <Block title="Account">
             <MenuItem icon="create-outline"       label="Edit Profile"    onPress={() => router.push('/modules/edit-profile' as any)} />
             <MenuItem icon="lock-closed-outline"  label="Change Password" onPress={() => router.push('/modules/change-password' as any)} />
+            <MenuItem icon="people-circle-outline" label="Switch Account" onPress={() => setShowSwitch(true)} />
+            <MenuItem icon="keypad-outline"       label="App Lock"        onPress={() => router.push('/modules/app-lock' as any)} />
             <MenuItem icon="notifications-outline" label="Notifications"  onPress={() => router.push('/modules/alerts' as any)} last />
           </Block>
 
@@ -220,12 +225,12 @@ export default function ProfileScreen() {
             <MenuItem
               icon="help-circle-outline"
               label="Help & Support"
-              onPress={() => Alert.alert('Help & Support', 'For assistance, contact us at:\nsupport@nexorahives.com')}
+              onPress={() => Alert.alert('Help & Support', 'For assistance, contact us at:\nsupport@aksharum.com')}
             />
             <MenuItem
               icon="information-circle-outline"
               label="About"
-              onPress={() => Alert.alert('Nexora Hives', 'Version 1.0.0\n\nA complete school management solution.\n\n© 2025 Nexora Hives')}
+              onPress={() => Alert.alert('Aksharum', 'Version 1.0.0\n\nA complete school management solution.\n\n© 2026 Aksharum')}
               last
             />
           </Block>
@@ -236,13 +241,72 @@ export default function ProfileScreen() {
             <Text style={s.signOutText}>Sign Out</Text>
           </TouchableOpacity>
 
-          <Text style={s.version}>Nexora Hives v1.0.0</Text>
+          <Text style={s.version}>Aksharum v1.0.0</Text>
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
+
+      {/* ── Switch Account sheet ─────────────────────────────────── */}
+      <FormModal visible={showSwitch} title="Switch Account" onClose={() => setShowSwitch(false)}>
+        {accounts.map(acc => {
+          const isMe = acc._id === user?._id;
+          return (
+            <TouchableOpacity
+              key={acc._id}
+              style={sw.row}
+              disabled={isMe || !!switching}
+              onPress={async () => {
+                setSwitching(acc._id);
+                const ok = await switchAccount(acc._id);
+                setSwitching('');
+                setShowSwitch(false);
+                if (!ok) Alert.alert('Session expired', 'That account needs to sign in again with its password.');
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[sw.avatar, isMe && { backgroundColor: Colors.success }]}>
+                <Text style={sw.avatarText}>{acc.name?.[0]?.toUpperCase() ?? '?'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={sw.name}>{acc.name}{isMe ? ' (current)' : ''}</Text>
+                <Text style={sw.meta} numberOfLines={1}>
+                  {acc.email} · {acc.role.replace('-', ' ')}{acc.schoolName ? ` · ${acc.schoolName}` : ''}
+                </Text>
+              </View>
+              {switching === acc._id
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : !isMe && <Ionicons name="swap-horizontal" size={17} color={Colors.accent} />}
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          style={sw.row}
+          onPress={async () => { setShowSwitch(false); await addAccount(); }}
+          activeOpacity={0.7}
+        >
+          <View style={[sw.avatar, { backgroundColor: Colors.accent }]}>
+            <Ionicons name="add" size={20} color="#fff" />
+          </View>
+          <Text style={[sw.name, { flex: 1 }]}>Add another account</Text>
+        </TouchableOpacity>
+      </FormModal>
     </View>
   );
 }
+
+const sw = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.divider,
+  },
+  avatar: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  name: { ...Typography.label, color: Colors.text },
+  meta: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+});
 
 const ii = StyleSheet.create({
   row:      { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: Colors.divider },

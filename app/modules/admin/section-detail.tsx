@@ -20,6 +20,7 @@ export default function AdminSectionDetailScreen() {
   const [subjects, setSubjects] = useState<any[]>([]);
 
   const [showTeacherForm, setShowTeacherForm] = useState(false);
+  const [teacherRole, setTeacherRole] = useState<'class' | 'vice'>('class');
   const [teacherId, setTeacherId] = useState('');
   const [showAssignStudent, setShowAssignStudent] = useState(false);
   const [studentQ, setStudentQ] = useState('');
@@ -60,14 +61,21 @@ export default function AdminSectionDetailScreen() {
   const subjectOptions = useMemo(
     () => subjects.map((s: any) => ({ label: s.subjectName, value: s._id })), [subjects]);
 
-  const saveClassTeacher = async () => {
+  const saveTeacher = async () => {
     setSaving(true);
     try {
-      await adminApi.updateSectionTeacher(id!, { teacherId });
+      // teacherId → classTeacher; viceTeacherId → substituteTeacher
+      await adminApi.updateSectionTeacher(id!, teacherRole === 'class' ? { teacherId } : { viceTeacherId: teacherId });
       setShowTeacherForm(false);
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
+  };
+
+  const openTeacherForm = (role: 'class' | 'vice') => {
+    setTeacherRole(role);
+    setTeacherId(role === 'class' ? section?.classTeacher?._id ?? '' : section?.substituteTeacher?._id ?? '');
+    setShowTeacherForm(true);
   };
 
   const searchStudents = async () => {
@@ -121,10 +129,17 @@ export default function AdminSectionDetailScreen() {
         {loading ? <LoaderView /> : (
           <>
             <KV label="Class Teacher" value={section?.classTeacher ? `${section.classTeacher.name}` : 'Not assigned'} />
+            <KV label="Vice / Substitute Teacher" value={section?.substituteTeacher ? `${section.substituteTeacher.name}` : 'Not assigned'} />
             <KV label="Capacity" value={`${students.length}/${section?.maxStudents ?? '--'}`} />
-            <View style={{ marginBottom: Spacing.md, marginTop: 6 }}>
-              <ActionBtn label={section?.classTeacher ? 'Change Class Teacher' : 'Assign Class Teacher'} tone="info"
-                onPress={() => { setTeacherId(section?.classTeacher?._id ?? ''); setShowTeacherForm(true); }} />
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.md, marginTop: 6 }}>
+              <View style={{ flex: 1 }}>
+                <ActionBtn label={section?.classTeacher ? 'Change Class Teacher' : 'Assign Class Teacher'} tone="info"
+                  onPress={() => openTeacherForm('class')} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ActionBtn label={section?.substituteTeacher ? 'Change Vice Teacher' : 'Assign Vice Teacher'} tone="neutral"
+                  onPress={() => openTeacherForm('vice')} />
+              </View>
             </View>
 
             <SegTabs
@@ -167,7 +182,11 @@ export default function AdminSectionDetailScreen() {
         )}
       </ScrollView>
 
-      <FormModal visible={showTeacherForm} title="Class Teacher" onClose={() => setShowTeacherForm(false)} onSubmit={saveClassTeacher} submitting={saving}>
+      <FormModal
+        visible={showTeacherForm}
+        title={teacherRole === 'class' ? 'Class Teacher' : 'Vice / Substitute Teacher'}
+        onClose={() => setShowTeacherForm(false)} onSubmit={saveTeacher} submitting={saving}
+      >
         <Select label="Teacher" value={teacherId} onChange={setTeacherId} options={teacherOptions} />
       </FormModal>
 

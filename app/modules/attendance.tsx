@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -18,7 +18,13 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; icon: string }> 
 
 export default function AttendanceScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // Teachers get the full attendance workspace (mark class, clock in/out, corrections)
+  useEffect(() => {
+    if (user?.role === 'teacher') router.replace('/modules/teacher-attendance' as any);
+  }, [user?.role]);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,8 +47,16 @@ export default function AttendanceScreen() {
   useEffect(() => { if (user?.role) load(); }, [user?.role]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  const records: any[] = data?.records ?? data?.calendar ?? [];
-  const summary = data?.summary;
+  // Student/parent calendar endpoints return a bare records array; teacher self
+  // attendance returns { records/days, summary }. Handle both shapes.
+  const records: any[] = Array.isArray(data) ? data : (data?.records ?? data?.calendar ?? []);
+
+  // Those calendar endpoints carry no summary — derive one so the header shows.
+  const summary = data?.summary ?? (records.length ? (() => {
+    const count = (st: string) => records.filter((r: any) => String(r.status).toLowerCase() === st).length;
+    const present = count('present'), absent = count('absent'), late = count('late');
+    return { present, absent, late, percentage: Math.round((present / records.length) * 100) };
+  })() : null);
 
   if (disabled) return (
     <>

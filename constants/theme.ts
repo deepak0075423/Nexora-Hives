@@ -48,6 +48,8 @@ export const Colors = {
     section:    { bg: '#EEF2FF', icon: '#4338CA' },
     payroll:    { bg: '#F0FDF4', icon: '#15803D' },
     exams:      { bg: '#FDF2F8', icon: '#BE185D' },
+    inventory:  { bg: '#E0F2FE', icon: '#0369A1' },
+    transport:  { bg: '#FEF3C7', icon: '#D97706' },
   },
 
   // Tab bar

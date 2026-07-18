@@ -2,7 +2,9 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
-import { Platform, StyleSheet } from 'react-native';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -39,6 +41,8 @@ const ADMIN_TABS: TabConfig[] = [
 
 export default function TabLayout() {
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
+  const insets = useSafeAreaInsets();
   const role = user?.role;
 
   const tabs =
@@ -47,13 +51,16 @@ export default function TabLayout() {
     role === 'admin' || role === 'super-admin' ? ADMIN_TABS :
     STUDENT_TABS;
 
+  // Sit above the system navigation bar (Android edge-to-edge / iOS home indicator)
+  const bottomPad = Math.max(insets.bottom, 8);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.tabActive,
         tabBarInactiveTintColor: Colors.tabInactive,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { height: 56 + bottomPad, paddingBottom: bottomPad }],
         tabBarLabelStyle: styles.tabLabel,
         tabBarItemStyle: styles.tabItem,
       }}
@@ -69,6 +76,9 @@ export default function TabLayout() {
           name={tab.name}
           options={{
             title: tab.title,
+            ...(tab.name === 'notifications' && unreadCount > 0
+              ? { tabBarBadge: unreadCount > 9 ? '9+' : unreadCount }
+              : {}),
             tabBarIcon: ({ focused, color }) => (
               <Ionicons
                 name={focused ? tab.activeIcon : tab.icon}
@@ -92,10 +102,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 1,
     shadowRadius: 12,
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 8,
+    paddingTop: 6,
   },
-  tabLabel: { fontSize: 10, fontWeight: '500', marginTop: 2 },
-  tabItem: { paddingTop: 4 },
+  tabLabel: { fontSize: 10, fontWeight: '500' },
+  tabItem: { paddingTop: 2 },
 });

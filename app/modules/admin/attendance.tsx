@@ -56,8 +56,12 @@ export default function AdminAttendanceScreen() {
     </>
   );
 
-  const records: any[] = myAtt?.records ?? myAtt?.attendance ?? (Array.isArray(myAtt) ? myAtt : []);
+  // Self-attendance returns { days, summary, today }; show only days with real activity
+  const days: any[] = myAtt?.days ?? (Array.isArray(myAtt) ? myAtt : []);
+  const records: any[] = days.filter((d: any) => d.status && !['weekend', 'pending'].includes(d.status));
   const today = myAtt?.today;
+  // `today` carries clock state, not a status — derive a label for the badge
+  const todayStatus = today?.onLeave ? (today.leaveLabel || 'Leave') : today?.clockedIn ? 'Present' : null;
 
   return (
     <>
@@ -98,15 +102,17 @@ export default function AdminAttendanceScreen() {
             ) : (
               <>
                 <Card>
-                  <KV label="Today" value={today?.status ? <Badge label={String(today.status)} /> : 'Not marked'} />
+                  <KV label="Today" value={todayStatus ? <Badge label={todayStatus} /> : 'Not marked'} />
                   <KV label="Check-in" value={today?.checkIn ?? '--'} />
                   <KV label="Check-out" value={today?.checkOut ?? '--'} />
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <ActionBtn label={busy ? '…' : 'Clock In'} tone="success" onPress={() => punch('in')} />
+                      <ActionBtn label={busy ? '…' : today?.clockedIn ? 'Clocked In ✓' : 'Clock In'} tone="success"
+                        onPress={() => !today?.clockedIn && punch('in')} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <ActionBtn label={busy ? '…' : 'Clock Out'} tone="warning" onPress={() => punch('out')} />
+                      <ActionBtn label={busy ? '…' : today?.clockedOut ? 'Clocked Out ✓' : 'Clock Out'} tone="warning"
+                        onPress={() => !today?.clockedOut && punch('out')} />
                     </View>
                   </View>
                 </Card>

@@ -7,6 +7,14 @@ export const getModules     = () => api.get('/admin/modules');
 // ── School settings ──────────────────────────────────────────────────────────
 export const getSchoolSettings    = ()             => api.get('/admin/school-settings');
 export const updateSchoolSettings = (data: object) => api.put('/admin/school-settings', data);
+// Multipart variant — use when uploading a logo image
+export const updateSchoolSettingsForm = (fd: FormData) =>
+  api.put('/admin/school-settings', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+// ── SMTP settings (per-school outgoing email) ────────────────────────────────
+export const getSmtpSettings    = ()             => api.get('/admin/smtp-settings');
+export const updateSmtpSettings = (data: object) => api.put('/admin/smtp-settings', data);
+export const testSmtpSettings   = (to?: string)  => api.post('/admin/smtp-settings/test', { to });
 
 // ── Teachers ─────────────────────────────────────────────────────────────────
 export const getTeachers        = (params?: object) => api.get('/admin/teachers', { params });

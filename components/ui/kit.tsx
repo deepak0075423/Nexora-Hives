@@ -22,6 +22,11 @@ export const fmtMoney = (n?: number | null) =>
 
 export const confirmAsync = (title: string, message: string, destructiveLabel = 'Confirm') =>
   new Promise<boolean>((resolve) => {
+    // RN Alert is a no-op on react-native-web — use the browser dialog there
+    if (Platform.OS === 'web') {
+      resolve(typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`));
+      return;
+    }
     Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
       { text: destructiveLabel, style: 'destructive', onPress: () => resolve(true) },

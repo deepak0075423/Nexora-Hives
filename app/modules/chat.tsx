@@ -89,18 +89,16 @@ export default function ChatListScreen() {
     } as any);
   };
 
-  const chatOptions = (c: any) => {
-    Alert.alert(c.displayName ?? c.name ?? 'Chat', undefined, [
-      { text: 'Close', style: 'cancel' },
-      {
-        text: c.isMuted ? 'Unmute' : 'Mute',
-        onPress: async () => { try { await chatApi.toggleMute(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); } },
-      },
-      {
-        text: c.isArchived ? 'Unarchive' : 'Archive',
-        onPress: async () => { try { await chatApi.toggleArchive(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); } },
-      },
-    ]);
+  // Long-press options — custom sheet (RN Alert menus don't render on web)
+  const [optionsChat, setOptionsChat] = useState<any>(null);
+
+  const doMute = async () => {
+    const c = optionsChat; setOptionsChat(null);
+    try { await chatApi.toggleMute(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+  const doArchive = async () => {
+    const c = optionsChat; setOptionsChat(null);
+    try { await chatApi.toggleArchive(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
   const openNew = async () => {
@@ -215,7 +213,7 @@ export default function ChatListScreen() {
                     <TouchableOpacity
                       key={c._id} style={cs.row} activeOpacity={0.7}
                       onPress={() => openThread(c)}
-                      onLongPress={() => chatOptions(c)}
+                      onLongPress={() => setOptionsChat(c)}
                     >
                       <View>
                         <View style={[cs.avatar, c.type !== 'direct' && { backgroundColor: Colors.accent }]}>
@@ -241,6 +239,9 @@ export default function ChatListScreen() {
                                 <Text style={cs.unreadText}>{c.unreadCount > 99 ? '99+' : c.unreadCount}</Text>
                               </View>
                             )}
+                            <TouchableOpacity onPress={() => setOptionsChat(c)} hitSlop={8}>
+                              <Ionicons name="ellipsis-vertical" size={14} color={Colors.textLight} />
+                            </TouchableOpacity>
                           </View>
                         </View>
                       </View>
@@ -253,6 +254,22 @@ export default function ChatListScreen() {
         </ScrollView>
         <FAB icon="chatbubble-ellipses" onPress={openNew} />
       </View>
+
+      {/* Chat options sheet (mute / archive) */}
+      <FormModal
+        visible={!!optionsChat}
+        title={optionsChat?.displayName ?? optionsChat?.name ?? 'Chat'}
+        onClose={() => setOptionsChat(null)}
+      >
+        <TouchableOpacity style={cs.optionRow} onPress={doMute}>
+          <Ionicons name={optionsChat?.isMuted ? 'volume-high-outline' : 'volume-mute-outline'} size={19} color={Colors.text} />
+          <Text style={cs.optionText}>{optionsChat?.isMuted ? 'Unmute notifications' : 'Mute notifications'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={cs.optionRow} onPress={doArchive}>
+          <Ionicons name={optionsChat?.isArchived ? 'arrow-up-circle-outline' : 'archive-outline'} size={19} color={Colors.text} />
+          <Text style={cs.optionText}>{optionsChat?.isArchived ? 'Unarchive chat' : 'Archive chat'}</Text>
+        </TouchableOpacity>
+      </FormModal>
 
       {/* New chat / group modal */}
       <FormModal
@@ -351,4 +368,9 @@ const cs = StyleSheet.create({
   },
   archiveText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
   sectionLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8, marginTop: 4 },
+  optionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.divider,
+  },
+  optionText: { fontSize: 15, color: Colors.text, fontWeight: '500' },
 });

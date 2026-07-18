@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import * as notifApi from '@/api/notifications.api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ const CAN_SEND = ['teacher', 'admin', 'super-admin'] as const;
 
 export default function NotificationsTab() {
   const { user }  = useAuth();
+  const { lastEventAt } = useNotifications();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
   const role      = user?.role ?? 'student';
@@ -111,6 +113,11 @@ export default function NotificationsTab() {
   }, []);
 
   useEffect(() => { loadInbox(); }, [loadInbox]);
+
+  // Real-time: reload when a notification arrives over the socket
+  useEffect(() => {
+    if (lastEventAt) loadInbox();
+  }, [lastEventAt, loadInbox]);
 
   useEffect(() => {
     if (tab === 'sent' && !sentLoaded) loadSent();

@@ -20,6 +20,8 @@ const MODULES: { key: string; label: string; desc: string }[] = [
   { key: 'library',      label: 'Library',        desc: 'Catalogue, circulation and fines' },
   { key: 'payroll',      label: 'Payroll',        desc: 'Salary structures, runs and payslips' },
   { key: 'fees',         label: 'Fees',           desc: 'Fee structures, payments and receipts' },
+  { key: 'inventory',    label: 'Inventory',      desc: 'Stock, assets, procurement & purchase requests' },
+  { key: 'transport',    label: 'Transport',      desc: 'Fleet, routes, trips, tracking & transport fees' },
   { key: 'chat',         label: 'Chat',           desc: 'Real-time messaging' },
 ];
 

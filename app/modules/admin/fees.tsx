@@ -35,7 +35,9 @@ export default function AdminFeesDashboardScreen() {
     { label: 'Student Fees', sub: 'Assignments, dues and per-student detail', icon: 'school', route: '/modules/admin/fees-students' },
     { label: 'Payments', sub: 'Record, approve and review payments', icon: 'card', route: '/modules/admin/fees-payments' },
     { label: 'Setup', sub: 'Structures, categories, heads, fines, concessions', icon: 'construct', route: '/modules/admin/fees-setup' },
+    { label: 'School Ledger', sub: 'Every charge, payment and concession', icon: 'book', route: '/modules/admin/fees-ledger' },
     { label: 'Reports', sub: 'Collection and dues reports', icon: 'stats-chart', route: '/modules/admin/fees-reports' },
+    { label: 'Settings', sub: 'Receipts, currency, online payments', icon: 'settings', route: '/modules/admin/fees-settings' },
   ];
 
   return (

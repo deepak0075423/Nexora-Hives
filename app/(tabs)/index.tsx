@@ -15,6 +15,7 @@ import * as adminApi from '@/api/admin.api';
 import * as superApi from '@/api/superadmin.api';
 import * as notifApi from '@/api/notifications.api';
 import { useModules } from '@/hooks/useModules';
+import AppHeader from '@/components/AppHeader';
 
 // ─── Module lists per role ────────────────────────────────────────────────────
 // moduleFlag: the key in school.modules that must be true for this module to show.
@@ -30,14 +31,15 @@ const STUDENT_MODULES = [
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'aptitude',   label: 'Aptitude',   icon: 'bulb',             route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/fees',        moduleFlag: 'fees' },
+  { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/transport',   moduleFlag: 'transport' },
   { key: 'chat',       label: 'Chat',       icon: 'chatbubbles',      route: '/modules/chat',        moduleFlag: 'chat' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];
 
 const TEACHER_MODULES = [
-  { key: 'section',    label: 'My Section', icon: 'people',           route: '/modules/my-section' },
-  { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
+  { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section' },
+  { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
@@ -47,6 +49,7 @@ const TEACHER_MODULES = [
   { key: 'payroll',    label: 'Payroll',    icon: 'cash',             route: '/modules/teacher-payroll', moduleFlag: 'payroll' },
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
   { key: 'manageLib',  label: 'Manage Lib', icon: 'albums',           route: '/modules/library-admin', moduleFlag: 'library', requires: 'isLibrarian' },
+  { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/inventory-requests', moduleFlag: 'inventory' },
   { key: 'chat',       label: 'Chat',       icon: 'chatbubbles',      route: '/modules/chat',        moduleFlag: 'chat' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
@@ -66,6 +69,8 @@ const ADMIN_MODULES = [
   { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/admin/fees',        moduleFlag: 'fees' },
   { key: 'payroll',    label: 'Payroll',    icon: 'cash',             route: '/modules/admin/payroll',     moduleFlag: 'payroll' },
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library-admin',     moduleFlag: 'library' },
+  { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/admin/inventory',   moduleFlag: 'inventory' },
+  { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/admin/transport',   moduleFlag: 'transport' },
   { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/admin/leave',       moduleFlag: 'leave' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/admin/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/admin/holidays',    moduleFlag: 'holiday' },
@@ -95,6 +100,7 @@ const PARENT_MODULES = [
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/fees',        moduleFlag: 'fees' },
+  { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/transport-parent', moduleFlag: 'transport' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];
@@ -572,27 +578,20 @@ export default function DashboardScreen() {
   const firstName = user?.name?.split(' ')[0] ?? 'User';
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <View style={s.root}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <AppHeader unreadCount={unreadCount} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[s.scroll, { paddingBottom: 100 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {/* Top bar */}
+        {/* Greeting */}
         <View style={s.topBar}>
           <View>
             <Text style={s.dateText}>{dayLabel()} · {dateLabel()}</Text>
             <Text style={s.greeting}>Hey, {firstName}</Text>
           </View>
-          <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/modules/alerts' as any)}>
-            <Ionicons name="notifications-outline" size={20} color={Colors.text} />
-            {unreadCount > 0 && (
-              <View style={s.badge}>
-                <Text style={s.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
         </View>
 
         {loading ? (
