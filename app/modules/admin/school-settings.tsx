@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { useAuth } from '@/contexts/AuthContext';
 import { schoolLogoUrl } from '@/utils/branding';
+import { isEmail, isPhone, isURL } from '@/utils/validators';
 import {
   unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV,
 } from '@/components/ui/kit';
@@ -53,6 +54,9 @@ export default function AdminSchoolSettingsScreen() {
 
   const save = async () => {
     if (!form.name.trim()) return Alert.alert('Required', 'School name is required');
+    if (form.email && !isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
+    if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
+    if (form.website && !isURL(form.website)) return Alert.alert('Invalid', 'Website must be a valid URL starting with http:// or https://');
     setSaving(true);
     try {
       await adminApi.updateSchoolSettings(form);
@@ -93,6 +97,11 @@ export default function AdminSchoolSettingsScreen() {
       return Alert.alert('Required', 'Host and username are required to enable SMTP');
     if (smtp.enabled && !smtp.pass && !smtp.hasPassword)
       return Alert.alert('Required', 'Password is required to enable SMTP');
+    const port = Number(smtp.port);
+    if (smtp.port.trim() !== '' && (Number.isNaN(port) || port < 1 || port > 65535))
+      return Alert.alert('Invalid', 'SMTP port must be a number between 1 and 65535');
+    if (smtp.fromEmail && !isEmail(smtp.fromEmail))
+      return Alert.alert('Invalid', 'From email must be a valid email address');
     setSmtpSaving(true);
     try {
       await adminApi.updateSmtpSettings({

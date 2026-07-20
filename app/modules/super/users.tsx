@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as superApi from '@/api/superadmin.api';
+import { isEmail } from '@/utils/validators';
 import {
   unwrap, LoaderView, Empty, RowItem, SearchBar, FAB, FormModal, Input,
   Select, Badge, SegTabs, confirmAsync,
@@ -92,6 +93,8 @@ export default function SuperUsersScreen() {
 
   const submit = async () => {
     if (!form.name.trim() || !form.email.trim()) return Alert.alert('Required', 'Name and email are required');
+    if (form.name.trim().length < 2) return Alert.alert('Invalid', 'Name must be at least 2 characters');
+    if (!isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
     if (form.role !== 'super_admin' && !form.school) return Alert.alert('Required', 'Pick a school for this role');
     setSaving(true);
     try {

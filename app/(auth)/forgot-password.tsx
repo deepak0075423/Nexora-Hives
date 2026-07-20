@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { forgotPassword } from '@/api/auth.api';
+import { isEmail } from '@/utils/validators';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -19,6 +20,10 @@ export default function ForgotPasswordScreen() {
     setError('');
     if (!email.trim()) {
       setError('Please enter your registered email.');
+      return;
+    }
+    if (!isEmail(email)) {
+      setError('Please enter a valid email address.');
       return;
     }
     setLoading(true);

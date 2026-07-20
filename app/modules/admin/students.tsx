@@ -3,6 +3,7 @@ import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
+import { isEmail, isPhone } from '@/utils/validators';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
   Input, Select, KV, ActionBtn, confirmAsync, SectionTitle,
@@ -100,6 +101,9 @@ export default function AdminStudentsScreen() {
 
   const submit = async () => {
     if (!form.name.trim() || !form.email.trim()) return Alert.alert('Required', 'Name and email are required');
+    if (form.name.trim().length < 2) return Alert.alert('Invalid', 'Name must be at least 2 characters');
+    if (!isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
+    if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
     setSaving(true);
     try {
       const payload: any = {

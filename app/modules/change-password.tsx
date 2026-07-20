@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { resetPassword } from '@/api/auth.api';
 import { useAuth } from '@/contexts/AuthContext';
+import { passwordError } from '@/utils/validators';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -24,7 +25,8 @@ export default function ChangePasswordScreen() {
 
   const handleSubmit = async () => {
     if (!isFirstLogin && !current.trim()) { Alert.alert('Error', 'Please enter your current password.'); return; }
-    if (next.length < 8) { Alert.alert('Error', 'New password must be at least 8 characters.'); return; }
+    const pwErr = passwordError(next);
+    if (pwErr) { Alert.alert('Error', pwErr); return; }
     if (next !== confirm) { Alert.alert('Error', 'New passwords do not match.'); return; }
 
     setLoading(true);

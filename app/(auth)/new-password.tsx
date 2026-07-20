@@ -7,10 +7,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { newPassword } from '@/api/auth.api';
+import { passwordError } from '@/utils/validators';
 
 export default function NewPasswordScreen() {
   const router = useRouter();
-  const { email, otp } = useLocalSearchParams<{ email: string; otp: string }>();
+  const { resetToken } = useLocalSearchParams<{ email: string; resetToken: string }>();
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm]   = useState('');
@@ -21,8 +22,9 @@ export default function NewPasswordScreen() {
 
   const handleSubmit = async () => {
     setError('');
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const pwErr = passwordError(password);
+    if (pwErr) {
+      setError(pwErr);
       return;
     }
     if (password !== confirm) {
@@ -31,7 +33,7 @@ export default function NewPasswordScreen() {
     }
     setLoading(true);
     try {
-      await newPassword({ email: email!, otp: otp!, password });
+      await newPassword({ resetToken: resetToken!, password });
       setDone(true);
       // Navigate to login after a brief moment so user sees the success state
       setTimeout(() => router.replace('/(auth)/login' as any), 1200);

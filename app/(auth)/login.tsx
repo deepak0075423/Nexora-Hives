@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { login } from '@/api/auth.api';
 import { useAuth } from '@/contexts/AuthContext';
+import { isEmail } from '@/utils/validators';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -32,6 +33,10 @@ export default function LoginScreen() {
     setError('');
     if (!email.trim() || !password.trim()) {
       setError('Please enter your email and password.');
+      return;
+    }
+    if (!isEmail(email)) {
+      setError('Please enter a valid email address.');
       return;
     }
     setLoading(true);

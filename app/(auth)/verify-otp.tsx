@@ -40,8 +40,8 @@ export default function VerifyOtpScreen() {
     }
     setLoading(true);
     try {
-      await verifyOtp({ email: email!, otp: code });
-      router.push({ pathname: '/(auth)/new-password' as any, params: { email, otp: code } });
+      const res: any = await verifyOtp({ email: email!, otp: code });
+      router.push({ pathname: '/(auth)/new-password' as any, params: { email, resetToken: res?.resetToken ?? '' } });
     } catch (err: any) {
       setError(err?.message || 'Code is incorrect or expired. Try again.');
       // Clear the OTP boxes so user can re-enter
