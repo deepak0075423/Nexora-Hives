@@ -3,7 +3,7 @@ import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
-import { isEmail, isPhone } from '@/utils/validators';
+import TeacherFormModal from './teacher-form';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
   Input, Select, KV, ActionBtn, confirmAsync,
@@ -20,8 +20,6 @@ export default function AdminTeachersScreen() {
 
   const [detail, setDetail] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', designation: '' });
 
   const load = async (p = 1, q = search) => {
     try {
@@ -61,22 +59,6 @@ export default function AdminTeachersScreen() {
     if (!(await confirmAsync('Delete Teacher', `Delete ${name}? This cannot be undone.`, 'Delete'))) return;
     try { await adminApi.deleteTeacher(id); setDetail(null); load(1); }
     catch (err: any) { Alert.alert('Error', err.message); }
-  };
-
-  const submit = async () => {
-    if (!form.name.trim() || !form.email.trim()) return Alert.alert('Required', 'Name and email are required');
-    if (form.name.trim().length < 2) return Alert.alert('Invalid', 'Name must be at least 2 characters');
-    if (!isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
-    if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
-    setSaving(true);
-    try {
-      await adminApi.createTeacher({ ...form, name: form.name.trim(), email: form.email.trim() });
-      setShowForm(false);
-      setForm({ name: '', email: '', phone: '', designation: '' });
-      load(1);
-      Alert.alert('Success', 'Teacher created. Login OTP has been emailed.');
-    } catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setSaving(false); }
   };
 
   const u = detail?.user;
@@ -119,7 +101,13 @@ export default function AdminTeachersScreen() {
       <FormModal visible={!!detail} title={u?.name ?? 'Teacher'} onClose={() => setDetail(null)}>
         <KV label="Email" value={u?.email} />
         <KV label="Phone" value={u?.phone || '--'} />
+        <KV label="Employee ID" value={p?.employeeId || '--'} />
         <KV label="Designation" value={p?.designation || '--'} />
+        <KV label="Date of Joining" value={p?.joiningDate ? String(p.joiningDate).slice(0, 10) : '--'} />
+        <KV label="Qualification" value={p?.qualification || '--'} />
+        <KV label="Teaching Degree" value={p?.teachingDegree || '--'} />
+        <KV label="Experience" value={p?.employmentType === 'experienced' ? (p?.totalExperience || 'Experienced') : (p?.employmentType ? 'Fresher' : '--')} />
+        <KV label="Emergency Contact" value={p?.emergencyContactName ? `${p.emergencyContactName} · ${p.emergencyContactPhone || ''}`.trim() : '--'} />
         <KV label="Status" value={<Badge label={u?.isActive === false ? 'inactive' : 'active'} />} />
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <View style={{ flex: 1 }}>
@@ -131,13 +119,8 @@ export default function AdminTeachersScreen() {
         </View>
       </FormModal>
 
-      <FormModal visible={showForm} title="Add Teacher" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving} submitLabel="Create Teacher">
-        <Input label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Teacher name" />
-        <Input label="Email *" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="teacher@email.com" keyboardType="email-address" />
-        <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} placeholder="Optional" keyboardType="phone-pad" />
-        <Select label="Designation" value={form.designation} onChange={v => setForm(f => ({ ...f, designation: v }))}
-          options={designations.map(d => ({ label: d, value: d }))} placeholder="Select designation" />
-      </FormModal>
+      <TeacherFormModal visible={showForm} onClose={() => setShowForm(false)}
+        onCreated={() => load(1)} designations={designations} />
     </>
   );
 }

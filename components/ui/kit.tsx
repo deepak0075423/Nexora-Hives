@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, Modal, ScrollView,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 
@@ -211,6 +212,11 @@ export function Select({ label, value, options, onChange, placeholder = 'Selectâ
 }) {
   const [open, setOpen] = useState(false);
   const current = options.find(o => o.value === value);
+  const insets = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
+  // Centred sheet, so overflow spills off both ends and the top options become
+  // unreachable. Long lists (the 36 states / UTs) hit this on shorter phones.
+  const maxListH = Math.max(180, winH - insets.top - insets.bottom - Spacing.lg * 2 - 90);
   return (
     <View style={k.field}>
       <Text style={k.fieldLabel}>{label}</Text>
@@ -224,7 +230,7 @@ export function Select({ label, value, options, onChange, placeholder = 'Selectâ
         <TouchableOpacity style={k.sheetBackdrop} activeOpacity={1} onPress={() => setOpen(false)}>
           <View style={k.sheet}>
             <Text style={k.sheetTitle}>{label}</Text>
-            <ScrollView style={{ maxHeight: 380 }}>
+            <ScrollView style={{ maxHeight: maxListH }}>
               {options.length === 0 && <Text style={k.sheetEmpty}>No options available</Text>}
               {options.map(o => (
                 <TouchableOpacity
@@ -298,20 +304,29 @@ export function FormModal({ visible, title, onClose, onSubmit, submitting, submi
   visible: boolean; title: string; onClose: () => void; onSubmit?: () => void;
   submitting?: boolean; submitLabel?: string; children: React.ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
+  // The sheet is anchored to the bottom, so anything taller than the screen
+  // overflows off the TOP where it can't be reached. Cap the card against the
+  // real window height (minus the notch) instead of a fixed 480, and let the
+  // scroll area take whatever is left after the header and submit button.
+  const maxCardH = winH - insets.top - Spacing.md;
+  const maxScrollH = Math.max(160, maxCardH - 140);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={k.modalRoot}
       >
-        <View style={k.modalCard}>
+        <View style={[k.modalCard, { maxHeight: maxCardH, paddingBottom: Spacing.xl + insets.bottom }]}>
           <View style={k.modalHeader}>
             <Text style={k.modalTitle}>{title}</Text>
             <TouchableOpacity onPress={onClose} style={k.modalClose}>
               <Ionicons name="close" size={20} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
+          <ScrollView style={{ maxHeight: maxScrollH }} keyboardShouldPersistTaps="handled">
             {children}
           </ScrollView>
           {onSubmit && (

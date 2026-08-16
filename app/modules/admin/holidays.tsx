@@ -1,20 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, RowItem, FAB, FormModal, Input, Select,
-  confirmAsync, Badge, fmtDate,
+  confirmAsync, Badge, fmtDate, ActionBtn,
 } from '@/components/ui/kit';
 
-const TYPE_OPTIONS = [
-  { label: 'Public Holiday', value: 'public' },
-  { label: 'School Specific', value: 'school_specific' },
-  { label: 'Optional', value: 'optional' },
-  { label: 'Exam Break', value: 'exam_break' },
-];
 
 export default function AdminHolidaysScreen() {
   const [list, setList] = useState<any[]>([]);
@@ -24,7 +18,12 @@ export default function AdminHolidaysScreen() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', type: 'public', description: '' });
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '', type: '', description: '' });
+  // Holiday types are school-managed, like teacher designations
+  const [types, setTypes] = useState<string[]>([]);
+  const [showTypes, setShowTypes] = useState(false);
+  const [newType, setNewType] = useState('');
+  const [typeSaving, setTypeSaving] = useState(false);
 
   const load = async () => {
     try {
@@ -37,9 +36,35 @@ export default function AdminHolidaysScreen() {
 
   useEffect(() => { load(); }, []);
 
+  const loadTypes = async () => {
+    try { setTypes(unwrap(await adminApi.getHolidayTypes()) ?? []); } catch { /* defaults apply */ }
+  };
+  useEffect(() => { loadTypes(); }, []);
+
+  const saveTypes = async (list: string[]) => {
+    setTypeSaving(true);
+    try { await adminApi.updateHolidayTypes(list); await loadTypes(); }
+    catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setTypeSaving(false); }
+  };
+
+  const addType = async () => {
+    const name = newType.trim();
+    if (!name) return;
+    if (types.some(t => t.toLowerCase() === name.toLowerCase())) return Alert.alert('Already exists', name);
+    await saveTypes([...types, name]);
+    setNewType('');
+  };
+
+  const removeType = async (name: string) => {
+    if (types.length <= 1) return Alert.alert('Keep one', 'Keep at least one holiday type');
+    if (!(await confirmAsync('Remove Type', `Remove "${name}" from the holiday type list?`, 'Remove'))) return;
+    await saveTypes(types.filter(t => t !== name));
+  };
+
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', startDate: '', endDate: '', type: 'public', description: '' });
+    setForm({ name: '', startDate: '', endDate: '', type: types[0] ?? '', description: '' });
     setShowForm(true);
   };
 
@@ -49,7 +74,7 @@ export default function AdminHolidaysScreen() {
       name: h.name ?? '',
       startDate: h.startDate ? new Date(h.startDate).toISOString().slice(0, 10) : '',
       endDate: h.endDate ? new Date(h.endDate).toISOString().slice(0, 10) : '',
-      type: h.type ?? 'public',
+      type: h.type ?? '',
       description: h.description ?? '',
     });
     setShowForm(true);
@@ -91,6 +116,11 @@ export default function AdminHolidaysScreen() {
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         >
+          <TouchableOpacity style={{ alignSelf: 'flex-end', marginBottom: Spacing.sm }}
+            onPress={() => setShowTypes(true)}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.accent }}>⚙️ Holiday Types</Text>
+          </TouchableOpacity>
+
           {loading ? <LoaderView /> : list.length === 0 ? (
             <Empty icon="sunny-outline" text="No holidays declared" />
           ) : (
@@ -115,11 +145,26 @@ export default function AdminHolidaysScreen() {
         <FAB onPress={openCreate} />
       </View>
 
+      <FormModal visible={showTypes} title="Manage Holiday Types" onClose={() => setShowTypes(false)}>
+        <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: 10 }}>
+          These options appear in the Type dropdown when adding or editing a holiday.
+        </Text>
+        <Input label="New type" value={newType} onChange={setNewType} placeholder="e.g. Regional Festival" />
+        <ActionBtn label={typeSaving ? 'Saving…' : 'Add Type'} tone="success" onPress={addType} />
+        <View style={{ marginTop: Spacing.md }}>
+          {types.map(t => (
+            <RowItem key={t} title={t}
+              right={<ActionBtn label="Remove" tone="danger" small onPress={() => removeType(t)} />} />
+          ))}
+        </View>
+      </FormModal>
+
       <FormModal visible={showForm} title={editing ? 'Edit Holiday' : 'Add Holiday'} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input label="Holiday Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="e.g. Diwali" />
         <Input label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-10-20" />
         <Input label="End Date * (YYYY-MM-DD)" value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))} placeholder="2026-10-22" />
-        <Select label="Type" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={TYPE_OPTIONS} />
+        <Select label="Type *" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
+          options={types.map(t => ({ label: t, value: t }))} />
         <Input label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Optional" multiline />
       </FormModal>
     </>

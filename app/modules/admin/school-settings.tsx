@@ -28,7 +28,14 @@ export default function AdminSchoolSettingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [school, setSchool] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '' });
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', website: '',
+    admissionNumberFormat: '{INITIALS}{YYYY}{####}',
+    employeeIdFormat: '{INITIALS}{####}',
+  });
+  // Live previews of the next auto-generated identifiers
+  const [admPreview, setAdmPreview] = useState<any>(null);
+  const [empPreview, setEmpPreview] = useState<any>(null);
   const [logoUploading, setLogoUploading] = useState(false);
 
   const [smtp, setSmtp] = useState<SmtpForm>(EMPTY_SMTP);
@@ -39,7 +46,11 @@ export default function AdminSchoolSettingsScreen() {
     try {
       const d = unwrap(await adminApi.getSchoolSettings());
       setSchool(d);
-      setForm({ name: d?.name ?? '', email: d?.email ?? '', phone: d?.phone ?? '', website: d?.website ?? '' });
+      setForm({
+        name: d?.name ?? '', email: d?.email ?? '', phone: d?.phone ?? '', website: d?.website ?? '',
+        admissionNumberFormat: d?.admissionNumberFormat ?? '{INITIALS}{YYYY}{####}',
+        employeeIdFormat: d?.employeeIdFormat ?? '{INITIALS}{####}',
+      });
       const s: any = unwrap(await adminApi.getSmtpSettings().catch(() => null)) ?? {};
       setSmtp({
         enabled: !!s.enabled, host: s.host ?? '', port: String(s.port ?? 587),
@@ -51,6 +62,25 @@ export default function AdminSchoolSettingsScreen() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Ask the server what the next number / ID would look like for these formats
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!form.admissionNumberFormat.trim()) return setAdmPreview(null);
+      try { setAdmPreview(unwrap(await adminApi.previewAdmissionNumber(form.admissionNumberFormat.trim()))); }
+      catch (err: any) { setAdmPreview({ error: err.message }); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.admissionNumberFormat]);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!form.employeeIdFormat.trim()) return setEmpPreview(null);
+      try { setEmpPreview(unwrap(await adminApi.previewEmployeeId(form.employeeIdFormat.trim()))); }
+      catch (err: any) { setEmpPreview({ error: err.message }); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.employeeIdFormat]);
 
   const save = async () => {
     if (!form.name.trim()) return Alert.alert('Required', 'School name is required');
@@ -191,6 +221,71 @@ export default function AdminSchoolSettingsScreen() {
             <Input label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" />
             <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} keyboardType="phone-pad" />
             <Input label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
+
+            {/* ── Admission number format ── */}
+            <SectionTitle>Admission Number Format</SectionTitle>
+            <Card>
+              <Text style={ls.fmtHint}>
+                Used when a student is added without an admission number. Numbers continue from the
+                highest one already issued for the current year.
+                {'\n\n'}
+                {'{INITIALS}'} first letter of each word in the school name · {'{CODE}'} school code
+                · {'{YYYY}'} academic year start (4-digit) · {'{YY}'} 2-digit year
+                · {'{MM}'} month of admission · {'{DD}'} date of admission
+                · {'{CLASS}'} class name without spaces (Class 5 → CLASS5)
+                · {'{CLASSNO}'} class number (Class 5 → 5)
+                · {'{####}'} running number, one digit per #
+                {'\n\n'}
+                "/", "-", spaces and any other characters you type are kept as-is. The running number
+                continues per pattern, so {'{CLASS}'} numbers each class separately and {'{DD}'}
+                {' '}restarts the count each day.
+              </Text>
+              <Input label="Format" value={form.admissionNumberFormat}
+                onChange={v => setForm(f => ({ ...f, admissionNumberFormat: v }))} placeholder="{INITIALS}{YYYY}{####}" />
+              {admPreview?.error
+                ? <Text style={ls.fmtError}>{admPreview.error}</Text>
+                : admPreview ? (
+                  <Text style={ls.fmtPreview}>
+                    Preview: {(admPreview.samples ?? []).join(', ')}
+                    {admPreview.next ? `  ·  next: ${admPreview.next}` : ''}
+                    {admPreview.sampleClass ? `  (using ${admPreview.sampleClass})` : ''}
+                  </Text>
+                ) : null}
+            </Card>
+
+            {/* ── Employee / teacher ID format ── */}
+            <SectionTitle>Employee / Teacher ID Format</SectionTitle>
+            <Card>
+              <Text style={ls.fmtHint}>
+                Used when a teacher is added without an ID. Kept separate from the admission-number
+                format, and numbering continues from the highest ID already issued.
+                {'\n\n'}
+                {'{INITIALS}'} first letter of each word in the school name · {'{CODE}'} school code
+                · {'{YYYY}'} academic year start (4-digit) · {'{YY}'} 2-digit year
+                · {'{MM}'} month of joining · {'{DD}'} date of joining
+                · {'{####}'} running number, one digit per #
+                {'\n\n'}
+                "/", "-", spaces and any other characters you type are kept as-is. The running number
+                continues per pattern, so {'{YYYY}'} restarts the count each academic year and
+                {' '}{'{DD}'} restarts it each day.
+                {'\n\n'}
+                {'{CLASS}'} and {'{CLASSNO}'} are not available here — they apply to admission numbers
+                only, since a teacher isn't tied to a class.
+              </Text>
+              <Input label="Format" value={form.employeeIdFormat}
+                onChange={v => setForm(f => ({ ...f, employeeIdFormat: v }))} placeholder="{INITIALS}{####}" />
+              {empPreview?.error
+                ? <Text style={ls.fmtError}>{empPreview.error}</Text>
+                : empPreview ? (
+                  <Text style={ls.fmtPreview}>
+                    Preview: {(empPreview.samples ?? []).join(', ')}
+                    {empPreview.next ? `  ·  next: ${empPreview.next}` : ''}
+                  </Text>
+                ) : null}
+            </Card>
+
+            {/* One button covers the profile fields and both ID formats above —
+                they all live in the same school-settings payload. */}
             <ActionBtn label={saving ? 'Saving…' : 'Save Settings'} tone="success" onPress={save} />
 
             {/* ── SMTP ── */}
@@ -262,6 +357,9 @@ const ls = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   logoBtnText: { fontSize: 12, fontWeight: '600', color: '#fff' },
+  fmtHint: { fontSize: 11, color: Colors.textSecondary, lineHeight: 17, marginBottom: 10 },
+  fmtPreview: { fontSize: 12, color: Colors.text, fontWeight: '600', marginTop: 2 },
+  fmtError: { fontSize: 12, color: Colors.danger, marginTop: 2 },
   logoActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   logoRemoveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',

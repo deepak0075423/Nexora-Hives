@@ -20,6 +20,21 @@ export const testSmtpSettings   = (to?: string)  => api.post('/admin/smtp-settin
 export const getTeachers        = (params?: object) => api.get('/admin/teachers', { params });
 export const getTeacher         = (id: string)       => api.get(`/admin/teachers/${id}`);
 export const createTeacher      = (data: object)     => api.post('/admin/teachers', data);
+// Full seven-step intake posts multipart (ID scans + experience papers)
+export const createTeacherForm  = (fd: FormData)     =>
+  api.post('/admin/teachers', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const previewAdmissionNumber = (format?: string) =>
+  api.get('/admin/admission-number/preview', { params: format ? { format } : {} });
+export const previewEmployeeId      = (format?: string) =>
+  api.get('/admin/employee-id/preview', { params: format ? { format } : {} });
+export const updateClass        = (id: string, data: object) => api.put(`/admin/classes/${id}`, data);
+export const shuffleSections    = (id: string) => api.post(`/admin/classes/${id}/shuffle-sections`);
+export const lockSectionShuffle = (id: string) => api.post(`/admin/classes/${id}/lock-sections`);
+export const assignSectionRollNumbers = (id: string) => api.post(`/admin/sections/${id}/assign-roll-numbers`);
+export const updateStudentRollNumber  = (sectionId: string, studentId: string, rollNumber: string) =>
+  api.put(`/admin/sections/${sectionId}/students/${studentId}/roll-number`, { rollNumber });
+export const getHolidayTypes    = () => api.get('/admin/holiday-types');
+export const updateHolidayTypes = (holidayTypes: string[]) => api.put('/admin/holiday-types', { holidayTypes });
 export const deleteTeacher      = (id: string)       => api.delete(`/admin/teachers/${id}`);
 export const updateTeacher      = (id: string, data: object) => api.put(`/admin/users/${id}`, data);
 export const getDesignations    = ()                 => api.get('/admin/designations');

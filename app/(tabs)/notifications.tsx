@@ -126,14 +126,6 @@ export default function NotificationsTab() {
   const onRefreshInbox = () => { setRefreshing(true); loadInbox(); };
   const onRefreshSent  = () => { setSentRefreshing(true); loadSent(); };
 
-  const handleMarkAllRead = async () => {
-    try {
-      await notifApi.markAllRead();
-      setInbox(prev => prev.map(r => ({ ...r, isRead: true })));
-      setUnreadCount(0);
-    } catch { /* empty */ }
-  };
-
   const handleMarkOneRead = async (id: string) => {
     try {
       await notifApi.markOneRead(id);
@@ -176,11 +168,6 @@ export default function NotificationsTab() {
           )}
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {tab === 'inbox' && unreadCount > 0 && (
-            <TouchableOpacity style={s.headerBtn} onPress={handleMarkAllRead}>
-              <Ionicons name="checkmark-done" size={18} color={Colors.primary} />
-            </TouchableOpacity>
-          )}
           {canSend && (
             <TouchableOpacity
               style={[s.headerBtn, { backgroundColor: Colors.primary }]}

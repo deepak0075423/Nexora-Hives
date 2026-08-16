@@ -164,14 +164,6 @@ export default function AlertsScreen() {
   const onRefreshAll   = () => { setAllRefreshing(true); loadAll(); };
 
   // Actions
-  const handleMarkAllRead = async () => {
-    try {
-      await notifApi.markAllRead();
-      setInbox(prev => prev.map(r => ({ ...r, isRead: true })));
-      setUnreadCount(0);
-    } catch { /* empty */ }
-  };
-
   const handleMarkOneRead = async (receiptId: string) => {
     try {
       await notifApi.markOneRead(receiptId);
@@ -233,11 +225,6 @@ export default function AlertsScreen() {
           title: 'Notifications',
           headerRight: () => (
             <View style={{ flexDirection: 'row', gap: 8, marginRight: 4 }}>
-              {tab === 'inbox' && unreadCount > 0 && (
-                <TouchableOpacity onPress={handleMarkAllRead} style={hdr.btn}>
-                  <Ionicons name="checkmark-done" size={18} color={Colors.primary} />
-                </TouchableOpacity>
-              )}
               {tab === 'inbox' && inbox.length > 0 && (
                 <TouchableOpacity onPress={handleClearAll} style={hdr.btn}>
                   <Ionicons name="trash-outline" size={18} color={Colors.danger} />

@@ -7,7 +7,7 @@ import { isEmail, isPhone } from '@/utils/validators';
 import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
-  Input, Select, KV, ActionBtn, confirmAsync, SectionTitle,
+  Input, Select, KV, ActionBtn, confirmAsync, SectionTitle, SegTabs,
 } from '@/components/ui/kit';
 
 export default function AdminStudentsScreen() {
@@ -25,7 +25,7 @@ export default function AdminStudentsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const EMPTY_FORM = {
-    name: '', email: '', phone: '', rollNumber: '', gender: '', classId: '', sectionId: '',
+    name: '', email: '', phone: '', rollNumber: '', admissionNumber: '', gender: '', classId: '', sectionId: '',
     dob: '', bloodGroup: '', category: '',
     address: '', pincode: '', city: '', state: '', country: 'India',
   };
@@ -35,6 +35,18 @@ export default function AdminStudentsScreen() {
   const [parentResults, setParentResults] = useState<any[]>([]);
   const [parentId, setParentId] = useState('');
   const [parentName, setParentName] = useState('');
+  // Create-parent mode: father, mother and guardian are all recorded; only the
+  // person chosen here gets a login account (mirrors the web student form).
+  const [parentMode, setParentMode] = useState<'search' | 'create'>('search');
+  const EMPTY_NEW_PARENT = {
+    accountFor: 'Father',
+    father:   { name: '', email: '', phone: '', occupation: '' },
+    mother:   { name: '', email: '', phone: '', occupation: '' },
+    guardian: { name: '', email: '', phone: '', occupation: '' },
+  };
+  const [newParent, setNewParent] = useState<any>(EMPTY_NEW_PARENT);
+  const setBlock = (role: string, key: string, v: string) =>
+    setNewParent((p: any) => ({ ...p, [role]: { ...p[role], [key]: v } }));
 
   const load = async (p = 1, q = search) => {
     try {
@@ -141,12 +153,25 @@ export default function AdminStudentsScreen() {
     if (missing) return Alert.alert('Required', `${missing[1]} is required`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dob)) return Alert.alert('Invalid', 'Date of birth must be in YYYY-MM-DD format');
     if (!isPincode(form.pincode)) return Alert.alert('Invalid', 'PIN code must be 6 digits');
+    if (parentMode === 'create') {
+      const owner = String(newParent.accountFor).toLowerCase();
+      for (const role of ['father', 'mother', 'guardian']) {
+        const label = role[0].toUpperCase() + role.slice(1);
+        const b = newParent[role];
+        if (!b.name.trim())       return Alert.alert('Required', `${label}'s name is required`);
+        if (!b.phone.trim())      return Alert.alert('Required', `${label}'s phone is required`);
+        if (!b.occupation.trim()) return Alert.alert('Required', `${label}'s occupation is required`);
+        if (role === owner && !isEmail(b.email)) return Alert.alert('Required', `${label}'s email is required for the login account`);
+        if (role !== owner && b.email && !isEmail(b.email)) return Alert.alert('Invalid', `${label}'s email is not valid`);
+      }
+    }
     setSaving(true);
     try {
       const payload: any = {
         name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(),
         profile: {
           ...(form.rollNumber ? { rollNumber: form.rollNumber } : {}),
+          ...(form.admissionNumber ? { admissionNumber: form.admissionNumber } : {}),
           dob: form.dob, gender: form.gender, bloodGroup: form.bloodGroup, category: form.category,
           address: form.address.trim(), city: form.city.trim(), state: form.state,
           pincode: form.pincode, country: form.country || 'India',
@@ -154,11 +179,16 @@ export default function AdminStudentsScreen() {
           ...(form.sectionId ? { currentSection: form.sectionId } : {}),
         },
       };
-      if (parentId) payload.parentId = parentId;
+      if (parentMode === 'search') {
+        if (parentId) payload.parentId = parentId;
+      } else {
+        payload.newParent = newParent;
+      }
       await adminApi.createStudent(payload);
       setShowForm(false);
       setForm(EMPTY_FORM);
       setParentId(''); setParentName(''); setParentQ(''); setParentResults([]);
+      setParentMode('search'); setNewParent(EMPTY_NEW_PARENT);
       load(1);
       Alert.alert('Success', 'Student created. Login OTP has been emailed.');
     } catch (err: any) { Alert.alert('Error', err.message); }
@@ -226,7 +256,8 @@ export default function AdminStudentsScreen() {
         <Input label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Student name" />
         <Input label="Email *" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="student@email.com" keyboardType="email-address" />
         <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} placeholder="Optional" keyboardType="phone-pad" />
-        <Input label="Roll Number" value={form.rollNumber} onChange={v => setForm(f => ({ ...f, rollNumber: v }))} placeholder="Optional" />
+        <Input label="Roll Number" value={form.rollNumber} onChange={v => setForm(f => ({ ...f, rollNumber: v }))} placeholder="Assigned from the section later" />
+        <Input label="Admission Number" value={form.admissionNumber} onChange={v => setForm(f => ({ ...f, admissionNumber: v }))} placeholder="Auto-generated if left blank" />
         <Input label="Date of Birth *" value={form.dob} onChange={v => setForm(f => ({ ...f, dob: v }))} placeholder="YYYY-MM-DD" />
         <Select label="Gender *" value={form.gender} onChange={v => setForm(f => ({ ...f, gender: v }))}
           options={[{ label: 'Male', value: 'Male' }, { label: 'Female', value: 'Female' }, { label: 'Other', value: 'Other' }]} />
@@ -246,20 +277,55 @@ export default function AdminStudentsScreen() {
           options={STATES_AND_UTS.map(st => ({ label: st, value: st }))} />
         <Input label="Country" value={form.country} onChange={() => {}} editable={false} />
 
-        <SectionTitle>Link Parent (optional)</SectionTitle>
-        {parentId ? (
-          <View style={{ marginBottom: 12 }}>
-            <KV label="Selected parent" value={parentName} />
-            <ActionBtn label="Remove" tone="neutral" small onPress={() => { setParentId(''); setParentName(''); }} />
-          </View>
+        <SectionTitle>Parent / Guardian</SectionTitle>
+        <SegTabs
+          tabs={[{ key: 'search', label: 'Link existing' }, { key: 'create', label: 'Create new' }]}
+          active={parentMode}
+          onChange={(k: string) => { setParentMode(k as 'search' | 'create'); setParentId(''); setParentName(''); setParentResults([]); }}
+        />
+
+        {parentMode === 'search' ? (
+          parentId ? (
+            <View style={{ marginBottom: 12 }}>
+              <KV label="Selected parent" value={parentName} />
+              <ActionBtn label="Remove" tone="neutral" small onPress={() => { setParentId(''); setParentName(''); }} />
+            </View>
+          ) : (
+            <>
+              <Input label="Search parent by name/email" value={parentQ} onChange={setParentQ} placeholder="e.g. rahul@…" />
+              <ActionBtn label="Search Parent" tone="info" onPress={searchParent} />
+              {parentResults.map((pr: any) => (
+                <RowItem key={pr._id} title={pr.name}
+                  sub={`${pr.email}${pr.children?.length ? ` · ${pr.children.length} child${pr.children.length !== 1 ? 'ren' : ''}` : ''}`}
+                  right={<ActionBtn label="Link" tone="info" small
+                    onPress={() => { setParentId(pr._id); setParentName(`${pr.name} (${pr.email})`); setParentResults([]); }} />} />
+              ))}
+            </>
+          )
         ) : (
           <>
-            <Input label="Search parent by name/email" value={parentQ} onChange={setParentQ} placeholder="e.g. rahul@…" />
-            <ActionBtn label="Search Parent" tone="info" onPress={searchParent} />
-            {parentResults.map((pr: any) => (
-              <RowItem key={pr._id} title={pr.name} sub={pr.email}
-                onPress={() => { setParentId(pr._id); setParentName(`${pr.name} (${pr.email})`); setParentResults([]); }} />
-            ))}
+            <Select label="Create the login account for *" value={newParent.accountFor}
+              onChange={v => setNewParent((p: any) => ({ ...p, accountFor: v }))}
+              options={['Father', 'Mother', 'Guardian'].map(w => ({ label: w, value: w }))} />
+            <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: 10 }}>
+              All three are recorded on the student. Only the person selected here gets a login — and is the
+              only one who needs an email address.
+            </Text>
+            {['father', 'mother', 'guardian'].map(role => {
+              const label = role[0].toUpperCase() + role.slice(1);
+              const isOwner = String(newParent.accountFor).toLowerCase() === role;
+              return (
+                <View key={role} style={{ marginBottom: 6 }}>
+                  <SectionTitle>{label}{isOwner ? ' — login account' : ''}</SectionTitle>
+                  <Input label={`${label}'s Name *`} value={newParent[role].name} onChange={v => setBlock(role, 'name', v)} />
+                  <Input label={`Email${isOwner ? ' *' : ''}`} value={newParent[role].email}
+                    onChange={v => setBlock(role, 'email', v)} keyboardType="email-address"
+                    placeholder={isOwner ? 'name@email.com' : 'Optional'} />
+                  <Input label="Phone *" value={newParent[role].phone} onChange={v => setBlock(role, 'phone', v)} keyboardType="phone-pad" />
+                  <Input label="Occupation *" value={newParent[role].occupation} onChange={v => setBlock(role, 'occupation', v)} />
+                </View>
+              );
+            })}
           </>
         )}
       </FormModal>

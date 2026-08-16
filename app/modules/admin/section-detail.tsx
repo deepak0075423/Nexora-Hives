@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
@@ -28,6 +28,9 @@ export default function AdminSectionDetailScreen() {
   const [showAssignSubject, setShowAssignSubject] = useState(false);
   const [subjForm, setSubjForm] = useState({ subjectId: '', teacherId: '' });
   const [saving, setSaving] = useState(false);
+  // Roll numbers: one bulk assignment per section, then manual corrections
+  const [rollEdit, setRollEdit] = useState<{ _id: string; name: string; value: string } | null>(null);
+  const [rollBusy, setRollBusy] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -116,7 +119,36 @@ export default function AdminSectionDetailScreen() {
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  const assignRollNumbers = async () => {
+    const ok = await confirmAsync(
+      'Assign Roll Numbers',
+      `Roll numbers 1–${students.length} will be given to the ${students.length} enrolled student${students.length !== 1 ? 's' : ''} in alphabetical name order. This can only be done once — afterwards you can still edit individual roll numbers.`,
+      'Assign',
+    );
+    if (!ok) return;
+    setRollBusy(true);
+    try {
+      const res: any = await adminApi.assignSectionRollNumbers(id!);
+      const d = (res as any)?.data ?? res;
+      await load();
+      Alert.alert('Done', `Roll numbers assigned to ${d?.assigned ?? 0} students`);
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setRollBusy(false); }
+  };
+
+  const saveRollNumber = async () => {
+    if (!rollEdit) return;
+    setRollBusy(true);
+    try {
+      await adminApi.updateStudentRollNumber(id!, rollEdit._id, rollEdit.value.trim());
+      setRollEdit(null);
+      await load();   // the student's own record is updated server-side too
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setRollBusy(false); }
+  };
+
   const students = section?.enrolledStudents ?? [];
+  const rollsAssigned = !!section?.rollNumbersAssignedAt;
 
   return (
     <>
@@ -152,12 +184,23 @@ export default function AdminSectionDetailScreen() {
                 <View style={{ marginBottom: Spacing.sm }}>
                   <ActionBtn label="+ Enroll Student" tone="success" onPress={() => setShowAssignStudent(true)} />
                 </View>
+                {rollsAssigned ? (
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: Spacing.sm }}>
+                    ✓ Roll numbers assigned on {String(section.rollNumbersAssignedAt).slice(0, 10)} — tap a student to edit theirs.
+                  </Text>
+                ) : students.length > 0 && (
+                  <View style={{ marginBottom: Spacing.sm }}>
+                    <ActionBtn label={rollBusy ? 'Working…' : 'Assign Roll Numbers'} tone="info" onPress={assignRollNumbers} />
+                  </View>
+                )}
                 {students.length === 0 ? <Empty icon="school-outline" text="No students enrolled" /> :
                   students.map((st: any) => (
                     <RowItem key={st._id}
                       icon="person" iconColor={Colors.success} iconBg={Colors.successLight}
-                      title={st.name}
-                      sub={`${st.email}${st.rollNumber ? ` · Roll ${st.rollNumber}` : ''}`}
+                      // Roll number leads, as on the web section page
+                      title={`${st.rollNumber ? `${st.rollNumber}. ` : ''}${st.name}`}
+                      sub={st.email}
+                      onPress={() => setRollEdit({ _id: st._id, name: st.name, value: st.rollNumber || '' })}
                       right={<ActionBtn label="Remove" tone="danger" small onPress={() => removeStudent(st)} />}
                     />
                   ))}
@@ -188,6 +231,15 @@ export default function AdminSectionDetailScreen() {
         onClose={() => setShowTeacherForm(false)} onSubmit={saveTeacher} submitting={saving}
       >
         <Select label="Teacher" value={teacherId} onChange={setTeacherId} options={teacherOptions} />
+      </FormModal>
+
+      <FormModal visible={!!rollEdit} title="Update Roll Number" onClose={() => setRollEdit(null)}
+        onSubmit={saveRollNumber} submitting={rollBusy} submitLabel="Save">
+        <Input label={`Roll number for ${rollEdit?.name ?? ''}`} value={rollEdit?.value ?? ''}
+          onChange={v => setRollEdit(r => (r ? { ...r, value: v } : r))} placeholder="e.g. 12" />
+        <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 4 }}>
+          Must be unique within this section. Leave blank to clear it — the student's record is updated too.
+        </Text>
       </FormModal>
 
       <FormModal visible={showAssignStudent} title="Enroll Student" onClose={() => setShowAssignStudent(false)}>

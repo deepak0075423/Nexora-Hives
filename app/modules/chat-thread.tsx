@@ -699,6 +699,7 @@ const ct = StyleSheet.create({
   sheet: {
     backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
     padding: Spacing.md, paddingBottom: Spacing.xl,
+    maxHeight: '85%',
   },
   quickReacts: {
     flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8,
@@ -712,6 +713,8 @@ const ct = StyleSheet.create({
   modalCard: {
     backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
     padding: Spacing.md, paddingBottom: Spacing.xl,
+    // Bottom-anchored, so anything past the screen height is lost off the top
+    maxHeight: '85%',
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
   modalTitle: { ...Typography.h4, color: Colors.text },
