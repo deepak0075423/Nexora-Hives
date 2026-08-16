@@ -25,7 +25,7 @@ export default function AdminStudentsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const EMPTY_FORM = {
-    name: '', email: '', phone: '', rollNumber: '', gender: '', sectionId: '',
+    name: '', email: '', phone: '', rollNumber: '', gender: '', classId: '', sectionId: '',
     dob: '', bloodGroup: '', category: '',
     address: '', pincode: '', city: '', state: '', country: 'India',
   };
@@ -73,12 +73,19 @@ export default function AdminStudentsScreen() {
     }).catch(() => {});
   }, []);
 
+  const classOptions = useMemo(
+    () => (sections ?? []).map((c: any) => ({ label: c.className ?? c.name, value: c._id })),
+    [sections],
+  );
+
+  // Section list follows the selected class; a section is optional
   const sectionOptions = useMemo(() => {
+    const chosen = (sections ?? []).filter((c: any) => !form.classId || c._id === form.classId);
     const opts: { label: string; value: string }[] = [];
-    (sections ?? []).forEach((c: any) => (c.sections ?? []).forEach((sec: any) =>
+    chosen.forEach((c: any) => (c.sections ?? []).forEach((sec: any) =>
       opts.push({ label: `${c.className ?? c.name} · ${sec.sectionName ?? sec.name}`, value: sec._id })));
     return opts;
-  }, [sections]);
+  }, [sections, form.classId]);
 
   const openDetail = async (id: string) => {
     try {
@@ -129,7 +136,7 @@ export default function AdminStudentsScreen() {
     const missing = ([
       ['dob', 'Date of birth'], ['gender', 'Gender'], ['bloodGroup', 'Blood group'],
       ['category', 'Category'], ['address', 'Address'], ['pincode', 'PIN code'],
-      ['city', 'City'], ['state', 'State'],
+      ['city', 'City'], ['state', 'State'], ['classId', 'Class'],
     ] as [keyof typeof form, string][]).find(([k]) => !String(form[k] ?? '').trim());
     if (missing) return Alert.alert('Required', `${missing[1]} is required`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dob)) return Alert.alert('Invalid', 'Date of birth must be in YYYY-MM-DD format');
@@ -143,6 +150,7 @@ export default function AdminStudentsScreen() {
           dob: form.dob, gender: form.gender, bloodGroup: form.bloodGroup, category: form.category,
           address: form.address.trim(), city: form.city.trim(), state: form.state,
           pincode: form.pincode, country: form.country || 'India',
+          currentClass: form.classId,
           ...(form.sectionId ? { currentSection: form.sectionId } : {}),
         },
       };
@@ -226,6 +234,8 @@ export default function AdminStudentsScreen() {
           options={['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'].map(g => ({ label: g, value: g }))} />
         <Select label="Category *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))}
           options={['General', 'OBC', 'SC', 'ST', 'EWS'].map(c => ({ label: c, value: c }))} />
+        <Select label="Class *" value={form.classId}
+          onChange={v => setForm(f => ({ ...f, classId: v, sectionId: '' }))} options={classOptions} />
         <Select label="Section" value={form.sectionId} onChange={v => setForm(f => ({ ...f, sectionId: v }))} options={sectionOptions} placeholder="Assign later" />
 
         <SectionTitle>Address</SectionTitle>
