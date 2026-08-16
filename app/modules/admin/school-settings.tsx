@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { schoolLogoUrl } from '@/utils/branding';
 import { isEmail, isPhone, isURL } from '@/utils/validators';
 import {
-  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV,
+  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV, confirmAsync,
 } from '@/components/ui/kit';
 
 interface SmtpForm {
@@ -92,6 +92,20 @@ export default function AdminSchoolSettingsScreen() {
     finally { setLogoUploading(false); }
   };
 
+  const removeLogo = async () => {
+    if (!(await confirmAsync('Remove Logo', 'The school logo will be deleted. The default icon is used until you upload a new one.', 'Remove'))) return;
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('removeLogo', 'true');
+      await adminApi.updateSchoolSettingsForm(fd);
+      await reload();          // header/branding falls back to the default icon
+      await load();
+      Alert.alert('Removed', 'School logo removed.');
+    } catch (err: any) { Alert.alert('Remove failed', err.message); }
+    finally { setLogoUploading(false); }
+  };
+
   const saveSmtp = async () => {
     if (smtp.enabled && (!smtp.host.trim() || !smtp.user.trim()))
       return Alert.alert('Required', 'Host and username are required to enable SMTP');
@@ -155,10 +169,18 @@ export default function AdminSchoolSettingsScreen() {
                   <Text style={ls.logoHint}>
                     Your logo appears in the app, on the website and in every email sent to parents, students and staff.
                   </Text>
-                  <TouchableOpacity style={ls.logoBtn} onPress={pickLogo} disabled={logoUploading}>
-                    <Ionicons name="image-outline" size={15} color="#fff" />
-                    <Text style={ls.logoBtnText}>{logoUploading ? 'Uploading…' : logoUri ? 'Change Logo' : 'Upload Logo'}</Text>
-                  </TouchableOpacity>
+                  <View style={ls.logoActions}>
+                    <TouchableOpacity style={ls.logoBtn} onPress={pickLogo} disabled={logoUploading}>
+                      <Ionicons name="image-outline" size={15} color="#fff" />
+                      <Text style={ls.logoBtnText}>{logoUploading ? 'Working…' : logoUri ? 'Change Logo' : 'Upload Logo'}</Text>
+                    </TouchableOpacity>
+                    {!!logoUri && (
+                      <TouchableOpacity style={ls.logoRemoveBtn} onPress={removeLogo} disabled={logoUploading}>
+                        <Ionicons name="trash-outline" size={15} color={Colors.danger} />
+                        <Text style={ls.logoRemoveText}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               </View>
             </Card>
@@ -240,6 +262,13 @@ const ls = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   logoBtnText: { fontSize: 12, fontWeight: '600', color: '#fff' },
+  logoActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  logoRemoveBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    borderWidth: 1, borderColor: Colors.danger, borderRadius: Radius.md,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  logoRemoveText: { fontSize: 12, fontWeight: '600', color: Colors.danger },
   switchRow: { flexDirection: 'row', alignItems: 'center' },
   switchLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
   switchHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },

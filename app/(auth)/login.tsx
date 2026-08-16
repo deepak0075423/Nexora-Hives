@@ -9,10 +9,17 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { login } from '@/api/auth.api';
 import { useAuth } from '@/contexts/AuthContext';
 import { isEmail } from '@/utils/validators';
+import { schoolLogoUrl } from '@/utils/branding';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, accounts, switchAccount, removeAccount } = useAuth();
+
+  // Nobody is signed in yet, so brand this screen with the school of the most
+  // recently saved account — its logo and name when we have them.
+  const lastAccount = accounts[accounts.length - 1];
+  const brandLogo   = schoolLogoUrl({ logo: lastAccount?.schoolLogo });
+  const brandName   = lastAccount?.schoolName || 'Aksharum';
 
   const [email, setEmail]             = useState('');
   const [password, setPassword]       = useState('');
@@ -69,12 +76,12 @@ export default function LoginScreen() {
         <View style={s.header}>
           <View style={s.logoBox}>
             <Image
-              source={require('@/assets/images/logo.png')}
+              source={brandLogo ? { uri: brandLogo } : require('@/assets/images/logo.png')}
               style={s.logoImg}
               resizeMode="contain"
             />
           </View>
-          <Text style={s.appName}>Aksharum</Text>
+          <Text style={s.appName}>{brandName}</Text>
         </View>
 
         {/* Saved accounts — quick switch */}

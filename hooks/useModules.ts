@@ -18,6 +18,9 @@ export interface ModuleFlags {
   payroll?: boolean;
   fees?: boolean;
   chat?: boolean;
+  transport?: boolean;
+  inventory?: boolean;
+  videoLibrary?: boolean;
   isLibrarian?: boolean; // teacher-only designation flag
   [key: string]: any;
 }

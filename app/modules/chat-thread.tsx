@@ -10,9 +10,9 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { BASE_URL } from '@/api/axios';
 import * as chatApi from '@/api/chat.api';
+import { getSocket } from '@/utils/socket';
 import { unwrap, Empty, Input, Toggle, ActionBtn, LoaderView } from '@/components/ui/kit';
 
-const POLL_MS = 4000;
 const FILE_BASE = BASE_URL.replace(/\/api\/?$/, '');
 const fileHref = (u?: string) => !u ? '' : u.startsWith('http') ? u : `${FILE_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
 
@@ -68,7 +68,6 @@ export default function ChatThreadScreen() {
   const [contacts, setContacts] = useState<any[]>([]);
 
   const scrollRef = useRef<ScrollView>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadMembers = useCallback(async () => {
     if (!id) return;
@@ -91,13 +90,54 @@ export default function ChatThreadScreen() {
   };
 
   useEffect(() => {
+    if (!id) return;
+    // Initial load — getMessages also marks the chat read server-side
     load();
     loadMembers();
-    chatApi.heartbeat().catch(() => {});
-    // Poll while open — getMessages also marks the chat read server-side
-    pollRef.current = setInterval(() => { load(true); loadMembers(); }, POLL_MS);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [id]);
+
+    // Live updates over the WebSocket gateway (socket is connected app-wide by
+    // NotificationProvider and joined to this user's chat rooms) — no polling.
+    const sock = getSocket();
+    if (!sock) return;
+
+    const onMessage = (msg: any) => {
+      if (String(msg.chat) !== String(id)) return;
+      setMessages(prev =>
+        prev.some(x => String(x._id) === String(msg._id)) ? prev : [...prev, msg]);
+      // Mark incoming messages from others as read while the thread is open
+      if (String(msg.sender?._id ?? msg.sender) !== String(myId)) {
+        sock.emit('chat:read', { chatId: id, messageId: msg._id });
+      }
+    };
+    const onEdited = ({ messageId, content }: any) =>
+      setMessages(prev => prev.map(m =>
+        String(m._id) === String(messageId) ? { ...m, content, isEdited: true } : m));
+    const onDeleted = ({ messageId }: any) =>
+      setMessages(prev => prev.map(m =>
+        String(m._id) === String(messageId) ? { ...m, isDeleted: true, content: '' } : m));
+    const onReaction = ({ messageId, reactions }: any) =>
+      setMessages(prev => prev.map(m =>
+        String(m._id) === String(messageId) ? { ...m, reactions } : m));
+    const onMembership = () => loadMembers();
+
+    sock.on('chat:message',         onMessage);
+    sock.on('chat:message_edited',  onEdited);
+    sock.on('chat:message_deleted', onDeleted);
+    sock.on('chat:reaction',        onReaction);
+    sock.on('chat:member_added',    onMembership);
+    sock.on('chat:member_removed',  onMembership);
+    sock.on('chat:group_updated',   onMembership);
+
+    return () => {
+      sock.off('chat:message',         onMessage);
+      sock.off('chat:message_edited',  onEdited);
+      sock.off('chat:message_deleted', onDeleted);
+      sock.off('chat:reaction',        onReaction);
+      sock.off('chat:member_added',    onMembership);
+      sock.off('chat:member_removed',  onMembership);
+      sock.off('chat:group_updated',   onMembership);
+    };
+  }, [id, myId, loadMembers]);
 
   useEffect(() => {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 80);

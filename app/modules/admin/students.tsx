@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { isEmail, isPhone } from '@/utils/validators';
+import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
   Input, Select, KV, ActionBtn, confirmAsync, SectionTitle,
@@ -23,7 +24,13 @@ export default function AdminStudentsScreen() {
   // Create form
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', rollNumber: '', gender: '', sectionId: '' });
+  const EMPTY_FORM = {
+    name: '', email: '', phone: '', rollNumber: '', gender: '', sectionId: '',
+    dob: '', bloodGroup: '', category: '',
+    address: '', pincode: '', city: '', state: '', country: 'India',
+  };
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [pinBusy, setPinBusy] = useState(false);
   const [parentQ, setParentQ] = useState('');
   const [parentResults, setParentResults] = useState<any[]>([]);
   const [parentId, setParentId] = useState('');
@@ -99,25 +106,50 @@ export default function AdminStudentsScreen() {
     } catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  // PIN code fills in country/state/city, matching the web form
+  const onPincode = async (val: string) => {
+    const pin = val.replace(/\D/g, '').slice(0, 6);
+    setForm(f => ({ ...f, pincode: pin }));
+    if (!isPincode(pin)) return;
+    setPinBusy(true);
+    try {
+      const res: any = await adminApi.pincodeLookup(pin);
+      const d = unwrap(res) ?? {};
+      setForm(f => ({ ...f, country: d.country || 'India', state: d.state || f.state, city: d.city || f.city }));
+    } catch { /* offline — the admin fills city/state by hand */ }
+    finally { setPinBusy(false); }
+  };
+
   const submit = async () => {
     if (!form.name.trim() || !form.email.trim()) return Alert.alert('Required', 'Name and email are required');
     if (form.name.trim().length < 2) return Alert.alert('Invalid', 'Name must be at least 2 characters');
     if (!isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
     if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
+    // These are mandatory on the student record
+    const missing = ([
+      ['dob', 'Date of birth'], ['gender', 'Gender'], ['bloodGroup', 'Blood group'],
+      ['category', 'Category'], ['address', 'Address'], ['pincode', 'PIN code'],
+      ['city', 'City'], ['state', 'State'],
+    ] as [keyof typeof form, string][]).find(([k]) => !String(form[k] ?? '').trim());
+    if (missing) return Alert.alert('Required', `${missing[1]} is required`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dob)) return Alert.alert('Invalid', 'Date of birth must be in YYYY-MM-DD format');
+    if (!isPincode(form.pincode)) return Alert.alert('Invalid', 'PIN code must be 6 digits');
     setSaving(true);
     try {
       const payload: any = {
         name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(),
         profile: {
           ...(form.rollNumber ? { rollNumber: form.rollNumber } : {}),
-          ...(form.gender ? { gender: form.gender } : {}),
+          dob: form.dob, gender: form.gender, bloodGroup: form.bloodGroup, category: form.category,
+          address: form.address.trim(), city: form.city.trim(), state: form.state,
+          pincode: form.pincode, country: form.country || 'India',
           ...(form.sectionId ? { currentSection: form.sectionId } : {}),
         },
       };
       if (parentId) payload.parentId = parentId;
       await adminApi.createStudent(payload);
       setShowForm(false);
-      setForm({ name: '', email: '', phone: '', rollNumber: '', gender: '', sectionId: '' });
+      setForm(EMPTY_FORM);
       setParentId(''); setParentName(''); setParentQ(''); setParentResults([]);
       load(1);
       Alert.alert('Success', 'Student created. Login OTP has been emailed.');
@@ -187,9 +219,22 @@ export default function AdminStudentsScreen() {
         <Input label="Email *" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="student@email.com" keyboardType="email-address" />
         <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} placeholder="Optional" keyboardType="phone-pad" />
         <Input label="Roll Number" value={form.rollNumber} onChange={v => setForm(f => ({ ...f, rollNumber: v }))} placeholder="Optional" />
-        <Select label="Gender" value={form.gender} onChange={v => setForm(f => ({ ...f, gender: v }))}
+        <Input label="Date of Birth *" value={form.dob} onChange={v => setForm(f => ({ ...f, dob: v }))} placeholder="YYYY-MM-DD" />
+        <Select label="Gender *" value={form.gender} onChange={v => setForm(f => ({ ...f, gender: v }))}
           options={[{ label: 'Male', value: 'Male' }, { label: 'Female', value: 'Female' }, { label: 'Other', value: 'Other' }]} />
+        <Select label="Blood Group *" value={form.bloodGroup} onChange={v => setForm(f => ({ ...f, bloodGroup: v }))}
+          options={['A+', 'A−', 'B+', 'B−', 'AB+', 'AB−', 'O+', 'O−'].map(g => ({ label: g, value: g }))} />
+        <Select label="Category *" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))}
+          options={['General', 'OBC', 'SC', 'ST', 'EWS'].map(c => ({ label: c, value: c }))} />
         <Select label="Section" value={form.sectionId} onChange={v => setForm(f => ({ ...f, sectionId: v }))} options={sectionOptions} placeholder="Assign later" />
+
+        <SectionTitle>Address</SectionTitle>
+        <Input label="Address *" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} placeholder="House / street / locality" multiline />
+        <Input label={pinBusy ? 'PIN Code * (looking up…)' : 'PIN Code *'} value={form.pincode} onChange={onPincode} placeholder="411001" keyboardType="numeric" />
+        <Input label="City / District *" value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} placeholder="Pune" />
+        <Select label="State / UT *" value={form.state} onChange={v => setForm(f => ({ ...f, state: v }))}
+          options={STATES_AND_UTS.map(st => ({ label: st, value: st }))} />
+        <Input label="Country" value={form.country} onChange={() => {}} editable={false} />
 
         <SectionTitle>Link Parent (optional)</SectionTitle>
         {parentId ? (

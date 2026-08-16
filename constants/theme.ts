@@ -50,6 +50,7 @@ export const Colors = {
     exams:      { bg: '#FDF2F8', icon: '#BE185D' },
     inventory:  { bg: '#E0F2FE', icon: '#0369A1' },
     transport:  { bg: '#FEF3C7', icon: '#D97706' },
+    videos:     { bg: '#FFE4E6', icon: '#E11D48' },
   },
 
   // Tab bar

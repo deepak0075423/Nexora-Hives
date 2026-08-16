@@ -32,6 +32,7 @@ export const createStudent = (data: object)     => api.post('/admin/students', d
 export const updateStudent = (id: string, data: object) => api.put(`/admin/students/${id}`, data);
 export const deleteStudent = (id: string)       => api.delete(`/admin/students/${id}`);
 export const parentLookup  = (q: string)        => api.get('/admin/students/parent-lookup', { params: { q } });
+export const pincodeLookup = (pin: string)      => api.get(`/admin/pincode/${pin}`);
 
 // ── Shared user ops ──────────────────────────────────────────────────────────
 export const toggleUser  = (id: string)    => api.patch(`/admin/users/${id}/toggle`);

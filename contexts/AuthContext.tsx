@@ -39,6 +39,7 @@ export interface SavedAccount {
   email: string;
   role: UserRole;
   schoolName?: string;
+  schoolLogo?: string;   // lets the sign-in screen show the school's own branding
   token: string;
   refreshToken: string;
 }
@@ -111,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const list = await readAccounts();
     const entry: SavedAccount = {
       _id: u._id, name: u.name, email: u.email, role: u.role,
-      schoolName: u.school?.name, token, refreshToken,
+      schoolName: u.school?.name, schoolLogo: u.school?.logo, token, refreshToken,
     };
     const idx = list.findIndex(a => a._id === u._id);
     if (idx >= 0) list[idx] = entry; else list.push(entry);

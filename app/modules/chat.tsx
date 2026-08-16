@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as chatApi from '@/api/chat.api';
+import { getSocket } from '@/utils/socket';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, FAB, FormModal, SearchBar, Input, Select,
@@ -59,10 +60,32 @@ export default function ChatListScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   };
 
-  // Reload + refresh presence whenever the screen gains focus
+  // Reload on focus, then stay live over the WebSocket gateway — no polling.
+  // Presence (lastSeenAt) is maintained by the gateway over the socket lifecycle.
   useFocusEffect(useCallback(() => {
     load();
-    chatApi.heartbeat().catch(() => {});
+
+    const sock = getSocket();
+    if (!sock) return;
+
+    // A new message or membership change → refresh the list (debounced).
+    let t: ReturnType<typeof setTimeout>;
+    const refresh = () => { clearTimeout(t); t = setTimeout(load, 400); };
+
+    sock.on('chat:message',        refresh);
+    sock.on('chat:group_created',  refresh);
+    sock.on('chat:member_added',   refresh);
+    sock.on('chat:member_removed', refresh);
+    sock.on('chat:group_updated',  refresh);
+
+    return () => {
+      clearTimeout(t);
+      sock.off('chat:message',        refresh);
+      sock.off('chat:group_created',  refresh);
+      sock.off('chat:member_added',   refresh);
+      sock.off('chat:member_removed', refresh);
+      sock.off('chat:group_updated',  refresh);
+    };
   }, []));
 
   // Debounced message search
