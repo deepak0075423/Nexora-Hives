@@ -40,6 +40,7 @@ const STUDENT_MODULES = [
 
 const TEACHER_MODULES = [
   { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section' },
+  { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
@@ -59,6 +60,7 @@ const TEACHER_MODULES = [
 
 const ADMIN_MODULES = [
   { key: 'students',   label: 'Students',   icon: 'school',           route: '/modules/admin/students' },
+  { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'teachers',   label: 'Teachers',   icon: 'people',           route: '/modules/admin/teachers' },
   { key: 'admins',     label: 'Admins',     icon: 'shield-checkmark', route: '/modules/admin/admins' },
   { key: 'classes',    label: 'Classes',    icon: 'business',         route: '/modules/admin/classes' },

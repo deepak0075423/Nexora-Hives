@@ -46,6 +46,7 @@ export const Colors = {
     profile:    { bg: '#CCFBF1', icon: '#0F766E' },
     leave:      { bg: '#FFF7ED', icon: '#C2410C' },
     section:    { bg: '#EEF2FF', icon: '#4338CA' },
+    analytics:  { bg: '#EDE9FE', icon: '#4F46E5' },
     payroll:    { bg: '#F0FDF4', icon: '#15803D' },
     exams:      { bg: '#FDF2F8', icon: '#BE185D' },
     inventory:  { bg: '#E0F2FE', icon: '#0369A1' },
