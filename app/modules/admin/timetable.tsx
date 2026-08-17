@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { unwrap, LoaderView, Empty, Select } from '@/components/ui/kit';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Entry points into the generator module (own screens, own API surface).
+const TOOLS = [
+  { key: 'generate',     label: 'Generate Timetable', icon: 'flash',           route: '/modules/admin/timetable-generate',     tone: Colors.accent },
+  { key: 'versions',     label: 'Versions & Publish', icon: 'albums',          route: '/modules/admin/timetable-versions',     tone: Colors.primary },
+  { key: 'requirements', label: 'Subject Requirements', icon: 'book',          route: '/modules/admin/timetable-requirements', tone: Colors.info },
+  { key: 'availability', label: 'Teacher Availability', icon: 'person-circle', route: '/modules/admin/timetable-availability', tone: Colors.success },
+  { key: 'rooms',        label: 'Rooms & Labs',       icon: 'business',        route: '/modules/admin/timetable-rooms',        tone: Colors.warning },
+];
 
 export default function AdminTimetableScreen() {
   const [sections, setSections] = useState<any[]>([]);
@@ -67,9 +77,21 @@ export default function AdminTimetableScreen() {
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
+        <View style={tt.toolGrid}>
+          {TOOLS.map(t => (
+            <TouchableOpacity key={t.key} style={tt.tool} activeOpacity={0.7} onPress={() => router.push(t.route as any)}>
+              <View style={[tt.toolIcon, { backgroundColor: `${t.tone}22` }]}>
+                <Ionicons name={t.icon as any} size={18} color={t.tone} />
+              </View>
+              <Text style={tt.toolLabel} numberOfLines={2}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={tt.publishedTitle}>Published timetable</Text>
         <Select label="Section" value={sectionId} onChange={changeSection} options={sectionOptions} placeholder="Pick a section" />
         <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: Spacing.sm }}>
-          Timetable structure and period editing is available on the web admin panel.
+          This is the live schedule. Use Generate or Versions above to build and publish a new one.
         </Text>
 
         {loading ? <LoaderView /> : !sectionId ? (
@@ -100,6 +122,16 @@ export default function AdminTimetableScreen() {
 }
 
 const tt = StyleSheet.create({
+  toolGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.md },
+  tool: {
+    flexGrow: 1, flexBasis: '30%', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.surface, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border, paddingVertical: 12, paddingHorizontal: 6,
+  },
+  toolIcon: { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  toolLabel: { fontSize: 10.5, fontWeight: '600', color: Colors.text, textAlign: 'center' },
+  publishedTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginBottom: 8 },
+
   dayBlock: {
     backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
     marginBottom: 10, borderWidth: 1, borderColor: Colors.border,
