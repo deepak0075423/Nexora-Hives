@@ -23,6 +23,7 @@ const MODULES: { key: string; label: string; desc: string }[] = [
   { key: 'inventory',    label: 'Inventory',      desc: 'Stock, assets, procurement & purchase requests' },
   { key: 'transport',    label: 'Transport',      desc: 'Fleet, routes, trips, tracking & transport fees' },
   { key: 'chat',         label: 'Chat',           desc: 'Real-time messaging' },
+  { key: 'feedback',     label: 'Teacher Feedback', desc: 'Student feedback campaigns, analytics & reports' },
 ];
 
 export default function SuperPermissionsScreen() {

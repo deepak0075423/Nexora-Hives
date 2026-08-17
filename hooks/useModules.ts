@@ -21,7 +21,9 @@ export interface ModuleFlags {
   transport?: boolean;
   inventory?: boolean;
   videoLibrary?: boolean;
+  feedback?: boolean;
   isLibrarian?: boolean; // teacher-only designation flag
+  isPrincipal?: boolean; // teacher-only designation flag (Principal / Vice Principal)
   [key: string]: any;
 }
 
