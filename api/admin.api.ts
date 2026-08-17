@@ -45,6 +45,11 @@ export const getStudents   = (params?: object) => api.get('/admin/students', { p
 export const getStudent    = (id: string)       => api.get(`/admin/students/${id}`);
 export const createStudent = (data: object)     => api.post('/admin/students', data);
 export const updateStudent = (id: string, data: object) => api.put(`/admin/students/${id}`, data);
+// Full admission intake posts multipart (certificates + ID scans); up to 20
+// uploads can ride along, so it gets a longer timeout than the default.
+const UPLOAD_CFG = { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 };
+export const createStudentForm = (fd: FormData) => api.post('/admin/students', fd, UPLOAD_CFG);
+export const updateStudentForm = (id: string, fd: FormData) => api.put(`/admin/students/${id}`, fd, UPLOAD_CFG);
 export const deleteStudent = (id: string)       => api.delete(`/admin/students/${id}`);
 export const parentLookup  = (q: string)        => api.get('/admin/students/parent-lookup', { params: { q } });
 export const pincodeLookup = (pin: string)      => api.get(`/admin/pincode/${pin}`);
