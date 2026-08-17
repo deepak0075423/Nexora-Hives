@@ -34,6 +34,25 @@ export const getLeaves           = () => api.get('/teacher/leave');
 export const getLeaveBalance     = () => api.get('/teacher/leave/balance');
 export const applyLeave          = (data: FormData) => api.post('/teacher/leave/apply', data, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const cancelLeave         = (id: string) => api.delete(`/teacher/leave/${id}`);
+
+// The rules behind each leave type, and whether I qualify for it
+export const getLeaveTypePolicies = ()                 => api.get('/teacher/leave/policies');
+// Designation-based approvers (e.g. Principal) work their queue here
+export const getLeaveApprovals    = (params?: object)  => api.get('/teacher/leave/approvals', { params });
+export const approveLeaveRequest  = (id: string, data?: object) => api.post(`/teacher/leave/approvals/${id}/approve`, data ?? {});
+export const rejectLeaveRequest   = (id: string, data?: object) => api.post(`/teacher/leave/approvals/${id}/reject`, data ?? {});
+
+// ── Comp Off ─────────────────────────────────────────────────────────────────
+export const getMyCompOff        = (params?: object) => api.get('/teacher/leave/compoff', { params });
+export const previewCompOffDate  = (params: object)  => api.get('/teacher/leave/compoff/preview', { params });
+export const getMyCompOffLedger  = ()                => api.get('/teacher/leave/compoff/ledger');
+export const applyCompOff        = (data: object)    => api.post('/teacher/leave/compoff', data);
+export const submitCompOffDraft  = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/apply`, data ?? {});
+export const cancelCompOff       = (id: string)      => api.delete(`/teacher/leave/compoff/${id}`);
+// Designation-based approvers (e.g. Principal) work their queue from here
+export const getCompOffApprovals = (params?: object) => api.get('/teacher/leave/compoff/approvals', { params });
+export const approveCompOff      = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/approve`, data ?? {});
+export const rejectCompOff       = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/reject`, data ?? {});
 export const getDocuments        = () => api.get('/teacher/documents');
 export const getHolidays         = () => api.get('/teacher/holidays');
 export const sendNotification    = (data: object) => api.post('/teacher/notifications/send', data);

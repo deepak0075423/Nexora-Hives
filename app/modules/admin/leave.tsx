@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
-import { Stack } from 'expo-router';
-import { Colors, Spacing } from '@/constants/theme';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { Colors, Spacing, Typography } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
-  unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
+  unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs, RowItem,
   FormModal, Input, fmtDate,
 } from '@/components/ui/kit';
 
@@ -17,19 +17,27 @@ const STATUS_TABS = [
 ];
 
 export default function AdminLeaveScreen() {
+  const router = useRouter();
   const [status, setStatus] = useState('pending');
+  const [compOffPending, setCompOffPending] = useState<number | null>(null);
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
-  const [rejecting, setRejecting] = useState<any>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  // One modal serves both destructive actions — each just needs a comment
+  const [action, setAction] = useState<{ type: 'reject' | 'reverse'; leave: any } | null>(null);
+  const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = async (st = status) => {
     try {
       const res: any = await adminApi.getLeaveRequests({ ...(st ? { status: st } : {}), page: 1, limit: 50 });
       setList((res as any)?.data ?? unwrap(res) ?? []);
+      // Comp Off belongs to the same module — surface its pending count here so
+      // the queue is not hidden behind a second navigation guess.
+      const co: any = await adminApi.getCompOffRequests({ status: 'pending', limit: 1 }).catch(() => null);
+      const coData = unwrap(co);
+      setCompOffPending(coData?.enabled === false ? null : (coData?.total ?? 0));
     } catch (err: any) {
       if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
@@ -40,16 +48,22 @@ export default function AdminLeaveScreen() {
 
   const approve = async (r: any) => {
     try { await adminApi.approveLeave(r._id); load(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
+    catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
   };
 
-  const submitReject = async () => {
+  const submitAction = async () => {
+    if (!action) return;
     setSaving(true);
     try {
-      await adminApi.rejectLeave(rejecting._id, { reason: rejectReason, adminComment: rejectReason });
-      setRejecting(null); setRejectReason('');
+      if (action.type === 'reject') {
+        await adminApi.rejectLeave(action.leave._id, { reason: comment, adminComment: comment });
+      } else {
+        await adminApi.reverseApprovedLeave(action.leave._id, { adminComment: comment });
+        Alert.alert('Done', `Leave reversed — ${action.leave.totalDays ?? 0} day(s) restored to the balance`);
+      }
+      setAction(null); setComment('');
       load();
-    } catch (err: any) { Alert.alert('Error', err.message); }
+    } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -68,6 +82,20 @@ export default function AdminLeaveScreen() {
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
+        <RowItem
+          icon="options-outline" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
+          title="Leave Policies"
+          sub="Configure the rules for each leave type"
+          onPress={() => router.push('/modules/admin/leave-policies' as any)}
+        />
+        {compOffPending !== null && (
+          <RowItem
+            icon="time-outline" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
+            title="Comp Off"
+            sub={compOffPending > 0 ? `${compOffPending} request(s) awaiting approval` : 'No requests waiting'}
+            onPress={() => router.push('/modules/admin/comp-off' as any)}
+          />
+        )}
         <SegTabs tabs={STATUS_TABS} active={status} onChange={changeTab} />
         {loading ? <LoaderView /> : list.length === 0 ? (
           <Empty icon="airplane-outline" text="No leave requests" />
@@ -87,8 +115,16 @@ export default function AdminLeaveScreen() {
                     <ActionBtn label="Approve" tone="success" onPress={() => approve(lv)} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <ActionBtn label="Reject" tone="danger" onPress={() => setRejecting(lv)} />
+                    <ActionBtn label="Reject" tone="danger" onPress={() => { setComment(''); setAction({ type: 'reject', leave: lv }); }} />
                   </View>
+                </View>
+              )}
+              {/* Undoing an approval is the only way to hand the days back — and
+                  the Comp Off screen refuses to withdraw a credit until the
+                  leave that spent it has been reversed here. */}
+              {lv.status === 'approved' && (
+                <View style={{ marginTop: 10 }}>
+                  <ActionBtn label="Reverse" tone="danger" onPress={() => { setComment(''); setAction({ type: 'reverse', leave: lv }); }} />
                 </View>
               )}
             </Card>
@@ -96,9 +132,40 @@ export default function AdminLeaveScreen() {
         )}
       </ScrollView>
 
-      <FormModal visible={!!rejecting} title="Reject Leave" onClose={() => setRejecting(null)} onSubmit={submitReject} submitting={saving} submitLabel="Reject">
-        <Input label="Reason" value={rejectReason} onChange={setRejectReason} placeholder="Why is this rejected?" multiline />
+      <FormModal
+        visible={!!action}
+        title={action?.type === 'reverse' ? 'Reverse Approved Leave' : 'Reject Leave'}
+        onClose={() => setAction(null)}
+        onSubmit={submitAction}
+        submitting={saving}
+        submitLabel={action?.type === 'reverse' ? 'Reverse' : 'Reject'}
+      >
+        {action && (
+          <>
+            <KV label="Teacher" value={action.leave.teacher?.name ?? '--'} />
+            <KV label="Dates" value={`${fmtDate(action.leave.fromDate)} – ${fmtDate(action.leave.toDate)}`} />
+            {action.type === 'reverse' ? (
+              <Text style={s.note}>
+                This undoes the approval and returns {action.leave.totalDays ?? 0} day(s) to the teacher's balance.
+                {action.leave.leaveType?.category === 'compoff'
+                  ? ' The Comp Off days go back into the lots they were spent from.'
+                  : ''}
+              </Text>
+            ) : null}
+            <Input
+              label="Reason"
+              value={comment}
+              onChange={setComment}
+              placeholder={action.type === 'reverse' ? 'Why is this being reversed?' : 'Why is this rejected?'}
+              multiline
+            />
+          </>
+        )}
       </FormModal>
     </>
   );
 }
+
+const s = StyleSheet.create({
+  note: { ...Typography.bodySmall, color: Colors.textSecondary, marginVertical: 8, lineHeight: 18 },
+});

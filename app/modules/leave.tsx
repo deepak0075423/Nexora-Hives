@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl,
   TouchableOpacity, Alert,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
@@ -16,20 +16,33 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 };
 
 export default function LeaveScreen() {
+  const router = useRouter();
   const [leaves, setLeaves] = useState<any[]>([]);
   const [balance, setBalance] = useState<any>(null);
+  const [compOff, setCompOff] = useState<any>(null);
+  const [isApprover, setIsApprover] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
   const load = async () => {
     try {
-      const [lv, bal]: [any, any] = await Promise.all([
+      const [lv, bal, co, appr]: [any, any, any, any] = await Promise.all([
         teacherApi.getLeaves(),
         teacherApi.getLeaveBalance(),
+        // Comp Off lives inside Leave Management — pull just enough to show the
+        // entry point with its balance and any ready-to-apply count.
+        teacherApi.getMyCompOff().catch(() => null),
+        // Approvers are picked by designation, so ask whether this user has a queue
+        teacherApi.getLeaveApprovals({ status: 'pending' }).catch(() => null),
       ]);
       setLeaves((lv as any)?.data ?? lv ?? []);
       setBalance((bal as any)?.data ?? bal);
+      setCompOff((co as any)?.data ?? co);
+      const apprData = (appr as any)?.data ?? appr;
+      setIsApprover(!!apprData?.isApprover);
+      setPendingApprovals(apprData?.items?.length ?? 0);
     } catch (err: any) {
       if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
     }
@@ -94,6 +107,39 @@ export default function LeaveScreen() {
               </View>
             )}
 
+            {/* Sign-off queue — only for designation-based approvers */}
+            {isApprover && (
+              <TouchableOpacity style={s.compOffRow} onPress={() => router.push('/modules/leave-approvals' as any)}>
+                <View style={s.compOffIcon}>
+                  <Ionicons name="checkmark-done-outline" size={18} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.compOffTitle}>Leave Approvals</Text>
+                  <Text style={s.compOffSub}>
+                    {pendingApprovals > 0 ? `${pendingApprovals} request(s) awaiting your sign-off` : 'Nothing waiting for you'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textLight} />
+              </TouchableOpacity>
+            )}
+
+            {/* Comp Off — same module, its own screen */}
+            {compOff?.enabled && (
+              <TouchableOpacity style={s.compOffRow} onPress={() => router.push('/modules/comp-off' as any)}>
+                <View style={s.compOffIcon}>
+                  <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.compOffTitle}>Comp Off</Text>
+                  <Text style={s.compOffSub}>
+                    {compOff.balance?.remaining ?? 0} day(s) available
+                    {compOff.drafts?.length ? ` · ${compOff.drafts.length} ready to apply` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textLight} />
+              </TouchableOpacity>
+            )}
+
             {/* Leaves */}
             <Text style={s.groupLabel}>My Leaves</Text>
             {leaves.length === 0 ? (
@@ -152,6 +198,17 @@ const s = StyleSheet.create({
   balanceCount: { fontSize: 24, fontWeight: '700', color: '#fff' },
   balanceType: { fontSize: 10, color: 'rgba(255,255,255,0.6)', textTransform: 'capitalize', marginTop: 2 },
   balanceUsed: { fontSize: 9, color: 'rgba(255,255,255,0.45)', marginTop: 1 },
+  compOffRow: {
+    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
+    marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  compOffIcon: {
+    width: 34, height: 34, borderRadius: Radius.md, backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  compOffTitle: { ...Typography.label, color: Colors.text },
+  compOffSub:   { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8 },
   empty: { alignItems: 'center', paddingTop: 40, gap: 12 },
   emptyText: { ...Typography.body, color: Colors.textSecondary },

@@ -106,6 +106,25 @@ export const getLeaveAllocations    = (params?: object) => api.get('/admin/leave
 export const allocateLeave          = (data: object) => api.post('/admin/leave/allocations', data);
 export const getTeacherLeaveBalance = (teacherId: string) => api.get('/admin/leave/balance', { params: { teacherId } });
 export const getLeaveReports        = (params?: object) => api.get('/admin/leave/reports', { params });
+// Undoes an approved leave and returns the days to the balance. For Comp Off it
+// also refills the ledger lots the leave was spent from — and it is the
+// prerequisite for withdrawing a Comp Off credit whose days were already used.
+export const reverseApprovedLeave   = (id: string, data?: object) => api.post(`/admin/leave/requests/${id}/reverse`, data ?? {});
+
+// Per-leave-type policies — every leave type carries its own rule set
+export const getLeavePolicies  = ()                       => api.get('/admin/leave/policies');
+export const getLeavePolicy    = (leaveTypeId: string)    => api.get(`/admin/leave/policies/${leaveTypeId}`);
+export const updateLeavePolicy = (leaveTypeId: string, data: object) => api.put(`/admin/leave/policies/${leaveTypeId}`, data);
+
+// ── Comp Off (inside the leave module) ───────────────────────────────────────
+export const getCompOffRequests  = (params?: object) => api.get('/admin/leave/compoff', { params });
+export const approveCompOff      = (id: string, data?: object) => api.post(`/admin/leave/compoff/${id}/approve`, data ?? {});
+export const rejectCompOff       = (id: string, data?: object) => api.post(`/admin/leave/compoff/${id}/reject`, data ?? {});
+export const cancelCompOff       = (id: string, data?: object) => api.post(`/admin/leave/compoff/${id}/cancel`, data ?? {});
+export const getCompOffBalances  = (params?: object) => api.get('/admin/leave/compoff/balances', { params });
+export const getCompOffLedger    = (params?: object) => api.get('/admin/leave/compoff/ledger', { params });
+export const getCompOffPolicy    = ()                => api.get('/admin/leave/compoff/policy');
+export const runCompOffExpiry    = ()                => api.post('/admin/leave/compoff/expire/run');
 
 // ── Timetable ────────────────────────────────────────────────────────────────
 export const getSectionTimetable = (sectionId: string, yearId?: string) =>
