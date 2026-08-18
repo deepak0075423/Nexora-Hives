@@ -20,6 +20,7 @@ export default function AdminTeachersScreen() {
 
   const [detail, setDetail] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<{ _id: string; name?: string } | null>(null);
 
   const load = async (p = 1, q = search) => {
     try {
@@ -115,7 +116,11 @@ export default function AdminTeachersScreen() {
         <KV label="Experience" value={p?.employmentType === 'experienced' ? (p?.totalExperience || 'Experienced') : (p?.employmentType ? 'Fresher' : '--')} />
         <KV label="Emergency Contact" value={p?.emergencyContactName ? `${p.emergencyContactName} · ${p.emergencyContactPhone || ''}`.trim() : '--'} />
         <KV label="Status" value={<Badge label={u?.isActive === false ? 'inactive' : 'active'} />} />
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <View style={{ marginTop: 12 }}>
+          {/* The whole record, edited with the wizard that created it. */}
+          <ActionBtn label="Edit full record" tone="info" onPress={() => { setEditing({ _id: u._id, name: u.name }); setDetail(null); }} />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
           <View style={{ flex: 1 }}>
             <ActionBtn label={u?.isActive === false ? 'Activate' : 'Deactivate'} tone="warning" onPress={() => handleToggle(u._id)} />
           </View>
@@ -126,6 +131,9 @@ export default function AdminTeachersScreen() {
       </FormModal>
 
       <TeacherFormModal visible={showForm} onClose={() => setShowForm(false)}
+        onCreated={() => load(1)} designations={designations} />
+
+      <TeacherFormModal visible={!!editing} teacher={editing} onClose={() => setEditing(null)}
         onCreated={() => load(1)} designations={designations} />
     </>
   );

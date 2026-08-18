@@ -22,6 +22,7 @@ const MODULES: { key: string; label: string; desc: string }[] = [
   { key: 'fees',         label: 'Fees',           desc: 'Fee structures, payments and receipts' },
   { key: 'inventory',    label: 'Inventory',      desc: 'Stock, assets, procurement & purchase requests' },
   { key: 'transport',    label: 'Transport',      desc: 'Fleet, routes, trips, tracking & transport fees' },
+  { key: 'employeeDirectory', label: 'Employee Directory', desc: 'Staff directory assembled from existing employee records' },
   { key: 'chat',         label: 'Chat',           desc: 'Real-time messaging' },
   { key: 'feedback',     label: 'Teacher Feedback', desc: 'Student feedback campaigns, analytics & reports' },
 ];
@@ -111,17 +112,6 @@ export default function SuperPermissionsScreen() {
                 ))}
 
                 <ActionBtn label={saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'} tone={dirty ? 'success' : 'neutral'} onPress={save} />
-
-                {/* The next layer down: what this school's designations may do
-                    with the modules enabled above. */}
-                <View style={{ marginTop: Spacing.md }}>
-                  <RowItem
-                    icon="pricetags" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
-                    title="Designation Access"
-                    sub="Grant admin / normal / no access per designation"
-                    onPress={() => router.push({ pathname: '/modules/admin/designations', params: { schoolId } } as any)}
-                  />
-                </View>
               </>
             )}
           </>

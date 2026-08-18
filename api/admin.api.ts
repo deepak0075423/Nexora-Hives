@@ -33,6 +33,11 @@ export const createTeacher      = (data: object)     => api.post('/admin/teacher
 // Full seven-step intake posts multipart (ID scans + experience papers)
 export const createTeacherForm  = (fd: FormData)     =>
   api.post('/admin/teachers', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+// The full record, edited with the same wizard that created it. Partial by
+// design: uploads already on file are kept when none are re-picked.
+export const updateTeacherForm = (id: string, fd: FormData) =>
+  api.put(`/admin/teachers/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const getTeacherDetail  = (id: string) => api.get(`/admin/teachers/${id}`);
 export const previewAdmissionNumber = (format?: string) =>
   api.get('/admin/admission-number/preview', { params: format ? { format } : {} });
 export const previewEmployeeId      = (format?: string) =>

@@ -51,6 +51,14 @@ api.interceptors.response.use(
       }
     }
 
+    // The school this session belongs to was switched off. Every subsequent
+    // request would fail the same way, so clear the credentials here — the app
+    // drops back to the login screen, where the message explains why.
+    if (status === 403 && err.response?.data?.code === 'SCHOOL_INACTIVE' && !isAuthEndpoint) {
+      await storage.deleteItem('token');
+      await storage.deleteItem('refreshToken');
+    }
+
     return Promise.reject({ message, status, data: err.response?.data });
   },
 );

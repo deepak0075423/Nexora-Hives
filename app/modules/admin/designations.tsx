@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, StyleSheet, TouchableOpacity } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
-import * as superApi from '@/api/superadmin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, SectionTitle, FormModal, Input,
@@ -83,25 +82,18 @@ function LevelPicker({ value, adminCapable, onChange }: {
   );
 }
 
+// Designations belong to the school that owns them: only a school admin edits
+// this matrix. The Super Admin decides which MODULES a school has (Permissions),
+// not who inside the school may reach them.
 export default function AdminDesignationsScreen() {
-  const { schoolId } = useLocalSearchParams<{ schoolId?: string }>();
-  const scoped = !!schoolId;
-
-  const api = useMemo(() => (scoped ? {
-    load:   ()                            => superApi.getDesignationMatrix(schoolId!),
-    save:   (rows: object[])              => superApi.saveDesignationMatrix(schoolId!, rows),
-    create: (data: object)                => superApi.createDesignation(schoolId!, data),
-    update: (id: string, patch: object)   => superApi.updateDesignation(schoolId!, id, patch),
-    remove: (id: string)                  => superApi.deleteDesignation(schoolId!, id),
-    teachers: (id: string)                => superApi.getDesignationTeachers(schoolId!, id),
-  } : {
+  const api = useMemo(() => ({
     load:   ()                            => adminApi.getDesignationMatrix(),
     save:   (rows: object[])              => adminApi.saveDesignationMatrix(rows),
     create: (data: object)                => adminApi.createDesignation(data),
     update: (id: string, patch: object)   => adminApi.updateDesignation(id, patch),
     remove: (id: string)                  => adminApi.deleteDesignation(id),
     teachers: (id: string)                => adminApi.getDesignationTeachers(id),
-  }), [schoolId, scoped]);
+  }), []);
 
   const [modules, setModules] = useState<ModuleMeta[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -133,7 +125,9 @@ export default function AdminDesignationsScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [schoolId]);
+  // One school per session now that the matrix is no longer addressed by id.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
 
   const enabled = useMemo(() => modules.filter(m => m.enabled), [modules]);
   const offList = useMemo(() => modules.filter(m => !m.enabled), [modules]);

@@ -33,8 +33,28 @@ export default function SuperSchoolsScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Ask the server first. A school that still has accounts is never deleted —
+  // every student record, payroll run and document hangs off those users — so
+  // the dialog reports who is blocking it instead of offering a delete button.
   const handleDelete = async (sc: any) => {
-    if (!(await confirmAsync('Delete School', `Delete ${sc.name}? All its users and data references remain orphaned — this cannot be undone.`, 'Delete'))) return;
+    let check: any;
+    try {
+      check = unwrap(await superApi.checkSchoolDeletable(sc._id));
+    } catch (err: any) { return Alert.alert('Error', err.message || 'Could not check this school'); }
+
+    if (!check?.canDelete) {
+      const byRole = (check?.byRole ?? [])
+        .map((r: any) => `${r.label}: ${r.count}`)
+        .join('\n');
+      return Alert.alert(
+        'Cannot delete this school',
+        `${sc.name} still has ${check?.userCount ?? 0} account${check?.userCount === 1 ? '' : 's'}.\n\n`
+        + `${byRole}\n\nRemove or move these accounts first, then delete the school.`,
+      );
+    }
+
+    if (!(await confirmAsync('Delete School',
+      `Delete ${sc.name}? It has no accounts in it. This cannot be undone.`, 'Delete'))) return;
     try { await superApi.deleteSchool(sc._id); load(1); }
     catch (err: any) { Alert.alert('Error', err.message); }
   };

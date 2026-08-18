@@ -24,6 +24,7 @@ export interface ModuleFlags {
   inventory?: boolean;
   videoLibrary?: boolean;
   feedback?: boolean;
+  employeeDirectory?: boolean;
   /** School module enablement, before designation permissions are applied. */
   schoolModules?: Record<string, boolean>;
   /** 'admin' | 'user' | 'none' per module, after school gating. */

@@ -42,6 +42,7 @@ const STUDENT_MODULES = [
 const TEACHER_MODULES = [
   { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
+  { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
@@ -65,6 +66,8 @@ const ADMIN_MODULES = [
   { key: 'students',   label: 'Students',   icon: 'school',           route: '/modules/admin/students' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'teachers',   label: 'Teachers',   icon: 'people',           route: '/modules/admin/teachers' },
+  { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
+  { key: 'verify',     label: 'Verify',     icon: 'shield-checkmark', route: '/modules/employee-verification', moduleFlag: 'employeeDirectory' },
   { key: 'admins',     label: 'Admins',     icon: 'shield-checkmark', route: '/modules/admin/admins' },
   { key: 'classes',    label: 'Classes',    icon: 'business',         route: '/modules/admin/classes' },
   { key: 'subjects',   label: 'Subjects',   icon: 'book',             route: '/modules/admin/subjects' },

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Alert, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,19 +80,75 @@ function DocField({ label, required, value, onChange, hint }: {
  * the photo library (an Aadhaar/PAN scan on a phone is a photo); the payload is
  * posted as multipart and re-validated server-side.
  */
-export default function TeacherFormModal({ visible, onClose, onCreated, designations = [] }: {
-  visible: boolean; onClose: () => void; onCreated: () => void; designations?: string[];
+export default function TeacherFormModal({ visible, onClose, onCreated, designations = [], teacher = null }: {
+  visible: boolean; onClose: () => void; onCreated: () => void;
+  designations?: string[];
+  /** Passing a teacher switches the wizard into edit mode. */
+  teacher?: { _id: string; name?: string } | null;
 }) {
+  const editing = !!teacher?._id;
   const [step, setStep]   = useState(1);
   const [form, setForm]   = useState<any>(EMPTY_TEACHER);
   const [files, setFiles] = useState<Record<string, Picked>>({});
+  // Documents already on the record. A blank picker means "keep what is on
+  // file", which is exactly how the server reads it.
+  const [onFile, setOnFile] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [pinBusy, setPinBusy] = useState('');
+
+  // Prefill from the existing record when the wizard opens in edit mode.
+  useEffect(() => {
+    if (!visible) return;
+    if (!editing) { setForm(EMPTY_TEACHER); setFiles({}); setOnFile({}); setStep(1); return; }
+    let alive = true;
+    adminApi.getTeacherDetail(teacher!._id)
+      .then((res: any) => {
+        if (!alive) return;
+        const d = (res as any)?.data ?? res;
+        const u = d?.user ?? {};
+        const p = d?.profile ?? {};
+        const iso = (v: any) => (v ? new Date(v).toISOString().slice(0, 10) : '');
+        setForm({
+          ...EMPTY_TEACHER,
+          name: u.name || '', email: u.email || '', phone: u.phone || '',
+          dob: iso(p.dob), gender: p.gender || '', bloodGroup: p.bloodGroup || '',
+          fatherOrHusbandName: p.fatherOrHusbandName || '',
+          emergencyContactName: p.emergencyContactName || '',
+          emergencyContactPhone: p.emergencyContactPhone || '',
+          alternatePhone: p.alternatePhone || '',
+          currentAddress: p.currentAddress || '', currentCity: p.currentCity || '',
+          currentState: p.currentState || '', currentPincode: p.currentPincode || '',
+          currentCountry: p.currentCountry || 'India',
+          permanentAddress: p.permanentAddress || '', permanentCity: p.permanentCity || '',
+          permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
+          permanentCountry: p.permanentCountry || 'India',
+          aadhaarNumber: p.aadhaarNumber || '', panNumber: p.panNumber || '', uanNumber: p.uanNumber || '',
+          qualification: p.qualification || '', teachingDegree: p.teachingDegree || '',
+          employmentType: p.employmentType || '', totalExperience: p.totalExperience || '',
+          previousSchool: p.previousSchool || '', lastDesignation: p.lastDesignation || '',
+          bankAccountHolder: p.bankAccountHolder || '', bankAccountNumber: p.bankAccountNumber || '',
+          bankIfsc: p.bankIfsc || '', bankBranch: p.bankBranch || '',
+          joiningDate: iso(p.joiningDate), employeeId: p.employeeId || '',
+          designation: p.designation || '', department: p.department || '',
+        });
+        setOnFile({
+          aadhaarFront: p.aadhaarFrontFile, aadhaarBack: p.aadhaarBackFile, panCard: p.panCardFile,
+          experienceCertificate: p.experienceCertificateFile,
+          resignationLetter: p.resignationLetterFile, joiningLetter: p.joiningLetterFile,
+        });
+        setFiles({});
+        setStep(1);
+      })
+      .catch((err: any) => Alert.alert('Error', err.message || 'Could not load this teacher'));
+    return () => { alive = false; };
+    // `teacher` is read only through its id, which is already tracked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, editing, teacher?._id]);
 
   const set  = (key: string) => (v: string) => setForm((f: any) => ({ ...f, [key]: v }));
   const file = (key: string) => (f: Picked) => setFiles(prev => ({ ...prev, [key]: f }));
 
-  const reset = () => { setStep(1); setForm(EMPTY_TEACHER); setFiles({}); };
+  const reset = () => { setStep(1); setForm(EMPTY_TEACHER); setFiles({}); setOnFile({}); };
   const close = () => { reset(); onClose(); };
 
   const stateOptions = useMemo(() => STATES_AND_UTS.map(st => ({ label: st, value: st })), []);
@@ -119,6 +175,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
   /** First problem on this step, or null. */
   const stepError = (n: number): string | null => {
     const need = (key: string, label: string) => (!String(form[key] ?? '').trim() ? `${label} is required` : null);
+    // A document already on the record counts as supplied, so an edit never
+    // forces the admin to re-photograph paperwork to fix a typo.
+    const hasFile = (key: string) => !!files[key] || !!onFile[key];
     const address = (prefix: string, label: string) =>
       need(`${prefix}Address`, `${label} address`)
       || (!isPincode(form[`${prefix}Pincode`]) ? `${label} PIN code must be 6 digits` : null)
@@ -147,9 +206,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
         || (!AADHAAR_RE.test(String(form.aadhaarNumber).replace(/\s/g, '')) ? 'Aadhaar number must be 12 digits' : null)
         || need('panNumber', 'PAN number')
         || (!PAN_RE.test(String(form.panNumber).trim()) ? 'PAN looks invalid (e.g. ABCDE1234F)' : null)
-        || (!files.aadhaarFront ? 'Aadhaar front image is required' : null)
-        || (!files.aadhaarBack ? 'Aadhaar back image is required' : null)
-        || (!files.panCard ? 'PAN card upload is required' : null);
+        || (!hasFile('aadhaarFront') ? 'Aadhaar front image is required' : null)
+        || (!hasFile('aadhaarBack') ? 'Aadhaar back image is required' : null)
+        || (!hasFile('panCard') ? 'PAN card upload is required' : null);
     }
     if (n === 4) {
       return need('qualification', 'Highest qualification')
@@ -162,7 +221,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
         return need('totalExperience', 'Total years of experience')
           || need('previousSchool', 'Name of previous school')
           || need('lastDesignation', 'Last job designation')
-          || (!files.resignationLetter ? 'Resignation letter is required' : null);
+          || (!hasFile('resignationLetter') ? 'Resignation letter is required' : null);
       }
       return null;
     }
@@ -203,12 +262,20 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       Object.entries(form).forEach(([k, v]) => fd.append(k, v === true ? 'true' : String(v ?? '')));
       Object.entries(files).forEach(([k, f]) => { if (f) fd.append(k, { uri: f.uri, name: f.name, type: f.type } as any); });
 
-      const res: any = await adminApi.createTeacherForm(fd);
-      const employeeId = ((res as any)?.data ?? res)?.employeeId;
-      reset();
-      onCreated();
-      onClose();
-      Alert.alert('Success', `Teacher created${employeeId ? ` — Employee ID ${employeeId}` : ''}. Login OTP has been emailed.`);
+      if (editing) {
+        await adminApi.updateTeacherForm(teacher!._id, fd);
+        reset();
+        onCreated();
+        onClose();
+        Alert.alert('Saved', 'Teacher record updated.');
+      } else {
+        const res: any = await adminApi.createTeacherForm(fd);
+        const employeeId = ((res as any)?.data ?? res)?.employeeId;
+        reset();
+        onCreated();
+        onClose();
+        Alert.alert('Success', `Teacher created${employeeId ? ` — Employee ID ${employeeId}` : ''}. Login OTP has been emailed.`);
+      }
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };
@@ -218,11 +285,11 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
   return (
     <FormModal
       visible={visible}
-      title={`Add Teacher — ${step}/${STEPS.length} ${STEPS[step - 1]}`}
+      title={`${editing ? 'Edit' : 'Add'} Teacher — ${step}/${STEPS.length} ${STEPS[step - 1]}`}
       onClose={close}
       onSubmit={isLast ? submit : next}
       submitting={saving}
-      submitLabel={isLast ? 'Create Teacher' : 'Next →'}
+      submitLabel={isLast ? (editing ? 'Save Changes' : 'Create Teacher') : 'Next →'}
     >
       {/* progress dots */}
       <View style={s.dots}>

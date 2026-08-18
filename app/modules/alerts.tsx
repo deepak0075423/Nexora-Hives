@@ -117,8 +117,10 @@ export default function AlertsScreen() {
   // Load inbox
   const loadInbox = useCallback(async () => {
     try {
+      // The full history, not the bell's queue: clearing the badge marks
+      // receipts `isCleared`, which drops them from /inbox but not from here.
       const [inboxRes, countRes]: [any, any] = await Promise.all([
-        notifApi.getInbox(),
+        notifApi.getAllNotifs(),
         notifApi.getUnreadCount(),
       ]);
       const data = (inboxRes as any)?.data ?? inboxRes ?? [];
@@ -173,37 +175,47 @@ export default function AlertsScreen() {
   };
 
   const handleClearOne = (receiptId: string) => {
-    Alert.alert('Remove Notification', 'Remove this from your inbox?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: async () => {
-          try {
-            await notifApi.clearOne(receiptId);
-            const removed = inbox.find(r => r._id === receiptId);
-            setInbox(prev => prev.filter(r => r._id !== receiptId));
-            if (removed && !removed.isRead) setUnreadCount(prev => Math.max(0, prev - 1));
-            if (selected?._id === receiptId) setSelected(null);
-          } catch { /* empty */ }
+    Alert.alert(
+      'Dismiss notification',
+      'This removes it from your unread badge. It stays on this page.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Dismiss',
+          onPress: async () => {
+            try {
+              await notifApi.clearOne(receiptId);
+              const dismissed = inbox.find(r => r._id === receiptId);
+              // Marked read rather than removed: the row is history now.
+              setInbox(prev => prev.map(r => (r._id === receiptId ? { ...r, isRead: true } : r)));
+              if (dismissed && !dismissed.isRead) setUnreadCount(prev => Math.max(0, prev - 1));
+              if (selected?._id === receiptId) setSelected(null);
+            } catch { /* empty */ }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleClearAll = () => {
-    Alert.alert('Clear All', 'Clear all notifications from your inbox?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear All', style: 'destructive',
-        onPress: async () => {
-          try {
-            await notifApi.clearAll();
-            setInbox([]);
-            setUnreadCount(0);
-          } catch { /* empty */ }
+    Alert.alert(
+      'Clear notification badge',
+      'This clears the unread badge. Your notifications stay on this page.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          onPress: async () => {
+            try {
+              await notifApi.clearAll();
+              // The badge goes; the list does not — this screen is the record.
+              setUnreadCount(0);
+              setInbox((prev) => prev.map((r) => ({ ...r, isRead: true })));
+            } catch { /* empty */ }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const openDetail = (receipt: Receipt) => {
@@ -367,7 +379,7 @@ export default function AlertsScreen() {
               onPress={() => { setSelected(null); handleClearOne(selected._id); }}
             >
               <Ionicons name="trash-outline" size={15} color={Colors.danger} />
-              <Text style={s.sheetRemoveText}>Remove from inbox</Text>
+              <Text style={s.sheetRemoveText}>Dismiss from badge</Text>
             </TouchableOpacity>
           </View>
         )}
