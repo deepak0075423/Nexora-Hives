@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Leave sign-off queue for approvers picked by designation (e.g. a Principal).
@@ -36,7 +37,7 @@ export default function LeaveApprovalsScreen() {
       const res: any = await teacherApi.getLeaveApprovals(st ? { status: st } : {});
       setData(unwrap(res));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

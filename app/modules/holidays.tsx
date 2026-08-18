@@ -8,6 +8,7 @@ import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   public:    { bg: '#DCFCE7', color: '#16A34A' },
@@ -31,7 +32,7 @@ export default function HolidaysScreen() {
       else res = await studentApi.getHolidays();
       setHolidays((res as any)?.data ?? res ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

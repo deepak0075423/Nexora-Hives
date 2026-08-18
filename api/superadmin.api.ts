@@ -23,6 +23,20 @@ export const generateLoginLink = (id: string)       => api.post(`/super-admin/us
 export const getPermissions    = ()             => api.get('/super-admin/permissions');
 export const updatePermissions = (data: object) => api.put('/super-admin/permissions', data);
 
+// ── Designation permissions (per school) ─────────────────────────────────────
+// The same matrix a school admin edits, addressed by school.
+export const getDesignationMatrix   = (schoolId: string) => api.get(`/super-admin/schools/${schoolId}/designations`);
+export const saveDesignationMatrix  = (schoolId: string, designations: object[]) =>
+  api.put(`/super-admin/schools/${schoolId}/designations`, { designations });
+export const createDesignation      = (schoolId: string, data: object) =>
+  api.post(`/super-admin/schools/${schoolId}/designations/new`, data);
+export const updateDesignation      = (schoolId: string, id: string, data: object) =>
+  api.put(`/super-admin/schools/${schoolId}/designations/${id}`, data);
+export const deleteDesignation      = (schoolId: string, id: string) =>
+  api.delete(`/super-admin/schools/${schoolId}/designations/${id}`);
+export const getDesignationTeachers = (schoolId: string, id: string) =>
+  api.get(`/super-admin/schools/${schoolId}/designations/${id}/teachers`);
+
 // ── Logs ─────────────────────────────────────────────────────────────────────
 export const getLogs = (params?: object) => api.get('/super-admin/logs', { params });
 

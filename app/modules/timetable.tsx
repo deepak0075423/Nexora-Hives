@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -29,7 +30,7 @@ export default function TimetableScreen() {
         : await studentApi.getTimetable();
       setData((res as any)?.data ?? res ?? null);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

@@ -6,6 +6,7 @@ import * as feesApi from '@/api/fees.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   LoaderView, Empty, RowItem, SegTabs, StatRow, StatTile, fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminFeesReportsScreen() {
@@ -25,7 +26,7 @@ export default function AdminFeesReportsScreen() {
       setCollection((col as any)?.data ?? col);
       setDues(du);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

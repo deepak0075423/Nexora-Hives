@@ -6,6 +6,7 @@ import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Card, Select, Input, Toggle, FAB, FormModal, Badge, confirmAsync, ActionBtn, SearchBar,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { ROOM_TYPES, DAYS, DAY_SHORT, tk } from '@/components/timetable/ttKit';
 
@@ -38,7 +39,7 @@ export default function TimetableRoomsScreen() {
       if (mRes) setMeta(unwrap(mRes));
       setError('');
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else setError(err?.message ?? 'Failed to load rooms');
     } finally { setLoading(false); setRefreshing(false); }
   }, [meta]);

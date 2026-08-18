@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Empty, Select } from '@/components/ui/kit';
+import { unwrap, LoaderView, Empty, Select, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -29,7 +29,7 @@ export default function AdminTimetableScreen() {
   useEffect(() => {
     adminApi.getClassesWithSections()
       .then((res: any) => setSections(unwrap(res) ?? []))
-      .catch((err: any) => { if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); });
+      .catch((err: any) => { if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); });
   }, []);
 
   const sectionOptions = useMemo(() => {
@@ -46,7 +46,7 @@ export default function AdminTimetableScreen() {
       const d = unwrap(await adminApi.getSectionEntries(id));
       setEntries(Array.isArray(d) ? d : []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

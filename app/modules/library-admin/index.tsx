@@ -6,6 +6,7 @@ import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, RowItem, StatRow, StatTile, Badge, SectionTitle, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function LibraryAdminDashboardScreen() {
@@ -19,7 +20,7 @@ export default function LibraryAdminDashboardScreen() {
   const load = async () => {
     try { setData(unwrap(await libApi.getDashboard())); }
     catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else if (err?.status === 403) setDenied(true);
     } finally { setLoading(false); setRefreshing(false); }
   };

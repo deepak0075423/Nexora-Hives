@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Input, ActionBtn, Toggle } from '@/components/ui/kit';
+import { unwrap, LoaderView, Input, ActionBtn, Toggle, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function LibraryPolicyScreen() {
   const [loading, setLoading] = useState(true);
@@ -31,7 +31,7 @@ export default function LibraryPolicyScreen() {
         teacherFinesEnabled: !!p?.teacherFinesEnabled,
       });
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else if (err?.status === 403) setDenied(true);
     } finally { setLoading(false); setRefreshing(false); }
   };

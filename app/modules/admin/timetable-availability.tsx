@@ -6,6 +6,7 @@ import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Card, Select, Input, Toggle, FormModal, Badge, SearchBar, ActionBtn,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { DAYS, DAY_SHORT, tk } from '@/components/timetable/ttKit';
 
@@ -35,7 +36,7 @@ export default function TimetableAvailabilityScreen() {
       if (mRes) setYears(unwrap(mRes)?.years ?? []);
       setError('');
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else setError(err?.message ?? 'Failed to load');
     } finally { setLoading(false); setRefreshing(false); }
   }, [years.length]);

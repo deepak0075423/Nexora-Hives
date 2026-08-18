@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Empty, Card, Select, Badge, FAB, confirmAsync, ActionBtn, fmtDateTime } from '@/components/ui/kit';
+import { unwrap, LoaderView, Empty, Card, Select, Badge, FAB, confirmAsync, ActionBtn, fmtDateTime, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { StatusBadge, tk } from '@/components/timetable/ttKit';
 
 export default function TimetableVersionsScreen() {
@@ -31,7 +31,7 @@ export default function TimetableVersionsScreen() {
       if (mRes) setYears(unwrap(mRes)?.years ?? []);
       setError('');
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else setError(err?.message ?? 'Failed to load versions');
     } finally { setLoading(false); setRefreshing(false); }
   }, [years.length]);

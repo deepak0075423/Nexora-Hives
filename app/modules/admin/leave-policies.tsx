@@ -6,6 +6,7 @@ import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, SegTabs, Toggle, Input, Select, ActionBtn,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Per-leave-type policy editor. Every leave type carries its own rule set; pick
@@ -45,7 +46,7 @@ export default function AdminLeavePoliciesScreen() {
       setSelected(id ?? '');
       setForm(list.find((p: any) => p.leaveType._id === id) ?? null);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else Alert.alert('Error', err?.data?.message ?? err.message);
     } finally { setLoading(false); setRefreshing(false); }
   };

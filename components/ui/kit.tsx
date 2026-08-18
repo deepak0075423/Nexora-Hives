@@ -12,6 +12,12 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 /** Axios interceptor returns the body; most controllers wrap payload as { success, data } */
 export const unwrap = (res: any) => (res as any)?.data ?? res;
 
+// The 403 codes that mean "you cannot reach this module" — either the school does
+// not have it (MODULE_DISABLED) or the signed-in teacher's designation does not
+// grant it (MODULE_ACCESS_DENIED / MODULE_ADMIN_REQUIRED). Screens render
+// <ModuleDisabled/> for all three; see school-backend/middleware/moduleAccess.js.
+export const MODULE_BLOCKED_CODES = ['MODULE_DISABLED', 'MODULE_ACCESS_DENIED', 'MODULE_ADMIN_REQUIRED'];
+
 export const fmtDate = (d?: string | Date | null) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '--';
 

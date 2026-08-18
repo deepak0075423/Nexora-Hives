@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, SegTabs, RowItem, fmtMoney,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminTransportScreen() {
@@ -27,7 +28,7 @@ export default function AdminTransportScreen() {
       setVehicles(unwrap(vh)?.data ?? []);
       setRoutes(unwrap(rt)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setDash(null);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setDash(null);
     } finally { setRefreshing(false); }
   }, []);
   useEffect(() => { if (user?.role) load(); }, [user?.role]); // eslint-disable-line

@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { LoaderView, Empty, RowItem, Badge, fmtMoney, fmtDate } from '@/components/ui/kit';
+import { LoaderView, Empty, RowItem, Badge, fmtMoney, fmtDate, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 /** Immutable school-wide fee ledger — every charge, payment, concession and fine */
 export default function AdminFeesLedgerScreen() {
@@ -23,7 +23,7 @@ export default function AdminFeesLedgerScreen() {
       setTotal((res as any)?.total ?? rows.length);
       setPage(p);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

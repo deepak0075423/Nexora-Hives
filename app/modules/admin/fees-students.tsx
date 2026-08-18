@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FormModal, KV,
   fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminFeesStudentsScreen() {
@@ -27,7 +28,7 @@ export default function AdminFeesStudentsScreen() {
       setTotal((res as any)?.total ?? rows.length);
       setPage(p);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

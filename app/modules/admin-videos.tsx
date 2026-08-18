@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, RefreshControl,
 } from 'react-native';
@@ -28,7 +29,7 @@ export default function AdminVideosScreen() {
       setApprovals((ap as any)?.data ?? ap ?? []);
       setOverview((ov as any)?.data ?? ov);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);

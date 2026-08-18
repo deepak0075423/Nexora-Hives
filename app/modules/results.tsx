@@ -8,7 +8,7 @@ import * as studentApi from '@/api/student.api';
 import * as parentApi from '@/api/parent.api';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { Badge, Empty, fmtDate } from '@/components/ui/kit';
+import { Badge, Empty, fmtDate, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const GRADE_COLOR: Record<string, string> = {
   'A+': '#059669', A: '#16A34A', 'B+': '#4ADE80', B: '#86EFAC',
@@ -43,7 +43,7 @@ export default function ResultsScreen() {
         setResults((res as any)?.data ?? res ?? []);
       }
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

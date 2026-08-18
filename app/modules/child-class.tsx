@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function ChildClassScreen() {
   const [data, setData] = useState<any>(null);
@@ -17,7 +18,7 @@ export default function ChildClassScreen() {
       const res: any = await parentApi.getChildClass();
       setData((res as any)?.data ?? res);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

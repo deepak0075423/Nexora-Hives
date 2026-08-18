@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, RowItem, StatTile, StatRow, Badge, SectionTitle,
   fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminFeesDashboardScreen() {
@@ -18,7 +19,7 @@ export default function AdminFeesDashboardScreen() {
 
   const load = async () => {
     try { setData(unwrap(await feesApi.getAdminDashboard())); }
-    catch (err: any) { if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); }
+    catch (err: any) { if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); }
     finally { setLoading(false); setRefreshing(false); }
   };
 

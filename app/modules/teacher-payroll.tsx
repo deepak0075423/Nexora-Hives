@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, RowItem, SegTabs, FormModal,
   fmtMoney, fmtDate, SectionTitle,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -29,7 +30,7 @@ export default function TeacherPayrollScreen() {
       setCtc(unwrap(c));
       setPayslips((p as any)?.data ?? unwrap(p) ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

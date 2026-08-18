@@ -7,15 +7,20 @@ interface Props {
   message?: string;
 }
 
+/**
+ * Shown when a module cannot be reached — either it is not enabled for the school
+ * or the signed-in teacher's designation does not grant access to it. Both are
+ * the same outcome for the user, and both are decided by the server.
+ */
 export default function ModuleDisabled({ message }: Props) {
   return (
     <View style={s.root}>
       <View style={s.iconBox}>
         <Ionicons name="lock-closed" size={32} color={Colors.textLight} />
       </View>
-      <Text style={s.title}>Module Not Enabled</Text>
+      <Text style={s.title}>Module Not Available</Text>
       <Text style={s.sub}>
-        {message ?? 'This module has not been enabled for your school.\nPlease contact your administrator.'}
+        {message ?? 'This module is not enabled for your school, or your designation does not have access to it.\nPlease contact your administrator.'}
       </Text>
     </View>
   );

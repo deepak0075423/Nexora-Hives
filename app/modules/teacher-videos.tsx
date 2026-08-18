@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput, Alert, RefreshControl,
 } from 'react-native';
@@ -30,7 +31,7 @@ export default function TeacherVideosScreen() {
       setScope((sc as any)?.data ?? sc);
       setMine((my as any)?.data ?? my ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { load(); }, [load]);

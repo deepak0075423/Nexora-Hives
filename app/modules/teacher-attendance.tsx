@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const TABS = [
@@ -44,7 +45,7 @@ export default function TeacherAttendanceScreen() {
       (res?.records ?? []).forEach((r: any) => { map[String(r.student)] = String(r.status).toLowerCase(); });
       setRecords(map);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setMarkLoading(false); setRefreshing(false); }
   };
 
@@ -98,7 +99,7 @@ export default function TeacherAttendanceScreen() {
       const r = unwrap(regs);
       setMyRegs(Array.isArray(r) ? r : r?.requests ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setMineLoading(false); setRefreshing(false); }
   };
 

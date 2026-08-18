@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Input, Select, Toggle, ActionBtn, SectionTitle, Card, KV } from '@/components/ui/kit';
+import { unwrap, LoaderView, Input, Select, Toggle, ActionBtn, SectionTitle, Card, KV, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function AdminFeesSettingsScreen() {
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,7 @@ export default function AdminFeesSettingsScreen() {
       });
       setLastReceipt(d?.lastReceiptNumber ?? 0);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); }
   };
 

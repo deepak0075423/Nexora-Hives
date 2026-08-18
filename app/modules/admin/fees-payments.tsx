@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs, FAB,
   FormModal, Input, Select, RowItem, confirmAsync, fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const MODE_OPTIONS = [
@@ -45,7 +46,7 @@ export default function AdminFeesPaymentsScreen() {
       const res: any = await feesApi.getPayments({ page: 1, limit: 50, ...(st ? { paymentStatus: st } : {}) });
       setList((res as any)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

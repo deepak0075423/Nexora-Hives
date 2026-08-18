@@ -6,6 +6,7 @@ import * as payrollApi from '@/api/payroll.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   LoaderView, Empty, RowItem, Badge, FAB, FormModal, Select, Input, fmtMoney,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -26,7 +27,7 @@ export default function AdminPayrollRunsScreen() {
       const res: any = await payrollApi.getPayrollRuns();
       setList((res as any)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

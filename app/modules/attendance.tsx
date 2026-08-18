@@ -9,6 +9,7 @@ import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const STATUS_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
   present: { bg: Colors.successLight, color: Colors.success, icon: 'checkmark-circle' },
@@ -38,7 +39,7 @@ export default function AttendanceScreen() {
       else res = await studentApi.getMyAttendance();
       setData((res as any)?.data ?? res);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

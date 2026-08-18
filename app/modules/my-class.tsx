@@ -6,6 +6,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function MyClassScreen() {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ export default function MyClassScreen() {
       const res: any = await studentApi.getMyClass();
       setData((res as any)?.data ?? res);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

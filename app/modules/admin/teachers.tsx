@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import TeacherFormModal from './teacher-form';
@@ -72,6 +72,12 @@ export default function AdminTeachersScreen() {
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1); }} tintColor={Colors.primary} />}
         >
+          <RowItem
+            icon="pricetags" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
+            title="Designations & Module Access"
+            sub="What each designation may reach, and with which privileges"
+            onPress={() => router.push('/modules/admin/designations' as any)}
+          />
           <SearchBar value={search} onChange={setSearch} placeholder="Search teachers…" />
           {loading ? <LoaderView /> : list.length === 0 ? (
             <Empty icon="people-outline" text="No teachers found" />

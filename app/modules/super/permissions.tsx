@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as superApi from '@/api/superadmin.api';
 import {
-  unwrap, LoaderView, Empty, Select, Toggle, ActionBtn,
+  unwrap, LoaderView, Empty, Select, Toggle, ActionBtn, RowItem,
 } from '@/components/ui/kit';
 
 // Module flags on the School model — what each school's users are allowed to see
@@ -111,6 +111,17 @@ export default function SuperPermissionsScreen() {
                 ))}
 
                 <ActionBtn label={saving ? 'Saving…' : dirty ? 'Save Changes' : 'Saved'} tone={dirty ? 'success' : 'neutral'} onPress={save} />
+
+                {/* The next layer down: what this school's designations may do
+                    with the modules enabled above. */}
+                <View style={{ marginTop: Spacing.md }}>
+                  <RowItem
+                    icon="pricetags" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
+                    title="Designation Access"
+                    sub="Grant admin / normal / no access per designation"
+                    onPress={() => router.push({ pathname: '/modules/admin/designations', params: { schoolId } } as any)}
+                  />
+                </View>
               </>
             )}
           </>

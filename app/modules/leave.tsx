@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:  { bg: Colors.warningLight, color: Colors.warning },
@@ -44,7 +45,7 @@ export default function LeaveScreen() {
       setIsApprover(!!apprData?.isApprover);
       setPendingApprovals(apprData?.items?.length ?? 0);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

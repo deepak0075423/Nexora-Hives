@@ -9,6 +9,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs, Select,
   FormModal, Input, fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const MODE_OPTIONS = [
@@ -54,7 +55,7 @@ export default function FeesScreen() {
         setBook(unwrap(await feesApi.getMyFees()));
       }
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, [user?.role, childId, children.length]);
 

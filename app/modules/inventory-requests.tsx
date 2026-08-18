@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, FAB, FormModal, Input, Select, fmtMoney, confirmAsync,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const PRIORITY = [
@@ -34,7 +35,7 @@ export default function InventoryRequestsScreen() {
       const meta = unwrap(await inv.getTeacherMeta());
       setDepts(meta?.departments || []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
   useEffect(() => { if (user?.role) load(); }, [user?.role]); // eslint-disable-line

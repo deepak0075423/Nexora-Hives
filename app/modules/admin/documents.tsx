@@ -7,6 +7,7 @@ import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, RowItem, Badge, confirmAsync, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Uploads live at the backend root, not under /api
@@ -23,7 +24,7 @@ export default function AdminDocumentsScreen() {
       const d = unwrap(await adminApi.getDocuments({ page: 1, limit: 50 }));
       setList(Array.isArray(d) ? d : d?.data ?? d?.documents ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

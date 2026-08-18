@@ -9,6 +9,7 @@ import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import { BASE_URL } from '@/api/axios';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const TYPE_ICON: Record<string, { icon: string; bg: string; color: string }> = {
   assignment:   { icon: 'document-text',  bg: '#EDE9FE', color: '#7C3AED' },
@@ -32,7 +33,7 @@ export default function DocumentsScreen() {
       else res = await studentApi.getDocuments();
       setDocs((res as any)?.data ?? res ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
     finally { setLoading(false); setRefreshing(false); }
   };

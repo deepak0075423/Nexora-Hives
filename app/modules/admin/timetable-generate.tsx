@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Card, Select, Toggle, Empty } from '@/components/ui/kit';
+import { unwrap, LoaderView, Card, Select, Toggle, Empty, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { ConflictRow, MiniStat, tk } from '@/components/timetable/ttKit';
 
 const OPTIONS: [string, string][] = [
@@ -48,7 +48,7 @@ export default function TimetableGenerateScreen() {
     ttApi.getMeta()
       .then((res: any) => { const d = unwrap(res); setMeta(d); setYearId(d?.selectedYearId ?? ''); })
       .catch((err: any) => {
-        if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setError(err?.message ?? 'Failed to load');
+        if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setError(err?.message ?? 'Failed to load');
       })
       .finally(() => setLoading(false));
     return () => clearInterval(pollRef.current);

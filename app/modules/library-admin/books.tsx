@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, RowItem, SearchBar, FAB, FormModal, Input,
   confirmAsync, Badge,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function LibraryBooksScreen() {
@@ -29,7 +30,7 @@ export default function LibraryBooksScreen() {
       setTotal((res as any)?.total ?? rows.length);
       setPage(p);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED' || err?.status === 403) setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code) || err?.status === 403) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

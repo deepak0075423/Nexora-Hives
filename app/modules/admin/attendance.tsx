@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   fmtDate, fmtDateTime,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminAttendanceScreen() {
@@ -27,7 +28,7 @@ export default function AdminAttendanceScreen() {
       setRequests((reqs as any)?.data ?? unwrap(reqs) ?? []);
       setMyAtt(unwrap(mine));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

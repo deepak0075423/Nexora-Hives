@@ -8,6 +8,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, SegTabs, RowItem, ActionBtn, Select, FAB,
   FormModal, Input, fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const tm = (v?: string) => v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
@@ -42,7 +43,7 @@ export default function ParentTransportScreen() {
         t.parentTransport(cid), t.parentAttendance(cid), t.parentInvoices(cid), t.parentTrack(cid),
       ]);
       setInfo(unwrap(d)); setAtt(unwrap(a) ?? []); setInv(unwrap(i) ?? []); setTrack(unwrap(tr));
-    } catch (err: any) { if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); }
+    } catch (err: any) { if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -54,7 +55,7 @@ export default function ParentTransportScreen() {
       setChildId(first);
       setReqs(unwrap(await t.parentRequests()) ?? []);
       if (first) await loadChild(first); else setLoading(false);
-    } catch (err: any) { if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); setLoading(false); }
+    } catch (err: any) { if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); setLoading(false); }
   }, [loadChild]);
   useEffect(() => { if (user?.role) init(); }, [user?.role]); // eslint-disable-line
 

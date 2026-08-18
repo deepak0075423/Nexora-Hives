@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs, RowItem,
   FormModal, Input, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const STATUS_TABS = [
@@ -39,7 +40,7 @@ export default function AdminLeaveScreen() {
       const coData = unwrap(co);
       setCompOffPending(coData?.enabled === false ? null : (coData?.total ?? 0));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

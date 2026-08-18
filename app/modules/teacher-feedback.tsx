@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, SegTabs, Select, RowItem,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // A teacher's own aggregated results (spec §14/§15). The server withholds the
@@ -37,7 +38,7 @@ export default function TeacherFeedbackScreen() {
       setTrends(unwrap(t));
       setBreakdown(unwrap(b));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setDash(null);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setDash(null);
     } finally { setRefreshing(false); }
   }, [campaignId]);
 

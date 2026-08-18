@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, SegTabs, RowItem, fmtMoney,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Lists come back either as { data:[…] } or { items:[…] } depending on endpoint.
@@ -27,7 +28,7 @@ export default function AdminInventoryScreen() {
       const [it, rq] = await Promise.all([inv.getItems({ limit: 50 }), inv.getRequests({ limit: 50 })]);
       setItems(listOf(it)); setReqs(listOf(rq));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setDash(null);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setDash(null);
     } finally { setRefreshing(false); }
   }, []);
   useEffect(() => { if (user?.role) load(); }, [user?.role]); // eslint-disable-line

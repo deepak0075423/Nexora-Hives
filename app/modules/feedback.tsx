@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as fb from '@/api/feedback.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { unwrap, LoaderView, Empty, Badge, Card, SegTabs, fmtDate } from '@/components/ui/kit';
+import { unwrap, LoaderView, Empty, Badge, Card, SegTabs, fmtDate, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 // Student feedback home: pending on one tab, completed on the other.
 // Mirrors the web /student/feedback screen — same endpoints, same rules.
@@ -25,7 +25,7 @@ export default function StudentFeedbackScreen() {
       setPending(unwrap(p) ?? []);
       setCompleted(unwrap(c) ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else setPending([]);
     } finally { setRefreshing(false); }
   }, []);

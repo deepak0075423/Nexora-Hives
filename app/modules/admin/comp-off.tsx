@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, StatTile, StatRow, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Admin Comp Off queue — the approval step that is the ONLY thing which credits
@@ -44,7 +45,7 @@ export default function AdminCompOffScreen() {
       const b: any = await adminApi.getCompOffBalances().catch(() => null);
       setBalances(unwrap(b));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

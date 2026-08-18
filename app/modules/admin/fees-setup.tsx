@@ -9,6 +9,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SegTabs, FAB, FormModal,
   Input, Select, fmtMoney, SectionTitle, ActionBtn,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const TABS = [
@@ -50,7 +51,7 @@ export default function AdminFeesSetupScreen() {
         concessions: (concessions as any)?.data ?? [],
       });
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

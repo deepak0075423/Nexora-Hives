@@ -6,6 +6,7 @@ import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminExamsScreen() {
@@ -19,7 +20,7 @@ export default function AdminExamsScreen() {
       const d = unwrap(await adminApi.getExams());
       setList(Array.isArray(d) ? d : d?.data ?? d?.exams ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, SegTabs, RowItem, Select,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Principal / Vice Principal view: school-wide, read-only, with the drill-down
@@ -30,7 +31,7 @@ export default function FeedbackReviewScreen() {
     try {
       setDash(unwrap(await fb.getDashboard(campaignId ? { campaignId } : {})));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setState('disabled');
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setState('disabled');
       else if (err?.status === 403) setState('forbidden');
       setDash(null);
     } finally { setRefreshing(false); }

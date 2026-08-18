@@ -9,6 +9,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, SegTabs, RowItem,
   Select, ActionBtn, confirmAsync, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Admin feedback console on mobile: the numbers, the teacher table, and the
@@ -38,7 +39,7 @@ export default function AdminFeedbackScreen() {
       setDash(unwrap(d));
       setCampaigns(unwrap(c)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setDash(null);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setDash(null);
     } finally { setRefreshing(false); }
   }, [campaignId]);
 

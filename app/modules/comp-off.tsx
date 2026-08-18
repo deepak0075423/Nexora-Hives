@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, StatTile, StatRow, fmtDate, confirmAsync,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Employee Comp Off — reached from the Leave screen, so it stays inside Leave
@@ -42,7 +43,7 @@ export default function CompOffScreen() {
       setData(unwrap(main));
       setLedger(unwrap(led)?.entries ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

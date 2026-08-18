@@ -6,6 +6,7 @@ import * as payrollApi from '@/api/payroll.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, RowItem, StatRow, StatTile, Badge, SectionTitle, fmtMoney,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -19,7 +20,7 @@ export default function AdminPayrollDashboardScreen() {
 
   const load = async () => {
     try { setData(unwrap(await payrollApi.getDashboard())); }
-    catch (err: any) { if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); }
+    catch (err: any) { if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); }
     finally { setLoading(false); setRefreshing(false); }
   };
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity,
 } from 'react-native';
@@ -63,7 +64,7 @@ export default function VideosScreen() {
       const res: any = await videoApi.studentDashboard();
       setData((res as any)?.data ?? res);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 

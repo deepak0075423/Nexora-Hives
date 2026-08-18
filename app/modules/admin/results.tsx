@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, FormModal, Input,
   confirmAsync, fmtDate, toneFor,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 // Formal exam workflow: DRAFT → MARKS_PENDING → SUBMITTED → CLASS_APPROVED → FINAL_APPROVED
@@ -36,7 +37,7 @@ export default function AdminResultsScreen() {
       const d = unwrap(res);
       setList(Array.isArray(d) ? d : d?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

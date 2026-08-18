@@ -8,6 +8,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, RowItem, Badge, FAB, FormModal, Input, Select,
   fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminPayrollAssignmentsScreen() {
@@ -26,7 +27,7 @@ export default function AdminPayrollAssignmentsScreen() {
       const res: any = await payrollApi.getAssignments();
       setList((res as any)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

@@ -6,6 +6,7 @@ import * as payrollApi from '@/api/payroll.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   LoaderView, Empty, RowItem, Badge, FAB, FormModal, Input,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function AdminPayrollStructuresScreen() {
@@ -22,7 +23,7 @@ export default function AdminPayrollStructuresScreen() {
       const res: any = await payrollApi.getStructures();
       setList((res as any)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

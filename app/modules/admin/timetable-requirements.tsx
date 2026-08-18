@@ -6,6 +6,7 @@ import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Card, Select, Input, Toggle, FormModal, Badge, ActionBtn, confirmAsync,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { SUBJECT_TYPES, ROOM_TYPES, tk } from '@/components/timetable/ttKit';
 
@@ -33,7 +34,7 @@ export default function TimetableRequirementsScreen() {
         if (c) { setClassId(c._id); if (c.sections?.[0]) setSectionId(c.sections[0]._id); }
       })
       .catch((err: any) => {
-        if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+        if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
         else setError(err?.message ?? 'Failed to load');
       })
       .finally(() => setLoading(false));

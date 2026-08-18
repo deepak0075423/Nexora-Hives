@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Empty, RowItem, Badge } from '@/components/ui/kit';
+import { unwrap, LoaderView, Empty, RowItem, Badge, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 /** All sections this teacher is attached to — class teacher, substitute, or subject teacher */
 export default function MySectionsScreen() {
@@ -19,7 +19,7 @@ export default function MySectionsScreen() {
       const d = unwrap(await teacherApi.getMySections());
       setSections(Array.isArray(d) ? d : []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

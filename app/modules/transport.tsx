@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, SegTabs, RowItem, ActionBtn, fmtMoney, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const tm = (v?: string) => v ? new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
@@ -28,7 +29,7 @@ export default function StudentTransportScreen() {
       setAtt(unwrap(a) ?? []); setInv(unwrap(i) ?? []);
       setTrack(unwrap(await t.studentTrack()));
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true); else setInfo(null);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true); else setInfo(null);
     } finally { setRefreshing(false); }
   }, []);
   useEffect(() => { if (user?.role) load(); }, [user?.role]); // eslint-disable-line

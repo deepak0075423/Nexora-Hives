@@ -114,6 +114,27 @@ const PARENT_MODULES = [
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];
 
+
+// A teacher whose designation grants ADMIN access to a module gets that module's
+// admin screens too. library and feedback are absent on purpose — TEACHER_MODULES
+// already carries "Manage Lib" and "Fb Review" for them, gated on the same
+// permission through isLibrarian / isPrincipal.
+const TEACHER_ADMIN_MODULES = [
+  { key: 'attendance', label: 'Attendance*', icon: 'checkmark-done', route: '/modules/admin/attendance', adminOf: 'attendance' },
+  { key: 'timetable',  label: 'Timetable*',  icon: 'calendar-number', route: '/modules/admin/timetable',  adminOf: 'timetable' },
+  { key: 'exams',      label: 'Aptitude*',   icon: 'bulb',            route: '/modules/admin/exams',      adminOf: 'aptitudeExam' },
+  { key: 'results',    label: 'Results*',    icon: 'stats-chart',     route: '/modules/admin/results',    adminOf: 'result' },
+  { key: 'fees',       label: 'Fees*',       icon: 'card',            route: '/modules/admin/fees',       adminOf: 'fees' },
+  { key: 'payroll',    label: 'Payroll*',    icon: 'cash',            route: '/modules/admin/payroll',    adminOf: 'payroll' },
+  { key: 'inventory',  label: 'Inventory*',  icon: 'cube',            route: '/modules/admin/inventory',  adminOf: 'inventory' },
+  { key: 'transport',  label: 'Transport*',  icon: 'bus',             route: '/modules/admin/transport',  adminOf: 'transport' },
+  { key: 'videos',     label: 'Videos*',     icon: 'film',            route: '/modules/admin-videos',     adminOf: 'videoLibrary' },
+  { key: 'leave',      label: 'Leave*',      icon: 'airplane',        route: '/modules/admin/leave',      adminOf: 'leave' },
+  { key: 'documents',  label: 'Documents*',  icon: 'folder-open',     route: '/modules/admin/documents',  adminOf: 'document' },
+  { key: 'holidays',   label: 'Holidays*',   icon: 'sunny',           route: '/modules/admin/holidays',   adminOf: 'holiday' },
+  { key: 'sendAlert',  label: 'Send Alert',  icon: 'megaphone',       route: '/modules/send-notification', adminOf: 'notification' },
+];
+
 // Returns only modules that are enabled for the school (or have no flag = always on).
 // `requires` gates on extra flags like isLibrarian which must be explicitly true.
 function filterModules(
@@ -357,6 +378,12 @@ const dr = StyleSheet.create({
 function TeacherContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
   const router = useRouter();
   const modules = filterModules(TEACHER_MODULES, schoolModules);
+  // moduleAdmin is 'admin' access resolved from the designation, already AND-ed
+  // with the school's module flags — so this list empties when either changes.
+  const moduleAdmin = (schoolModules as any)?.moduleAdmin as Record<string, boolean> | undefined;
+  const adminModules = moduleAdmin
+    ? TEACHER_ADMIN_MODULES.filter(m => moduleAdmin[m.adminOf] === true)
+    : [];
   return (
     <>
       <View style={s.row}>
@@ -376,6 +403,15 @@ function TeacherContent({ data, schoolModules }: { data: any; schoolModules?: Re
         </View>
         <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
       </View>
+      {adminModules.length > 0 && (
+        <View style={s.section}>
+          <View style={s.sectionRow}>
+            <Text style={s.sectionTitle}>Module Admin</Text>
+            <Text style={s.sectionMeta}>{(schoolModules as any)?.designation || 'your designation'}</Text>
+          </View>
+          <ModuleGrid modules={adminModules as any} onPress={(r) => router.push(r as any)} />
+        </View>
+      )}
     </>
   );
 }

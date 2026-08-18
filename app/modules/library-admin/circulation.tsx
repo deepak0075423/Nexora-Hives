@@ -7,6 +7,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, RowItem, Badge, SegTabs, FAB, FormModal,
   Input, Select, ActionBtn, KV, confirmAsync, fmtDate,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function LibraryCirculationScreen() {
@@ -30,7 +31,7 @@ export default function LibraryCirculationScreen() {
       const res: any = await libApi.getIssuances({ page: 1, limit: 50, ...(st ? { status: st } : {}) });
       setList((res as any)?.data ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED' || err?.status === 403) setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code) || err?.status === 403) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 

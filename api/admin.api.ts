@@ -16,6 +16,16 @@ export const getSmtpSettings    = ()             => api.get('/admin/smtp-setting
 export const updateSmtpSettings = (data: object) => api.put('/admin/smtp-settings', data);
 export const testSmtpSettings   = (to?: string)  => api.post('/admin/smtp-settings/test', { to });
 
+// ── Designations & module permissions ────────────────────────────────────────
+// getDesignations is the plain name list the teacher form's dropdown consumes;
+// getDesignationMatrix carries the per-module access grid.
+export const getDesignationMatrix   = ()                     => api.get('/admin/designations/matrix');
+export const saveDesignationMatrix  = (designations: object[]) => api.put('/admin/designations/matrix', { designations });
+export const createDesignation      = (data: object)         => api.post('/admin/designations', data);
+export const updateDesignation      = (id: string, data: object) => api.put(`/admin/designations/${id}`, data);
+export const deleteDesignation      = (id: string)           => api.delete(`/admin/designations/${id}`);
+export const getDesignationTeachers = (id: string)           => api.get(`/admin/designations/${id}/teachers`);
+
 // ── Teachers ─────────────────────────────────────────────────────────────────
 export const getTeachers        = (params?: object) => api.get('/admin/teachers', { params });
 export const getTeacher         = (id: string)       => api.get(`/admin/teachers/${id}`);

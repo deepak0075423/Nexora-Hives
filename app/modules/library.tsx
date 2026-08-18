@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function LibraryScreen() {
   const { user } = useAuth();
@@ -33,7 +34,7 @@ export default function LibraryScreen() {
       setDashboard((dash as any)?.data ?? dash);
       setMyBooks((books as any)?.data ?? books ?? []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally {
       setLoading(false);
       setRefreshing(false);

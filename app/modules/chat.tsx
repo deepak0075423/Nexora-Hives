@@ -10,6 +10,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, FAB, FormModal, SearchBar, Input, Select,
   Toggle, SegTabs, ActionBtn,
+  MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 const ONLINE_WINDOW = 60_000;
@@ -56,7 +57,7 @@ export default function ChatListScreen() {
       const d = unwrap(await chatApi.getChats());
       setChats(Array.isArray(d) ? d : []);
     } catch (err: any) {
-      if (err?.data?.code === 'MODULE_DISABLED') setDisabled(true);
+      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 
