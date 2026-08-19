@@ -51,6 +51,7 @@ export const Colors = {
     exams:      { bg: '#FDF2F8', icon: '#BE185D' },
     inventory:  { bg: '#E0F2FE', icon: '#0369A1' },
     transport:  { bg: '#FEF3C7', icon: '#D97706' },
+    hostel:     { bg: '#E0E7FF', icon: '#4F46E5' },
     videos:     { bg: '#FFE4E6', icon: '#E11D48' },
     feedback:   { bg: '#FEF9C3', icon: '#CA8A04' },
   },

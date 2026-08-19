@@ -21,6 +21,7 @@ export interface ModuleFlags {
   fees?: boolean;
   chat?: boolean;
   transport?: boolean;
+  hostel?: boolean;
   inventory?: boolean;
   videoLibrary?: boolean;
   feedback?: boolean;
