@@ -13,7 +13,6 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const TOOLS = [
   { key: 'generate',     label: 'Generate Timetable', icon: 'flash',           route: '/modules/admin/timetable-generate',     tone: Colors.accent },
   { key: 'versions',     label: 'Versions & Publish', icon: 'albums',          route: '/modules/admin/timetable-versions',     tone: Colors.primary },
-  { key: 'requirements', label: 'Subject Requirements', icon: 'book',          route: '/modules/admin/timetable-requirements', tone: Colors.info },
   { key: 'availability', label: 'Teacher Availability', icon: 'person-circle', route: '/modules/admin/timetable-availability', tone: Colors.success },
   { key: 'rooms',        label: 'Rooms & Labs',       icon: 'business',        route: '/modules/admin/timetable-rooms',        tone: Colors.warning },
 ];

@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, StyleSheet,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as ttApi from '@/api/timetable.api';
@@ -34,6 +34,51 @@ export default function TimetableVersionScreen() {
   const [day, setDay] = useState('Monday');
   const [selected, setSelected] = useState<any>(null);      // entry tapped for editing
   const [moving, setMoving] = useState<any>(null);          // entry being relocated
+  const [regenerating, setRegenerating] = useState<any>(null);  // { percent, steps }
+  const pollRef = useRef<any>(null);
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  /* Conflicts are usually a solver outcome, not a data error: a fresh starting
+     point often clears them. The retry becomes its own version, so the one being
+     looked at is never overwritten. */
+  const regenerate = async () => {
+    const manual = (data?.entries ?? []).filter((e: any) => e.isManual || e.isLocked).length;
+    const ok = await confirmAsync(
+      'Regenerate timetable',
+      manual
+        ? `Solve these ${data.sections?.length ?? 0} section(s) again into a NEW version? Your ${manual} hand-edited period(s) are kept in place, and this version is left untouched.`
+        : `Solve these ${data.sections?.length ?? 0} section(s) again into a NEW version? This version is left untouched.`,
+      'Regenerate',
+    );
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const d = unwrap(await ttApi.regenerate(String(id), {
+        options: { ...(data.version?.options ?? {}), preserveManualEdits: manual > 0 },
+      }));
+      setRegenerating({ percent: 0, steps: [] });
+      clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const p = unwrap(await ttApi.getProgress(d.versionId));
+          setRegenerating({ ...(p.progress ?? {}), status: p.status });
+          if (p.status === 'generating') return;
+          clearInterval(pollRef.current);
+          setRegenerating(null);
+          if (p.status === 'failed') { setError('Regeneration failed'); return; }
+          router.replace({ pathname: '/modules/admin/timetable-version', params: { id: d.versionId } } as any);
+        } catch (err: any) {
+          clearInterval(pollRef.current);
+          setRegenerating(null);
+          setError(err?.message ?? 'Lost contact with the server');
+        }
+      }, 1000);
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not start regeneration');
+    } finally { setBusy(false); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -65,11 +110,20 @@ export default function TimetableVersionScreen() {
     return m;
   }, [data]);
 
+  /* Merged subjects share one entry row. A class grid shows them as one cell,
+     but the teacher-wise view needs a line per subject taught. */
+  const occupants = useMemo<any[]>(() => (data?.entries ?? []).flatMap((e: any) => [
+    e,
+    ...(e.additionalSubjects ?? []).map((m: any) => ({
+      ...e, subject: m.subject, teacher: m.teacher, room: m.room, additionalSubjects: [],
+    })),
+  ]), [data]);
+
   const teachersInUse = useMemo(() => {
     if (!data || !maps) return [];
-    const ids = [...new Set((data.entries ?? []).map((e: any) => e.teacher).filter(Boolean))] as string[];
+    const ids = [...new Set(occupants.map((e: any) => e.teacher).filter(Boolean))] as string[];
     return ids.map((t) => maps.teacher.get(t)).filter(Boolean).sort((a: any, b: any) => a.name.localeCompare(b.name));
-  }, [data, maps]);
+  }, [data, maps, occupants]);
 
   useEffect(() => { if (!teacherId && teachersInUse.length) setTeacherId(teachersInUse[0]._id); }, [teachersInUse]); // eslint-disable-line
 
@@ -88,6 +142,18 @@ export default function TimetableVersionScreen() {
     teacher: (tid?: string) => maps!.teacher.get(String(tid))?.name ?? '',
     room:    (rid?: string) => maps!.room.get(String(rid))?.roomName ?? '',
     section: (sid?: string) => maps!.section.get(String(sid))?.label ?? '',
+  };
+
+  /* One slot, possibly several subjects: "Maths + Computer" with both teachers. */
+  const uniqJoin = (vals: (string | undefined)[], sep: string) =>
+    [...new Set(vals.filter(Boolean))].join(sep);
+  const slot = {
+    subject: (e: any) => uniqJoin([e.subject, ...(e.additionalSubjects ?? []).map((m: any) => m.subject)]
+      .map(name.subject), ' + '),
+    teacher: (e: any) => uniqJoin([e.teacher, ...(e.additionalSubjects ?? []).map((m: any) => m.teacher)]
+      .map(name.teacher), ' · '),
+    room: (e: any) => uniqJoin([e.room, ...(e.additionalSubjects ?? []).map((m: any) => m.room)]
+      .map(name.room), ' · '),
   };
 
   /* ── Actions ───────────────────────────────────────────────────────────── */
@@ -190,10 +256,10 @@ export default function TimetableVersionScreen() {
                       {entry ? (
                         <View style={[tk.periodCard, { backgroundColor: subjectColor(entry.subject).bg }]}>
                           <Text numberOfLines={1} style={[tk.periodSubject, { color: subjectColor(entry.subject).fg }]}>
-                            {name.subject(entry.subject)}{entry.isLocked ? ' 🔒' : entry.isManual ? ' ✎' : ''}
+                            {slot.subject(entry)}{entry.isLocked ? ' 🔒' : entry.isManual ? ' ✎' : ''}
                           </Text>
-                          {name.teacher(entry.teacher) ? <Text numberOfLines={1} style={tk.periodMeta}>{name.teacher(entry.teacher)}</Text> : null}
-                          {name.room(entry.room) ? <Text numberOfLines={1} style={tk.periodMeta}>📍{name.room(entry.room)}</Text> : null}
+                          {slot.teacher(entry) ? <Text numberOfLines={1} style={tk.periodMeta}>{slot.teacher(entry)}</Text> : null}
+                          {slot.room(entry) ? <Text numberOfLines={1} style={tk.periodMeta}>📍{slot.room(entry)}</Text> : null}
                         </View>
                       ) : (
                         <Text style={v.emptyCell}>{isTarget ? '＋' : ''}</Text>
@@ -211,7 +277,7 @@ export default function TimetableVersionScreen() {
 
   const renderTeacherGrid = () => {
     if (!teachersInUse.length) return <Empty icon="person-outline" text="No teachers assigned" />;
-    const rows = (data.entries ?? []).filter((e: any) => String(e.teacher) === teacherId);
+    const rows = occupants.filter((e: any) => String(e.teacher) === teacherId);
     const periodNumbers = [...new Set(
       sections.flatMap((s: any) => periodsOf(s._id).filter(isTeaching).map((p: any) => p.periodNumber)),
     )].sort((a: any, b: any) => a - b);
@@ -271,9 +337,9 @@ export default function TimetableVersionScreen() {
                     {entry ? (
                       <View style={[tk.periodCard, { backgroundColor: subjectColor(entry.subject).bg }]}>
                         <Text numberOfLines={1} style={[tk.periodSubject, { color: subjectColor(entry.subject).fg }]}>
-                          {name.subject(entry.subject)}
+                          {slot.subject(entry)}
                         </Text>
-                        <Text numberOfLines={1} style={tk.periodMeta}>{name.teacher(entry.teacher)}</Text>
+                        <Text numberOfLines={1} style={tk.periodMeta}>{slot.teacher(entry)}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -364,9 +430,27 @@ export default function TimetableVersionScreen() {
         )}
 
         {tab === 'conflicts' && (
-          conflicts.length === 0
-            ? <Empty icon="checkmark-circle-outline" text="No conflicts — this version can be published" />
-            : <View>{conflicts.map((c: any, i: number) => <ConflictRow key={c._id ?? i} conflict={c} />)}</View>
+          <>
+            {/* Offered before the admin starts moving periods by hand. */}
+            {editable && (
+              <Card>
+                <Text style={v.regenTitle}>
+                  {conflicts.length ? 'Try solving these again' : 'Try for a better arrangement'}
+                </Text>
+                <Text style={v.regenSub}>
+                  Regenerating with a different starting point often clears conflicts outright.
+                  It creates a new version — this one is left exactly as it is.
+                </Text>
+                <TouchableOpacity style={[v.regenBtn, busy && { opacity: 0.6 }]} disabled={busy} onPress={regenerate}>
+                  <Ionicons name="refresh" size={16} color={Colors.accent} />
+                  <Text style={v.regenBtnText}>Regenerate</Text>
+                </TouchableOpacity>
+              </Card>
+            )}
+            {conflicts.length === 0
+              ? <Empty icon="checkmark-circle-outline" text="No conflicts — this version can be published" />
+              : <View>{conflicts.map((c: any, i: number) => <ConflictRow key={c._id ?? i} conflict={c} />)}</View>}
+          </>
         )}
 
         {editable && (
@@ -383,6 +467,34 @@ export default function TimetableVersionScreen() {
           <Text style={v.note}>This is the live timetable. Duplicate it from the versions list to make changes.</Text>
         )}
       </ScrollView>
+
+      {/* Progress overlay so the admin can see the retry through. */}
+      {regenerating && (
+        <View style={v.regenOverlay}>
+          <View style={v.regenCard}>
+            <Text style={v.regenTitle}>Regenerating…</Text>
+            <View style={{ marginTop: 10 }}>
+              {(regenerating.steps ?? []).map((st: any) => (
+                <View key={st.key} style={v.regenStep}>
+                  {st.status === 'done'
+                    ? <Ionicons name="checkmark-circle" size={15} color={Colors.success} />
+                    : st.status === 'active'
+                      ? <ActivityIndicator size="small" color={Colors.accent} />
+                      : <Ionicons name="ellipse-outline" size={15} color={Colors.textLight} />}
+                  <Text style={[v.regenStepText, st.status === 'pending' && { color: Colors.textLight }]}>{st.label}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={v.regenTrack}>
+              <View style={[v.regenFill, { width: `${regenerating.percent ?? 0}%` }]} />
+            </View>
+            <Text style={v.regenPct}>{regenerating.percent ?? 0}%</Text>
+            <Text style={v.regenSub}>
+              This runs on the server — you can leave this screen and pick the new version up from the version list.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* ── Period actions ───────────────────────────────────────────────── */}
       <FormModal
@@ -418,6 +530,27 @@ export default function TimetableVersionScreen() {
 }
 
 const v = StyleSheet.create({
+  regenTitle: { fontSize: 13.5, fontWeight: '700', color: Colors.text },
+  regenSub: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 3, marginBottom: 10 },
+  regenBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.accent, paddingVertical: 10,
+  },
+  regenBtnText: { color: Colors.accent, fontWeight: '700', fontSize: 13 },
+  regenOverlay: {
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center', justifyContent: 'center', padding: Spacing.lg,
+  },
+  regenCard: {
+    width: '100%', maxWidth: 340, backgroundColor: Colors.surface,
+    borderRadius: Radius.lg, padding: Spacing.md,
+  },
+  regenStep: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  regenStepText: { fontSize: 12.5, color: Colors.text },
+  regenTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.surfaceAlt, marginTop: 12, overflow: 'hidden' },
+  regenFill: { height: '100%', borderRadius: 4, backgroundColor: Colors.accent },
+  regenPct: { fontSize: 11, color: Colors.textSecondary, textAlign: 'right', marginTop: 4 },
+
   screen: { flex: 1, backgroundColor: Colors.background },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' },
   subtle: { fontSize: 11.5, color: Colors.textSecondary, flex: 1 },

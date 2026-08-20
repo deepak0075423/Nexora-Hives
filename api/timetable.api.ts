@@ -8,6 +8,15 @@ const base = '/admin/timetable';
 // ── Meta & configuration ──────────────────────────────────────────────────────
 export const getMeta    = (yearId?: string) => api.get(`${base}/meta`, { params: yearId ? { yearId } : {} });
 export const getConfig  = (yearId?: string) => api.get(`${base}/config`, { params: yearId ? { yearId } : {} });
+// Subjects, weekly capacity and saved period counts for one class + its sections.
+export const getClassPlan = (classId: string, sectionIds?: string[], yearId?: string) =>
+  api.get(`${base}/class-plan`, {
+    params: {
+      classId,
+      ...(sectionIds?.length ? { sectionIds: sectionIds.join(',') } : {}),
+      ...(yearId ? { yearId } : {}),
+    },
+  });
 export const saveConfig = (data: object)    => api.put(`${base}/config`, data);
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────
@@ -19,12 +28,6 @@ export const deleteRoom = (id: string)               => api.delete(`${base}/room
 // ── Teacher availability ──────────────────────────────────────────────────────
 export const getAvailability  = (yearId?: string)             => api.get(`${base}/availability`, { params: yearId ? { yearId } : {} });
 export const saveAvailability = (teacherId: string, d: object) => api.put(`${base}/availability/${teacherId}`, d);
-
-// ── Subject requirements ──────────────────────────────────────────────────────
-export const getRequirements   = (sectionId: string, yearId?: string) =>
-  api.get(`${base}/requirements`, { params: { sectionId, ...(yearId ? { yearId } : {}) } });
-export const saveRequirements  = (sectionId: string, data: object) => api.put(`${base}/requirements/${sectionId}`, data);
-export const seedRequirements  = (data: object)                    => api.post(`${base}/requirements/seed`, data);
 
 // ── Generation & versions ─────────────────────────────────────────────────────
 export const generate         = (data: object)         => api.post(`${base}/generate`, data);
