@@ -114,6 +114,7 @@ const PARENT_MODULES = [
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/fees',        moduleFlag: 'fees' },
+  { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library-parent',   moduleFlag: 'library' },
   { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/transport-parent', moduleFlag: 'transport' },
   { key: 'hostel',     label: 'Hostel',     icon: 'business',         route: '/modules/hostel-parent',    moduleFlag: 'hostel' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },

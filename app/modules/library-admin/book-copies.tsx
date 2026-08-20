@@ -92,9 +92,9 @@ export default function LibraryBookCopiesScreen() {
     finally { setSaving(false); }
   };
 
-  const changeStatus = async (copy: any, status: string, chargeLastBorrower = false) => {
+  const changeStatus = async (copy: any, status: string, chargeLastBorrower = false, fineAmount?: number) => {
     try {
-      const res: any = await libApi.setCopyStatus(id, copy._id, status, chargeLastBorrower);
+      const res: any = await libApi.setCopyStatus(id, copy._id, status, chargeLastBorrower, fineAmount);
       load(1);
       if (res?.fine) Alert.alert('Charged', `₹${res.fine.amount} raised against the last borrower.`);
     } catch (err: any) { Alert.alert('Error', err.message); }
@@ -102,6 +102,11 @@ export default function LibraryBookCopiesScreen() {
 
   // Losing a copy is discovered at stock check, and costs the school a book.
   // Ask whether the person who last had it should pay for it.
+  // Charging can use the policy rate or the price the librarian knows the book
+  // cost — the multiple was only ever a stand-in for a figure nobody recorded.
+  const [charging, setCharging] = useState<any>(null);
+  const [chargePrice, setChargePrice] = useState('');
+
   const writeOff = (copy: any, status: 'lost' | 'damaged') => {
     Alert.alert(
       `Mark ${copy.uniqueCode} ${status}`,
@@ -109,9 +114,18 @@ export default function LibraryBookCopiesScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'No charge', onPress: () => changeStatus(copy, status, false) },
-        { text: 'Charge them', style: 'destructive', onPress: () => changeStatus(copy, status, true) },
+        { text: 'Charge them', style: 'destructive', onPress: () => { setChargePrice(''); setCharging({ copy, status }); } },
       ],
     );
+  };
+
+  const submitCharge = async () => {
+    const priced = chargePrice.trim() === '' ? undefined : Number(chargePrice);
+    if (priced !== undefined && (!Number.isFinite(priced) || priced < 0))
+      return Alert.alert('Check the amount', 'Enter a charge of zero or more.');
+    const { copy, status } = charging;
+    setCharging(null);
+    await changeStatus(copy, status, true, priced);
   };
 
   const removeCopy = async (copy: any) => {
@@ -231,6 +245,17 @@ export default function LibraryBookCopiesScreen() {
           onChange={v => setAddForm(f => ({ ...f, cost: v.replace(/[^0-9.]/g, '') }))} placeholder="0" />
         <Text style={{ color: Colors.textLight, fontSize: 12, paddingHorizontal: 2 }}>
           Each copy gets its own code, e.g. LIB-COPY-000042, and its own accession record.
+        </Text>
+      </FormModal>
+
+      <FormModal visible={!!charging} title={`Charge for ${charging?.copy?.uniqueCode ?? 'copy'}`}
+        onClose={() => setCharging(null)} onSubmit={submitCharge} submitting={false} submitLabel="Raise the charge">
+        <KV label="Copy" value={charging?.copy?.uniqueCode} />
+        <KV label="Marking as" value={charging?.status} />
+        <Input label="Charge (₹)" value={chargePrice} keyboardType="numeric"
+          onChange={v => setChargePrice(v.replace(/[^0-9.]/g, ''))} placeholder="Policy rate" />
+        <Text style={{ color: Colors.textLight, fontSize: 12, paddingHorizontal: 2 }}>
+          Leave blank to use the rate in the library policy, or enter what the book actually cost.
         </Text>
       </FormModal>
 

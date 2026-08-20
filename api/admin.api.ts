@@ -16,6 +16,14 @@ export const getSmtpSettings    = ()             => api.get('/admin/smtp-setting
 export const updateSmtpSettings = (data: object) => api.put('/admin/smtp-settings', data);
 export const testSmtpSettings   = (to?: string)  => api.post('/admin/smtp-settings/test', { to });
 
+// Payment gateway — school-level, shared by every module that takes money
+export const getPaymentGateway    = ()             => api.get('/admin/payment-gateway');
+export const updatePaymentGateway = (data: object) => api.put('/admin/payment-gateway', data);
+
+// Receipt designs, per module and payment mode
+export const getReceiptTemplates   = (module: string) => api.get('/admin/receipt-templates', { params: { module } });
+export const updateReceiptTemplate = (data: object)   => api.put('/admin/receipt-templates', data);
+
 // ── Designations & module permissions ────────────────────────────────────────
 // getDesignations is the plain name list the teacher form's dropdown consumes;
 // getDesignationMatrix carries the per-module access grid.

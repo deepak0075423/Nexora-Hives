@@ -129,9 +129,12 @@ export default function LibraryCirculationScreen() {
 
   // How the book came back decides whether the copy goes on the shelf and what
   // the borrower is charged, so the counter has to say.
-  const submitReturn = async (iss: any, condition: 'good' | 'damaged' | 'lost') => {
+  const submitReturn = async (iss: any, condition: 'good' | 'damaged' | 'lost', fineAmount?: number) => {
     try {
-      const d = unwrap(await libApi.returnBook({ issuanceId: iss._id, condition }));
+      const d = unwrap(await libApi.returnBook({
+        issuanceId: iss._id, condition,
+        ...(fineAmount !== undefined ? { fineAmount } : {}),
+      }));
       load();
       if (d?.fine) {
         const label = d.fine.fineType === 'lost' ? 'Lost book' : d.fine.fineType === 'damaged' ? 'Damaged book' : 'Late return';
@@ -140,6 +143,12 @@ export default function LibraryCirculationScreen() {
     } catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  // A damaged or lost book can be charged at what it actually cost, rather than
+  // the policy multiple — so those two open a small form instead of acting.
+  const [damaged, setDamaged] = useState<any>(null);
+  const [damageCondition, setDamageCondition] = useState<'damaged' | 'lost'>('damaged');
+  const [damagePrice, setDamagePrice] = useState('');
+
   const doReturn = async (iss: any) => {
     Alert.alert(
       'Return Book',
@@ -147,10 +156,19 @@ export default function LibraryCirculationScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Good condition', onPress: () => submitReturn(iss, 'good') },
-        { text: 'Damaged', onPress: () => submitReturn(iss, 'damaged') },
-        { text: 'Lost', style: 'destructive', onPress: () => submitReturn(iss, 'lost') },
+        { text: 'Damaged', onPress: () => { setDamageCondition('damaged'); setDamagePrice(''); setDamaged(iss); } },
+        { text: 'Lost', style: 'destructive', onPress: () => { setDamageCondition('lost'); setDamagePrice(''); setDamaged(iss); } },
       ],
     );
+  };
+
+  const submitDamaged = async () => {
+    const priced = damagePrice.trim() === '' ? undefined : Number(damagePrice);
+    if (priced !== undefined && (!Number.isFinite(priced) || priced < 0))
+      return Alert.alert('Check the amount', 'Enter a charge of zero or more.');
+    const iss = damaged;
+    setDamaged(null);
+    await submitReturn(iss, damageCondition, priced);
   };
 
   const doRenew = async (iss: any) => {
@@ -255,6 +273,19 @@ export default function LibraryCirculationScreen() {
             ))}
           </>
         )}
+      </FormModal>
+
+      <FormModal visible={!!damaged} title={damageCondition === 'lost' ? 'Book reported lost' : 'Book returned damaged'}
+        onClose={() => setDamaged(null)} onSubmit={submitDamaged} submitting={false}
+        submitLabel={damageCondition === 'lost' ? 'Record as lost' : 'Record as damaged'}>
+        <KV label="Book" value={damaged?.book?.title} />
+        <KV label="Borrower" value={damaged?.issuedTo?.name} />
+        <Input label="Charge (₹)" value={damagePrice} keyboardType="numeric"
+          onChange={v => setDamagePrice(v.replace(/[^0-9.]/g, ''))} placeholder="Policy rate" />
+        <Text style={{ color: Colors.textLight, fontSize: 12, paddingHorizontal: 2 }}>
+          Leave blank to charge the rate in the library policy, or enter what the book actually cost.
+          Any late fine is added on top.
+        </Text>
       </FormModal>
 
       <FormModal visible={showScan} title="Scan a copy" onClose={() => { setShowScan(false); setScanned(null); }}

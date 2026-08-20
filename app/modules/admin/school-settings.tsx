@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { schoolLogoUrl } from '@/utils/branding';
 import { isEmail, isPhone, isURL } from '@/utils/validators';
 import {
-  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV, confirmAsync,
+  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV, confirmAsync, Select, Toggle,
 } from '@/components/ui/kit';
 
 interface SmtpForm {
@@ -42,6 +42,93 @@ export default function AdminSchoolSettingsScreen() {
   const [smtpSaving, setSmtpSaving] = useState(false);
   const [smtpTesting, setSmtpTesting] = useState(false);
 
+  // ── Payment gateway ──
+  // `availableModules` comes from the server, which reads School.modules — the
+  // client's module context fails open while loading and would offer a module
+  // this school does not run.
+  const EMPTY_GW = {
+    enabled: false, provider: 'none',
+    razorpayKeyId: '', razorpayKeySecret: '',
+    stripePublishableKey: '', stripeSecretKey: '',
+    hasRazorpaySecret: false, hasStripeSecret: false,
+    modules: { fees: false, library: false } as Record<string, boolean>,
+  };
+  const [gw, setGw] = useState<any>(EMPTY_GW);
+  const [gwAvailable, setGwAvailable] = useState<string[]>([]);
+  const [gwSaving, setGwSaving] = useState(false);
+
+  // ── Receipt designs ──
+  const [tplModule, setTplModule] = useState('');
+  const [tpl, setTpl] = useState<any>(null);
+  const [tplPresets, setTplPresets] = useState<any[]>([]);
+  const [tplSaving, setTplSaving] = useState(false);
+
+  const loadGateway = async () => {
+    try {
+      const d: any = unwrap(await adminApi.getPaymentGateway());
+      const available = ['fees', 'library'].filter(k => d?.availableModules?.[k]);
+      setGwAvailable(available);
+      setGw({
+        ...EMPTY_GW,
+        enabled: !!d?.enabled,
+        provider: d?.provider ?? 'none',
+        razorpayKeyId: d?.razorpayKeyId ?? '',
+        stripePublishableKey: d?.stripePublishableKey ?? '',
+        hasRazorpaySecret: !!d?.hasRazorpaySecret,
+        hasStripeSecret: !!d?.hasStripeSecret,
+        modules: { fees: !!d?.modules?.fees, library: !!d?.modules?.library },
+      });
+      if (available.length) {
+        setTplModule(available[0]);
+        loadTemplate(available[0]);
+      }
+    } catch { /* card stays hidden */ }
+  };
+
+  const loadTemplate = async (module: string) => {
+    if (!module) return;
+    try {
+      const d: any = unwrap(await adminApi.getReceiptTemplates(module));
+      setTplPresets(d?.presets ?? []);
+      setTpl(d?.online ?? null);
+    } catch { setTpl(null); }
+  };
+
+  const saveGateway = async () => {
+    if (gw.enabled) {
+      if (gw.provider === 'none') return Alert.alert('Required', 'Choose a gateway before switching online payment on.');
+      if (gw.provider === 'razorpay' && (!gw.razorpayKeyId.trim() || (!gw.razorpayKeySecret && !gw.hasRazorpaySecret)))
+        return Alert.alert('Required', 'Enter both the Razorpay key id and key secret.');
+      if (gw.provider === 'stripe' && (!gw.stripePublishableKey.trim() || (!gw.stripeSecretKey && !gw.hasStripeSecret)))
+        return Alert.alert('Required', 'Enter both the Stripe publishable key and secret key.');
+      if (!gwAvailable.some(k => gw.modules[k]))
+        return Alert.alert('Required', 'Pick at least one module that should use this gateway.');
+    }
+    setGwSaving(true);
+    try {
+      await adminApi.updatePaymentGateway({
+        enabled: gw.enabled, provider: gw.provider,
+        razorpayKeyId: gw.razorpayKeyId, razorpayKeySecret: gw.razorpayKeySecret,
+        stripePublishableKey: gw.stripePublishableKey, stripeSecretKey: gw.stripeSecretKey,
+        modules: gw.modules,
+      });
+      await loadGateway();
+      Alert.alert('Saved', 'Payment gateway updated.');
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setGwSaving(false); }
+  };
+
+  const saveTemplate = async () => {
+    if (!tpl || !tplModule) return;
+    setTplSaving(true);
+    try {
+      // One design for both modes from the phone; the web panel splits them.
+      await adminApi.updateReceiptTemplate({ ...tpl, module: tplModule, sameForBoth: true });
+      Alert.alert('Saved', 'Receipt design updated.');
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setTplSaving(false); }
+  };
+
   const load = async () => {
     try {
       const d = unwrap(await adminApi.getSchoolSettings());
@@ -61,7 +148,7 @@ export default function AdminSchoolSettingsScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadGateway(); }, []);
 
   // Ask the server what the next number / ID would look like for these formats
   useEffect(() => {
@@ -331,7 +418,131 @@ export default function AdminSchoolSettingsScreen() {
             <ActionBtn label={smtpSaving ? 'Saving…' : 'Save SMTP Settings'} tone="success" onPress={saveSmtp} />
             <View style={{ height: 8 }} />
             <ActionBtn label={smtpTesting ? 'Sending…' : `Send Test Email to ${me?.email ?? 'me'}`} onPress={testSmtp} />
-            <View style={{ height: 8 }} />
+            <View style={{ height: 16 }} />
+
+            {/* ── Payment gateway ──
+                School-level rather than per module: fees and library fines both
+                charge through the same merchant account. `modules` decides
+                which of them may. */}
+            {gwAvailable.length > 0 && (
+              <>
+                <SectionTitle>Payment Gateway</SectionTitle>
+                <Card>
+                  <View style={ls.switchRow}>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                      <Text style={ls.switchLabel}>Accept online payments</Text>
+                      <Text style={ls.switchHint}>Off means every payment is recorded at the counter</Text>
+                    </View>
+                    <Switch value={gw.enabled} onValueChange={v => setGw((g: any) => ({ ...g, enabled: v }))}
+                      trackColor={{ true: Colors.primary }} />
+                  </View>
+                </Card>
+
+                {gw.enabled && (
+                  <>
+                    <Select label="Gateway" value={gw.provider}
+                      onChange={(v: string) => setGw((g: any) => ({ ...g, provider: v }))}
+                      options={[
+                        { label: 'Choose…', value: 'none' },
+                        { label: 'Razorpay', value: 'razorpay' },
+                        { label: 'Stripe', value: 'stripe' },
+                      ]} />
+
+                    {gw.provider === 'razorpay' && (
+                      <>
+                        <Input label="Key ID" value={gw.razorpayKeyId}
+                          onChange={(v: string) => setGw((g: any) => ({ ...g, razorpayKeyId: v }))} placeholder="rzp_live_…" />
+                        <Input
+                          label={gw.hasRazorpaySecret && !gw.razorpayKeySecret ? 'Key Secret (saved — leave blank to keep)' : 'Key Secret'}
+                          value={gw.razorpayKeySecret} secure
+                          onChange={(v: string) => setGw((g: any) => ({ ...g, razorpayKeySecret: v }))}
+                          placeholder={gw.hasRazorpaySecret ? '••••••••' : 'Key secret'} />
+                      </>
+                    )}
+
+                    {gw.provider === 'stripe' && (
+                      <>
+                        <Input label="Publishable key" value={gw.stripePublishableKey}
+                          onChange={(v: string) => setGw((g: any) => ({ ...g, stripePublishableKey: v }))} placeholder="pk_live_…" />
+                        <Input
+                          label={gw.hasStripeSecret && !gw.stripeSecretKey ? 'Secret key (saved — leave blank to keep)' : 'Secret key'}
+                          value={gw.stripeSecretKey} secure
+                          onChange={(v: string) => setGw((g: any) => ({ ...g, stripeSecretKey: v }))}
+                          placeholder={gw.hasStripeSecret ? '••••••••' : 'sk_live_…'} />
+                      </>
+                    )}
+
+                    <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 6, marginTop: 4 }}>
+                      Which modules may charge through it
+                    </Text>
+                    {gwAvailable.map(key => (
+                      <Toggle key={key}
+                        label={key === 'fees' ? 'Fees' : 'Library fines'}
+                        sub={key === 'fees'
+                          ? 'Students and parents pay term fees online'
+                          : 'Members settle overdue and damage charges online'}
+                        value={!!gw.modules[key]}
+                        onChange={(v: boolean) => setGw((g: any) => ({ ...g, modules: { ...g.modules, [key]: v } }))} />
+                    ))}
+
+                    {gw.provider === 'stripe' && gw.modules.library && (
+                      <Text style={{ fontSize: 12, color: Colors.warning, marginTop: 4, lineHeight: 18 }}>
+                        Library fines check out through Razorpay only. With Stripe selected, members will
+                        see their fines but must pay at the counter.
+                      </Text>
+                    )}
+                  </>
+                )}
+                <ActionBtn label={gwSaving ? 'Saving…' : 'Save Gateway'} tone="success" onPress={saveGateway} />
+                <View style={{ height: 16 }} />
+              </>
+            )}
+
+            {/* ── Receipt designs ──
+                One design per module per payment mode. Full customisation and a
+                live preview live on the web panel; the phone picks the design. */}
+            {gwAvailable.length > 0 && (
+              <>
+                <SectionTitle>Receipt Designs</SectionTitle>
+                <Select label="Receipts for" value={tplModule}
+                  onChange={(v: string) => { setTplModule(v); loadTemplate(v); }}
+                  options={gwAvailable.map(k => ({
+                    label: k === 'fees' ? 'Fee receipts' : 'Library fine receipts', value: k,
+                  }))} />
+                {tpl && (
+                  <>
+                    <Select label="Design" value={tpl.preset}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, preset: v }))}
+                      options={tplPresets.map((p: any) => ({ label: p.name, value: p.key }))} />
+                    <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 8 }}>
+                      {tplPresets.find((p: any) => p.key === tpl.preset)?.blurb}
+                    </Text>
+                    <Input label="Accent colour" value={tpl.accentColor}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, accentColor: v }))} placeholder="#4F46E5" />
+                    <Input label="Line under the school name" value={tpl.headerText}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, headerText: v }))} placeholder="Affiliated to CBSE…" />
+                    <Input label="Note on the receipt" value={tpl.notes} multiline
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, notes: v }))} placeholder="Fees once paid are not refundable." />
+                    <Input label="Footer" value={tpl.footerText}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, footerText: v }))} />
+                    <Input label="Signatory" value={tpl.signatoryName}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, signatoryName: v }))} placeholder="Accounts Officer" />
+                    <Toggle label="School logo" value={!!tpl.showLogo}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, showLogo: v }))} />
+                    <Toggle label="Itemised breakdown" value={!!tpl.showBreakdown}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, showBreakdown: v }))} />
+                    <Toggle label="Signature line" value={!!tpl.showSignature}
+                      onChange={(v: any) => setTpl((t: any) => ({ ...t, showSignature: v }))} />
+                    <ActionBtn label={tplSaving ? 'Saving…' : 'Save Design'} tone="success" onPress={saveTemplate} />
+                    <Text style={{ fontSize: 11, color: Colors.textLight, marginTop: 8, lineHeight: 16 }}>
+                      Applies to counter and online receipts alike. To design them separately, or to see a
+                      live preview, use the web panel.
+                    </Text>
+                  </>
+                )}
+                <View style={{ height: 8 }} />
+              </>
+            )}
           </>
         )}
       </ScrollView>

@@ -11,8 +11,8 @@ export const deleteBook           = (id: string)   => api.delete(`/library/books
 // Physical copies of a catalogue title — a book with no copies cannot be issued
 export const addCopies            = (bookId: string, data: object) => api.post(`/library/books/${bookId}/copies`, data);
 export const updateCopy           = (bookId: string, copyId: string, data: object) => api.put(`/library/books/${bookId}/copies/${copyId}`, data);
-export const setCopyStatus        = (bookId: string, copyId: string, status: string, chargeLastBorrower = false) =>
-  api.patch(`/library/books/${bookId}/copies/${copyId}/status`, { status, chargeLastBorrower });
+export const setCopyStatus        = (bookId: string, copyId: string, status: string, chargeLastBorrower = false, fineAmount?: number) =>
+  api.patch(`/library/books/${bookId}/copies/${copyId}/status`, { status, chargeLastBorrower, fineAmount });
 export const deleteCopy           = (bookId: string, copyId: string) => api.delete(`/library/books/${bookId}/copies/${copyId}`);
 // Counter helpers — member typeahead and the barcode scanner
 export const searchMembers        = (q: string, role?: string) => api.get('/library/members', { params: { q, role } });
@@ -37,6 +37,18 @@ export const getAuditLog           = (params?: object) => api.get('/library/audi
 // ── Reports ───────────────────────────────────────────────────────────────────
 export const listReports           = () => api.get('/library/reports');
 export const runReport             = (path: string, params?: object) => api.get(path, { params });
+
+// ── Fines a member owes, and the receipts that follow ─────────────────────────
+// The server decides whose fines the caller may see, so `userId` is a request a
+// parent makes for a child, not a claim the client gets to assert.
+export const getFineSummary       = (userId?: string) => api.get('/library/my-fines/summary', { params: { userId } });
+export const listMyReceipts       = (userId?: string) => api.get('/library/my-fines/receipts', { params: { userId } });
+// Asked for as data: the phone draws the receipt itself, having no HTML surface.
+export const getFineReceipt       = (receiptNumber: string) =>
+  api.get(`/library/receipts/${encodeURIComponent(receiptNumber)}`, { params: { format: 'json' } });
+
+// ── Parent ────────────────────────────────────────────────────────────────────
+export const getParentOverview    = () => api.get('/library/parent');
 
 // ── Member self-service ───────────────────────────────────────────────────────
 export const renewMyBook           = (id: string) => api.post(`/library/student/issuances/${id}/renew`);

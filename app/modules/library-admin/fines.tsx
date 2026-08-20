@@ -6,7 +6,7 @@ import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   LoaderView, Empty, RowItem, Badge, SegTabs, ActionBtn, FormModal, Input,
-  confirmAsync, fmtMoney, fmtDate, StatRow, StatTile,
+  confirmAsync, fmtMoney, fmtDate, StatRow, StatTile, KV,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
@@ -19,11 +19,21 @@ export default function LibraryFinesScreen() {
   const [disabled, setDisabled] = useState(false);
   const [waiving, setWaiving] = useState<any>(null);
   const [reason, setReason] = useState('');
+  // Blank waives whatever is outstanding; a number waives part of it.
+  const [waiveAmount, setWaiveAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const load = async (st = tab) => {
+  // How the money came in. Kept apart from the status tabs because they answer
+  // different questions — "is it settled?" versus "did they pay online?".
+  const [mode, setMode] = useState('');
+
+  const load = async (st = tab, pm = mode) => {
     try {
-      const res: any = await libApi.getFines({ page: 1, limit: 50, ...(st ? { status: st } : {}) });
+      const res: any = await libApi.getFines({
+        page: 1, limit: 50,
+        ...(st ? { status: st } : {}),
+        ...(pm ? { paymentMode: pm } : {}),
+      });
       setList((res as any)?.data ?? []);
       // Totals cover everything matching the filter, not the 50 rows fetched.
       setSummary((res as any)?.summary ?? null);
@@ -33,7 +43,8 @@ export default function LibraryFinesScreen() {
   };
 
   useEffect(() => { load(); }, []);
-  const changeTab = (st: string) => { setTab(st); setLoading(true); load(st); };
+  const changeTab = (st: string) => { setTab(st); setLoading(true); load(st, mode); };
+  const changeMode = (pm: string) => { setMode(pm); setLoading(true); load(tab, pm); };
 
   const collect = async (f: any) => {
     if (!(await confirmAsync('Collect Fine', `Collect ${fmtMoney(f.amount)} from ${f.user?.name}?`, 'Collect'))) return;
@@ -41,14 +52,30 @@ export default function LibraryFinesScreen() {
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  /** Still owed after any earlier waiver or part payment. */
+  const owedOn = (f: any) =>
+    Math.max(0, Number(f?.amount || 0) - Number(f?.waivedAmount || 0) - Number(f?.paidAmount || 0));
+
   const submitWaive = async () => {
     // Writing off money owed needs a stated reason — the server refuses without one.
     if (!reason.trim()) return Alert.alert('Reason required', 'Say why this fine is being waived.');
+    const owed = owedOn(waiving);
+    let amount: number | undefined;
+    if (waiveAmount.trim()) {
+      amount = Number(waiveAmount);
+      if (!Number.isFinite(amount) || amount <= 0)
+        return Alert.alert('Check the amount', 'Enter a waiver amount greater than zero.');
+      if (amount > owed)
+        return Alert.alert('Too much', `Only ${fmtMoney(owed)} is outstanding on this fine.`);
+    }
     setSaving(true);
     try {
-      await libApi.waiveFine(waiving._id, { reason: reason.trim() });
-      setWaiving(null); setReason('');
+      const res: any = await libApi.waiveFine(waiving._id, { reason: reason.trim(), amount });
+      const left = (res as any)?.data?.outstanding ?? 0;
+      setWaiving(null); setReason(''); setWaiveAmount('');
       load();
+      Alert.alert(left > 0 ? 'Partly waived' : 'Waived',
+        left > 0 ? `${fmtMoney(left)} is still to pay.` : 'The fine has been written off in full.');
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };
@@ -79,6 +106,10 @@ export default function LibraryFinesScreen() {
           tabs={[{ key: '', label: 'All' }, { key: 'pending', label: 'Outstanding' }, { key: 'paid', label: 'Collected' }, { key: 'waived', label: 'Written off' }]}
           active={tab} onChange={changeTab}
         />
+        <SegTabs
+          tabs={[{ key: '', label: 'Paid any way' }, { key: 'online', label: 'Online' }, { key: 'cash', label: 'Cash' }]}
+          active={mode} onChange={changeMode}
+        />
         {loading ? <LoaderView /> : list.length === 0 ? (
           <Empty icon="cash-outline" text="No fines here" />
         ) : (
@@ -86,9 +117,22 @@ export default function LibraryFinesScreen() {
             <View key={f._id} style={{ marginBottom: 4 }}>
               <RowItem
                 icon="cash" iconColor={Colors.warning} iconBg={Colors.warningLight}
-                title={`${fmtMoney(f.amount)} · ${f.user?.name ?? '--'}`}
-                sub={`${f.fineType?.replace('_', ' ') ?? ''} · ${f.daysOverdue ?? 0} day(s) overdue · ${fmtDate(f.createdAt)}`}
-                right={<Badge label={f.status} />}
+                title={`${fmtMoney(owedOn(f) || f.amount)} · ${f.user?.name ?? '--'}`}
+                sub={[
+                  f.fineType?.replace('_', ' ') ?? '',
+                  // Only claim a payment mode where money actually moved: the
+                  // field defaults to 'cash' on every row, paid or not.
+                  (f.paidAmount || 0) > 0 ? (f.paymentMode === 'online' ? 'paid online' : 'paid in cash') : '',
+                  f.receiptNumber || '',
+                  (f.waivedAmount || 0) > 0 ? `${fmtMoney(f.waivedAmount)} waived` : '',
+                  fmtDate(f.createdAt),
+                ].filter(Boolean).join(' · ')}
+                right={
+                  (f.paidAmount || 0) > 0
+                    ? <Badge label={f.paymentMode === 'online' ? 'Online' : 'Cash'}
+                        tone={f.paymentMode === 'online' ? 'info' : 'neutral'} />
+                    : <Badge label={f.status} />
+                }
               />
               {f.status === 'pending' && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: -4, marginBottom: 8 }}>
@@ -106,6 +150,9 @@ export default function LibraryFinesScreen() {
       </ScrollView>
 
       <FormModal visible={!!waiving} title="Waive Fine" onClose={() => setWaiving(null)} onSubmit={submitWaive} submitting={saving} submitLabel="Waive">
+        <KV label="Outstanding" value={fmtMoney(owedOn(waiving))} />
+        <Input label={`Amount to waive (blank = all ${fmtMoney(owedOn(waiving))})`} value={waiveAmount}
+          onChange={v => setWaiveAmount(v.replace(/[^0-9.]/g, ''))} keyboardType="numeric" placeholder="Whole fine" />
         <Input label="Reason *" value={reason} onChange={setReason} placeholder="Why is this fine waived?" multiline />
       </FormModal>
     </>

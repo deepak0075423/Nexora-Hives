@@ -12,6 +12,7 @@ import * as teacherApi from '@/api/teacher.api';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import FinePayments from '@/components/library/FinePayments';
 
 export default function LibraryScreen() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
-  const [tab, setTab] = useState<'browse' | 'mybooks'>('browse');
+  const [tab, setTab] = useState<'browse' | 'mybooks' | 'fines'>('browse');
 
   const load = useCallback(async () => {
     try {
@@ -149,10 +150,10 @@ export default function LibraryScreen() {
 
             {/* Tabs */}
             <View style={s.tabs}>
-              {(['browse', 'mybooks'] as const).map((t) => (
+              {(['browse', 'mybooks', 'fines'] as const).map((t) => (
                 <TouchableOpacity key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
                   <Text style={[s.tabText, tab === t && s.tabTextActive]}>
-                    {t === 'browse' ? 'Browse' : `My Books (${myBooks.length})`}
+                    {t === 'browse' ? 'Browse' : t === 'mybooks' ? `My Books (${myBooks.length})` : 'Fines'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -180,7 +181,7 @@ export default function LibraryScreen() {
                     </View>
                   )}
                 </>
-              ) : (
+              ) : tab === 'mybooks' ? (
                 <>
                   {myBooks.length === 0 ? (
                     <View style={s.empty}>
@@ -195,6 +196,10 @@ export default function LibraryScreen() {
                     ))
                   )}
                 </>
+              ) : (
+                // Fines a member owes, and every receipt they have — the same
+                // component the parent screen uses for a child.
+                <FinePayments title="Outstanding fines" />
               )}
             </View>
           </>

@@ -4,24 +4,29 @@ import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { unwrap, LoaderView, Input, Select, Toggle, ActionBtn, SectionTitle, Card, KV, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { unwrap, LoaderView, Input, Select, ActionBtn, SectionTitle, Card, KV, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export default function AdminFeesSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [disabled, setDisabled] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<number>(0);
+  // Gateway credentials moved to School Settings — library fines charge through
+  // the same merchant account, so a school configures it once. What is left
+  // here is how fees are counted and numbered.
+  const [online, setOnline] = useState<{ enabled: boolean; provider: string }>({ enabled: false, provider: 'none' });
   const [form, setForm] = useState({
-    onlinePaymentEnabled: false, paymentGateway: 'none',
     currencySymbol: '₹', currency: 'INR', receiptPrefix: 'REC', roundingRule: 'none',
   });
 
   const load = async () => {
     try {
       const d = unwrap(await feesApi.getFeeSettings());
+      setOnline({
+        enabled: !!d?.onlinePaymentEnabled,
+        provider: d?.paymentGatewayProvider ?? 'none',
+      });
       setForm({
-        onlinePaymentEnabled: !!d?.onlinePaymentEnabled,
-        paymentGateway: d?.paymentGateway ?? 'none',
         currencySymbol: d?.currencySymbol ?? '₹',
         currency: d?.currency ?? 'INR',
         receiptPrefix: d?.receiptPrefix ?? 'REC',
@@ -76,19 +81,14 @@ export default function AdminFeesSettingsScreen() {
               ]} />
 
             <SectionTitle>Online Payments</SectionTitle>
-            <Toggle label="Enable online payments" sub="Students/parents can pay through a gateway"
-              value={form.onlinePaymentEnabled} onChange={v => setForm(f => ({ ...f, onlinePaymentEnabled: v }))} />
-            {form.onlinePaymentEnabled && (
-              <Select label="Gateway" value={form.paymentGateway} onChange={v => setForm(f => ({ ...f, paymentGateway: v }))}
-                options={[
-                  { label: 'None', value: 'none' },
-                  { label: 'Razorpay', value: 'razorpay' },
-                  { label: 'Stripe', value: 'stripe' },
-                ]} />
-            )}
-            <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: 12 }}>
-              Gateway API keys are configured on the web admin panel.
-            </Text>
+            <Card>
+              <KV label="Status" value={online.enabled ? `Live via ${online.provider === 'razorpay' ? 'Razorpay' : 'Stripe'}` : 'Off'} />
+              <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 18 }}>
+                {online.enabled
+                  ? 'Students and parents can pay fees online. The gateway is configured for the whole school in Settings → Payment Gateway.'
+                  : 'The payment gateway is configured for the whole school in Settings → Payment Gateway. Switch it on there and tick Fees among the modules that may use it.'}
+              </Text>
+            </Card>
 
             <ActionBtn label={saving ? 'Saving…' : 'Save Settings'} tone="success" onPress={save} />
           </>
