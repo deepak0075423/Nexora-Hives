@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl,
-  TextInput, TouchableOpacity,
+  TextInput, TouchableOpacity, Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
+import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
@@ -44,6 +45,38 @@ export default function LibraryScreen() {
   // Wait for the user record — firing before role is known would hit the wrong role's API
   useEffect(() => { if (user?.role) load(); }, [user?.role, load]);
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  // Extending a loan nobody is waiting for never needed a trip to the desk —
+  // the server just had no route for the member to ask.
+  const [renewingId, setRenewingId] = useState<string | null>(null);
+
+  const renew = async (b: any) => {
+    setRenewingId(b._id);
+    try {
+      const res: any = user?.role === 'teacher'
+        ? await libApi.renewTeacherBook(b._id)
+        : await libApi.renewMyBook(b._id);
+      Alert.alert('Renewed', res?.message || 'Your loan has been extended.');
+      load();
+    } catch (err: any) { Alert.alert('Cannot renew', err.message); }
+    finally { setRenewingId(null); }
+  };
+
+  // Joining a queue for a book that is out.
+  const reserve = async (b: any) => {
+    try {
+      const res: any = user?.role === 'teacher'
+        ? await libApi.teacherReserve(b._id)
+        : await libApi.studentReserve(b._id);
+      const r = (res as any)?.data;
+      Alert.alert(
+        r?.status === 'ready' ? 'Ready to collect' : 'Reservation placed',
+        r?.status === 'ready'
+          ? 'A copy is being held for you at the library.'
+          : `You are number ${r?.queuePosition ?? '?'} in the queue.`,
+      );
+    } catch (err: any) { Alert.alert('Cannot reserve', err.message); }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -131,7 +164,9 @@ export default function LibraryScreen() {
                   {searchResults.length > 0 ? (
                     <>
                       <Text style={s.sectionLabel}>Search Results ({searchResults.length})</Text>
-                      {searchResults.map((b: any, i: number) => <BookCard key={i} book={b} />)}
+                      {searchResults.map((b: any, i: number) => (
+                        <BookCard key={b._id ?? i} book={b} onReserve={() => reserve(b)} />
+                      ))}
                     </>
                   ) : featuredBooks.length > 0 ? (
                     <>
@@ -153,7 +188,11 @@ export default function LibraryScreen() {
                       <Text style={s.emptyText}>No books currently issued</Text>
                     </View>
                   ) : (
-                    myBooks.map((b: any, i: number) => <BookCard key={i} book={b} issued />)
+                    myBooks.map((b: any, i: number) => (
+                      <BookCard key={b._id ?? i} book={b} issued
+                        onRenew={b.status === 'returned' || b.status === 'lost' ? undefined : () => renew(b)}
+                        renewing={renewingId === b._id} />
+                    ))
                   )}
                 </>
               )}
@@ -174,7 +213,9 @@ function StatItem({ label, value }: { label: string; value: any }) {
   );
 }
 
-function BookCard({ book, issued }: { book: any; issued?: boolean }) {
+function BookCard({ book, issued, onRenew, onReserve, renewing }: {
+  book: any; issued?: boolean; onRenew?: () => void; onReserve?: () => void; renewing?: boolean;
+}) {
   const title = book.title ?? book.bookTitle ?? 'Untitled';
   const author = book.author ?? book.authorName ?? '';
   const available = book.availableCopies ?? book.available;
@@ -199,6 +240,17 @@ function BookCard({ book, issued }: { book: any; issued?: boolean }) {
             {available > 0 ? `${available} left` : 'Unavailable'}
           </Text>
         </View>
+      )}
+      {issued && onRenew && (
+        <TouchableOpacity onPress={onRenew} disabled={renewing}
+          style={[bc.badge, { backgroundColor: Colors.successLight, marginRight: 6 }]}>
+          <Text style={[bc.badgeText, { color: Colors.success }]}>{renewing ? '…' : 'Renew'}</Text>
+        </TouchableOpacity>
+      )}
+      {!issued && onReserve && (
+        <TouchableOpacity onPress={onReserve} style={[bc.badge, { backgroundColor: Colors.infoLight, marginRight: 6 }]}>
+          <Text style={[bc.badgeText, { color: Colors.info }]}>{available > 0 ? 'Reserve' : 'Queue'}</Text>
+        </TouchableOpacity>
       )}
       {issued && (
         <View style={[bc.badge, { backgroundColor: Colors.infoLight }]}>

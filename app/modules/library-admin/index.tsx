@@ -39,6 +39,7 @@ export default function LibraryAdminDashboardScreen() {
     { label: 'Circulation', sub: 'Issue, return and renew books', icon: 'swap-horizontal', route: '/modules/library-admin/circulation' },
     { label: 'Reservations', sub: 'Queue and ready-for-pickup', icon: 'bookmark', route: '/modules/library-admin/reservations' },
     { label: 'Fines', sub: 'Collect or waive late fines', icon: 'cash', route: '/modules/library-admin/fines' },
+    { label: 'Reports', sub: 'Overdue, dead stock, stock take', icon: 'bar-chart', route: '/modules/library-admin/reports' },
     { label: 'Policy', sub: 'Limits, durations and fine rates', icon: 'settings', route: '/modules/library-admin/policy' },
   ];
 

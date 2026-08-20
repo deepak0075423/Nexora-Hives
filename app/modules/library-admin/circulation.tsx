@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/kit';
 
 export default function LibraryCirculationScreen() {
-  const [tab, setTab] = useState('issued');
+  const [tab, setTab] = useState('');   // All — matches the web default
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,31 +53,104 @@ export default function LibraryCirculationScreen() {
     } catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  // Member lookup. The form used to ask the librarian to paste a user id,
+  // because the only search in the app was admin-only and refused a
+  // Librarian-designated teacher. This is the library's own lookup.
+  const [memberQ, setMemberQ] = useState('');
+  const [memberHits, setMemberHits] = useState<any[]>([]);
+  const [member, setMember] = useState<any>(null);
+
+  useEffect(() => {
+    if (member || memberQ.trim().length < 2) { setMemberHits([]); return; }
+    let live = true;
+    const t = setTimeout(async () => {
+      try {
+        const res: any = await libApi.searchMembers(memberQ.trim());
+        if (live) setMemberHits((res as any)?.data ?? []);
+      } catch { if (live) setMemberHits([]); }
+    }, 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [memberQ, member]);
+
+  const resetIssue = () => {
+    setBook(null); setBookQ(''); setCopies([]); setBookResults([]);
+    setMember(null); setMemberQ(''); setMemberHits([]);
+    setIssueForm({ copyId: '', userId: '', userRole: 'student' });
+  };
+
   const submitIssue = async () => {
-    if (!book || !issueForm.copyId || !issueForm.userId.trim())
-      return Alert.alert('Required', 'Pick a book, a copy, and enter the member User ID');
+    if (!book || !issueForm.copyId || !issueForm.userId)
+      return Alert.alert('Required', 'Pick a book, a copy and a member');
     setSaving(true);
     try {
       await libApi.issueBook({
-        bookId: book._id, copyId: issueForm.copyId,
-        userId: issueForm.userId.trim(), userRole: issueForm.userRole,
+        bookId: book._id, copyId: issueForm.copyId, userId: issueForm.userId,
       });
       setShowIssue(false);
-      setBook(null); setBookQ(''); setCopies([]);
-      setIssueForm({ copyId: '', userId: '', userRole: 'student' });
+      resetIssue();
       changeTab('issued');
       Alert.alert('Issued', 'Book issued successfully.');
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };
 
-  const doReturn = async (iss: any) => {
-    if (!(await confirmAsync('Return Book', `Return "${iss.book?.title}" from ${iss.issuedTo?.name}? Late fines are applied automatically.`, 'Return'))) return;
+  // ── Scanner ────────────────────────────────────────────────────────────────
+  // A Bluetooth scanner types the code into this field and submits. One scan
+  // tells the desk whether the next move is an issue or a return.
+  const [showScan, setShowScan] = useState(false);
+  const [scanCode, setScanCode] = useState('');
+  const [scanned, setScanned] = useState<any>(null);
+
+  const runScan = async () => {
+    const code = scanCode.trim();
+    if (!code) return;
     try {
-      const d = unwrap(await libApi.returnBook({ issuanceId: iss._id }));
+      const d = unwrap(await libApi.scanCopy(code));
+      setScanned(d);
+      setScanCode('');
+    } catch (err: any) { setScanned(null); Alert.alert('Not found', err.message); }
+  };
+
+  const scanReturn = (condition: 'good' | 'damaged' | 'lost') => {
+    setShowScan(false);
+    submitReturn(scanned.issuance, condition);
+    setScanned(null);
+  };
+
+  const scanIssue = () => {
+    setShowScan(false);
+    setBook(scanned.book);
+    setCopies([scanned.copy]);
+    setIssueForm({ copyId: scanned.copy._id, userId: '', userRole: 'student' });
+    setMember(null); setMemberQ('');
+    setScanned(null);
+    setShowIssue(true);
+  };
+
+  // How the book came back decides whether the copy goes on the shelf and what
+  // the borrower is charged, so the counter has to say.
+  const submitReturn = async (iss: any, condition: 'good' | 'damaged' | 'lost') => {
+    try {
+      const d = unwrap(await libApi.returnBook({ issuanceId: iss._id, condition }));
       load();
-      if (d?.fine) Alert.alert('Returned with fine', `A late fine of ₹${d.fine.amount} was created.`);
+      if (d?.fine) {
+        const label = d.fine.fineType === 'lost' ? 'Lost book' : d.fine.fineType === 'damaged' ? 'Damaged book' : 'Late return';
+        Alert.alert('Recorded with fine', `${label} — a fine of ₹${d.fine.amount} was created.`);
+      }
     } catch (err: any) { Alert.alert('Error', err.message); }
+  };
+
+  const doReturn = async (iss: any) => {
+    Alert.alert(
+      'Return Book',
+      `"${iss.book?.title}" from ${iss.issuedTo?.name}. How did it come back?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Good condition', onPress: () => submitReturn(iss, 'good') },
+        { text: 'Damaged', onPress: () => submitReturn(iss, 'damaged') },
+        { text: 'Lost', style: 'destructive', onPress: () => submitReturn(iss, 'lost') },
+      ],
+    );
   };
 
   const doRenew = async (iss: any) => {
@@ -130,7 +203,10 @@ export default function LibraryCirculationScreen() {
             ))
           )}
         </ScrollView>
-        <FAB icon="add" onPress={() => setShowIssue(true)} />
+        <View style={{ position: 'absolute', right: 20, bottom: 92 }}>
+          <ActionBtn label="📷 Scan" tone="info" onPress={() => { setScanned(null); setScanCode(''); setShowScan(true); }} />
+        </View>
+        <FAB icon="add" onPress={() => { resetIssue(); setShowIssue(true); }} />
       </View>
 
       <FormModal visible={showIssue} title="Issue Book" onClose={() => setShowIssue(false)} onSubmit={submitIssue} submitting={saving} submitLabel="Issue Book">
@@ -156,10 +232,61 @@ export default function LibraryCirculationScreen() {
             options={copies.map((c: any) => ({ label: c.uniqueCode ?? c._id, value: c._id }))}
             placeholder={copies.length ? 'Pick an available copy' : 'No copies available'} />
         )}
-        <Input label="Member User ID *" value={issueForm.userId} onChange={v => setIssueForm(f => ({ ...f, userId: v }))}
-          placeholder="Paste the member's user ID" />
-        <Select label="Member Role" value={issueForm.userRole} onChange={v => setIssueForm(f => ({ ...f, userRole: v }))}
-          options={[{ label: 'Student', value: 'student' }, { label: 'Teacher', value: 'teacher' }]} />
+        {member ? (
+          <View style={{ marginBottom: 8 }}>
+            <KV label="Member" value={`${member.name}${member.identifier ? ` · ${member.identifier}` : ''}`} />
+            <KV label="Currently has" value={`${member.booksOut} book(s)${member.finesDue ? ` · ₹${member.finesDue} owed` : ''}`} />
+            <ActionBtn label="Change Member" tone="neutral" small
+              onPress={() => { setMember(null); setIssueForm(f => ({ ...f, userId: '' })); }} />
+          </View>
+        ) : (
+          <>
+            <Input label="Member *" value={memberQ} onChange={setMemberQ}
+              placeholder="Search by name or admission number" />
+            {memberHits.map((m: any) => (
+              <RowItem key={m._id} title={m.name}
+                sub={[m.identifier, m.detail, `${m.booksOut} out`, m.finesDue ? `₹${m.finesDue} owed` : '']
+                  .filter(Boolean).join(' · ')}
+                right={m.overdue > 0 ? <Badge label={`${m.overdue} overdue`} tone="danger" /> : undefined}
+                onPress={() => {
+                  setMember(m); setMemberHits([]); setMemberQ('');
+                  setIssueForm(f => ({ ...f, userId: m._id, userRole: m.role }));
+                }} />
+            ))}
+          </>
+        )}
+      </FormModal>
+
+      <FormModal visible={showScan} title="Scan a copy" onClose={() => { setShowScan(false); setScanned(null); }}
+        onSubmit={runScan} submitting={false} submitLabel="Look up">
+        <Input label="Copy code" value={scanCode} onChange={setScanCode}
+          placeholder="Scan the spine label, or type LIB-COPY-000042" />
+        {scanned && (
+          <View style={{ marginTop: 12 }}>
+            <KV label="Book" value={scanned.book?.title} />
+            <KV label="Copy" value={`${scanned.copy?.uniqueCode} · ${scanned.copy?.status}`} />
+            {scanned.action === 'return' && (
+              <>
+                <KV label="Out with" value={`${scanned.issuance?.issuedTo?.name} · due ${fmtDate(scanned.issuance?.dueDate)}`} />
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <ActionBtn label="Return" tone="success" small onPress={() => scanReturn('good')} />
+                  <ActionBtn label="Damaged" tone="warning" small onPress={() => scanReturn('damaged')} />
+                  <ActionBtn label="Lost" tone="danger" small onPress={() => scanReturn('lost')} />
+                </View>
+              </>
+            )}
+            {scanned.action === 'issue' && (
+              <View style={{ marginTop: 10 }}>
+                <ActionBtn label="Issue this copy" tone="success" onPress={scanIssue} />
+              </View>
+            )}
+            {scanned.action === 'blocked' && (
+              <Text style={{ color: Colors.textSecondary, fontSize: 13, marginTop: 8 }}>
+                This copy is marked {scanned.copy?.status}, so it cannot be issued.
+              </Text>
+            )}
+          </View>
+        )}
       </FormModal>
     </>
   );

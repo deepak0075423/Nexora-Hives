@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/kit';
 
 export default function LibraryBooksScreen() {
+  const router = useRouter();
   const [list, setList] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -40,6 +41,9 @@ export default function LibraryBooksScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
+  const openCopies = (b: any) =>
+    router.push({ pathname: '/modules/library-admin/book-copies', params: { id: b._id, title: b.title } });
+
   const handleDelete = async (b: any) => {
     if (!(await confirmAsync('Delete Book', `Delete "${b.title}"?`, 'Delete'))) return;
     try { await libApi.deleteBook(b._id); load(1); }
@@ -50,7 +54,7 @@ export default function LibraryBooksScreen() {
     if (!form.title.trim()) return Alert.alert('Required', 'Title is required');
     setSaving(true);
     try {
-      await libApi.createBook({
+      const res: any = await libApi.createBook({
         title: form.title.trim(), isbn: form.isbn,
         authors: form.authors.split(',').map(a => a.trim()).filter(Boolean),
         publisher: form.publisher, category: form.category,
@@ -58,8 +62,29 @@ export default function LibraryBooksScreen() {
       setShowForm(false);
       setForm({ title: '', isbn: '', authors: '', publisher: '', category: '' });
       load(1);
-      Alert.alert('Created', 'Book added. Add physical copies on the web panel to enable issuing.');
-    } catch (err: any) { Alert.alert('Error', err.message); }
+      const bookId = (res as any)?.data?._id;
+      Alert.alert(
+        'Book added',
+        'It has no physical copies yet, so it cannot be issued or reserved.',
+        bookId
+          ? [{ text: 'Later', style: 'cancel' },
+             { text: 'Add copies', onPress: () => openCopies({ _id: bookId, title: form.title.trim() }) }]
+          : [{ text: 'OK' }],
+      );
+    } catch (err: any) {
+      // The server refuses a title that is already catalogued and says which
+      // one, so the next step is adding copies to it rather than retyping it.
+      if (err?.data?.code === 'DUPLICATE_BOOK') {
+        const existing = err.data.data;
+        setShowForm(false);
+        Alert.alert('Already in the catalogue', err.message, [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Add copies to it', onPress: () => openCopies({ _id: existing.existingBookId, title: existing.title }) },
+        ]);
+        return;
+      }
+      Alert.alert('Error', err.message);
+    }
     finally { setSaving(false); }
   };
 
@@ -89,10 +114,15 @@ export default function LibraryBooksScreen() {
                   icon="book" iconColor="#059669" iconBg="#D1FAE5"
                   title={b.title}
                   sub={`${(b.authors ?? []).join(', ') || 'Unknown author'}${b.isbn ? ` · ISBN ${b.isbn}` : ''}${b.category ? ` · ${b.category}` : ''}`}
-                  right={<Badge label={`${b.availableCopies ?? 0}/${b.totalCopies ?? 0} avail`} tone={(b.availableCopies ?? 0) > 0 ? 'success' : 'danger'} />}
+                  right={
+                    (b.totalCopies ?? 0) === 0
+                      ? <Badge label="No copies" tone="warning" />
+                      : <Badge label={`${b.availableCopies ?? 0}/${b.totalCopies ?? 0} avail`} tone={(b.availableCopies ?? 0) > 0 ? 'success' : 'danger'} />
+                  }
                   onPress={() => {
                     Alert.alert(b.title, `${(b.authors ?? []).join(', ')}`, [
                       { text: 'Close', style: 'cancel' },
+                      { text: 'Manage copies', onPress: () => openCopies(b) },
                       { text: 'Delete', style: 'destructive', onPress: () => handleDelete(b) },
                     ]);
                   }}
