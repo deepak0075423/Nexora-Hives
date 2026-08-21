@@ -46,6 +46,7 @@ const TEACHER_MODULES = [
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
+  { key: 'substitutes', label: 'Substitutes', icon: 'repeat',         route: '/modules/my-substitutions', moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },

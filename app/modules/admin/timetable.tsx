@@ -11,6 +11,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 
 // Entry points into the generator module (own screens, own API surface).
 const TOOLS = [
+  { key: 'substitutions', label: 'Substitutions',     icon: 'repeat',          route: '/modules/admin/substitutions',          tone: Colors.danger },
   { key: 'generate',     label: 'Generate Timetable', icon: 'flash',           route: '/modules/admin/timetable-generate',     tone: Colors.accent },
   { key: 'versions',     label: 'Versions & Publish', icon: 'albums',          route: '/modules/admin/timetable-versions',     tone: Colors.primary },
   { key: 'availability', label: 'Teacher Availability', icon: 'person-circle', route: '/modules/admin/timetable-availability', tone: Colors.success },
