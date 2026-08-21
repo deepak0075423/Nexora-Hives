@@ -79,6 +79,9 @@ export default function AdminLeavePoliciesScreen() {
 
   if (disabled) return (<><Stack.Screen options={{ title: 'Leave Policies' }} /><ModuleDisabled /></>);
 
+  // The server refuses accrual that credits nothing, so the form does not offer
+  // to submit it.
+  const accrualInvalid = !!form?.monthlyAccrual?.enabled && !(form.monthlyAccrual.daysPerMonth > 0);
   const isCompOff = form?.leaveType?.category === 'compoff';
 
   return (
@@ -208,13 +211,29 @@ export default function AdminLeavePoliciesScreen() {
                     <>
                       <Toggle label="Accrue monthly instead of allocating up front"
                         value={form.monthlyAccrual?.enabled}
-                        onChange={(v: boolean) => setIn('monthlyAccrual', { enabled: v })}
+                        onChange={(v: boolean) => setIn('monthlyAccrual', {
+                          enabled: v,
+                          // Accrual crediting 0 days a month adds nothing and looks
+                          // exactly like a broken engine, so seed a figure from the
+                          // annual entitlement instead of leaving a silent no-op.
+                          daysPerMonth: v && !(form.monthlyAccrual?.daysPerMonth > 0)
+                            ? Math.round(((form.leaveType?.annualAllocation || 0) / 12) * 2) / 2
+                            : form.monthlyAccrual?.daysPerMonth,
+                        })}
                         sub="Balance starts at 0 and is topped up each month, capped at the annual allocation" />
                       {form.monthlyAccrual?.enabled ? (
-                        <Input label="Days accrued per month"
-                          value={String(form.monthlyAccrual?.daysPerMonth ?? 0)}
-                          onChange={(v: string) => setIn('monthlyAccrual', { daysPerMonth: v === '' ? 0 : Number(v) || 0 })}
-                          keyboardType="numeric" />
+                        <>
+                          <Input label="Days accrued per month"
+                            value={String(form.monthlyAccrual?.daysPerMonth ?? 0)}
+                            onChange={(v: string) => setIn('monthlyAccrual', { daysPerMonth: v === '' ? 0 : Number(v) || 0 })}
+                            keyboardType="numeric" />
+                          {!(form.monthlyAccrual?.daysPerMonth > 0) ? (
+                            <Text style={s.err}>
+                              Must be greater than 0 — accrual crediting 0 days a month would never
+                              add anything to the balance.
+                            </Text>
+                          ) : null}
+                        </>
                       ) : null}
                     </>
                   )}
@@ -272,9 +291,6 @@ export default function AdminLeavePoliciesScreen() {
                       ))}
                     </>
                   ) : null}
-                  <Toggle label="Require two sign-offs" value={form.approval?.twoLevel}
-                    onChange={(v: boolean) => setIn('approval', { twoLevel: v })}
-                    sub="Second approver must be a different person; no balance moves until both sign" />
                 </Card>
 
                 <Text style={s.group}>Availability</Text>
@@ -285,7 +301,8 @@ export default function AdminLeavePoliciesScreen() {
                 </Card>
 
                 <View style={{ marginTop: Spacing.md }}>
-                  <ActionBtn label={saving ? 'Saving…' : 'Save Policy'} tone="success" onPress={save} />
+                  <ActionBtn label={saving ? 'Saving…' : 'Save Policy'} tone="success"
+                    onPress={save} disabled={saving || accrualInvalid} />
                 </View>
               </>
             )}
@@ -302,4 +319,5 @@ const s = StyleSheet.create({
   label: { ...Typography.label, color: Colors.text, marginTop: 8, marginBottom: 2 },
   note:  { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 6, lineHeight: 18 },
   hint:  { fontSize: 11, color: Colors.textSecondary, marginBottom: 6 },
+  err:   { ...Typography.bodySmall, color: Colors.danger, marginTop: 4, marginBottom: 6, lineHeight: 18 },
 });

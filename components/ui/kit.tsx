@@ -354,14 +354,19 @@ export function FormModal({ visible, title, onClose, onSubmit, submitting, submi
 
 // ─── Small action button ──────────────────────────────────────────────────────
 
-export function ActionBtn({ label, tone = 'neutral', onPress, small }: {
-  label: string; tone?: Tone; onPress: () => void; small?: boolean;
+export function ActionBtn({ label, tone = 'neutral', onPress, small, disabled }: {
+  label: string; tone?: Tone; onPress: () => void; small?: boolean; disabled?: boolean;
 }) {
   const t = TONES[tone];
   return (
     <TouchableOpacity
-      style={[k.actionBtn, { backgroundColor: t.bg }, small && { paddingVertical: 5, paddingHorizontal: 10 }]}
+      style={[
+        k.actionBtn, { backgroundColor: t.bg },
+        small && { paddingVertical: 5, paddingHorizontal: 10 },
+        disabled && { opacity: 0.45 },
+      ]}
       onPress={onPress}
+      disabled={disabled}
     >
       <Text style={[k.actionBtnText, { color: t.color }]}>{label}</Text>
     </TouchableOpacity>

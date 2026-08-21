@@ -37,6 +37,8 @@ export const cancelLeave         = (id: string) => api.delete(`/teacher/leave/${
 
 // The rules behind each leave type, and whether I qualify for it
 export const getLeaveTypePolicies = ()                 => api.get('/teacher/leave/policies');
+// Balance for the picked type + what the picked dates will actually cost
+export const getLeaveApplyPreview = (params: object)   => api.get('/teacher/leave/apply-preview', { params });
 // Designation-based approvers (e.g. Principal) work their queue here
 export const getLeaveApprovals    = (params?: object)  => api.get('/teacher/leave/approvals', { params });
 export const approveLeaveRequest  = (id: string, data?: object) => api.post(`/teacher/leave/approvals/${id}/approve`, data ?? {});

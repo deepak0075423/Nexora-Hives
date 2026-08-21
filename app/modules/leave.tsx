@@ -8,7 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { MODULE_BLOCKED_CODES, FormModal, Input, Select, FAB, unwrap } from '@/components/ui/kit';
+import LeavePreviewPanel from '@/components/LeavePreviewPanel';
+import { validateLeaveDates, dateRuleHint, todayStr } from '@/utils/leaveDates';
+
+const EMPTY_APPLY = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:  { bg: Colors.warningLight, color: Colors.warning },
@@ -27,9 +31,17 @@ export default function LeaveScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
+  // ── Apply ──────────────────────────────────────────────────────────────────
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_APPLY);
+  const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   const load = async () => {
     try {
-      const [lv, bal, co, appr]: [any, any, any, any] = await Promise.all([
+      const [lv, bal, co, appr, pol]: [any, any, any, any, any] = await Promise.all([
         teacherApi.getLeaves(),
         teacherApi.getLeaveBalance(),
         // Comp Off lives inside Leave Management — pull just enough to show the
@@ -37,7 +49,10 @@ export default function LeaveScreen() {
         teacherApi.getMyCompOff().catch(() => null),
         // Approvers are picked by designation, so ask whether this user has a queue
         teacherApi.getLeaveApprovals({ status: 'pending' }).catch(() => null),
+        // Which types I may apply for, and the rules each one carries
+        teacherApi.getLeaveTypePolicies().catch(() => null),
       ]);
+      setPolicies(unwrap(pol) ?? []);
       setLeaves((lv as any)?.data ?? lv ?? []);
       setBalance((bal as any)?.data ?? bal);
       setCompOff((co as any)?.data ?? co);
@@ -52,6 +67,53 @@ export default function LeaveScreen() {
 
   useEffect(() => { load(); }, []);
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const selPolicy = policies.find((p: any) => p.leaveType?._id === form.leaveTypeId);
+  const dateHint  = dateRuleHint(selPolicy);
+  const dateError = (form.fromDate || form.toDate)
+    ? validateLeaveDates(form.fromDate, form.toDate, selPolicy)
+    : '';
+
+  // Ask the server what these dates cost rather than reimplementing weekend,
+  // holiday and sandwich-rule arithmetic here — it must agree with the submit.
+  useEffect(() => {
+    if (!applyOpen || !form.leaveTypeId) { setPreview(null); return; }
+    let live = true;
+    setPreviewLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res: any = await teacherApi.getLeaveApplyPreview({
+          leaveTypeId: form.leaveTypeId,
+          ...(dateError ? {} : { fromDate: form.fromDate, toDate: form.toDate }),
+          leaveMode: form.leaveMode,
+        });
+        if (live) setPreview(unwrap(res));
+      } catch { if (live) setPreview(null); }
+      finally { if (live) setPreviewLoading(false); }
+    }, 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [applyOpen, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, dateError]);
+
+  const submitApply = async () => {
+    if (dateError) { Alert.alert('Check the dates', dateError); return; }
+    if (!form.reason.trim() || form.reason.trim().length < 10) {
+      Alert.alert('Reason required', 'Please give a reason of at least 10 characters.'); return;
+    }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('leaveTypeId', form.leaveTypeId);
+      fd.append('fromDate',    form.fromDate);
+      fd.append('toDate',      form.toDate);
+      fd.append('leaveMode',   form.leaveMode);
+      fd.append('reason',      form.reason);
+      await teacherApi.applyLeave(fd);
+      setApplyOpen(false); setForm(EMPTY_APPLY); setPreview(null);
+      load();
+      Alert.alert('Applied', 'Your leave application has been submitted.');
+    } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
+    finally { setSaving(false); }
+  };
 
   const handleCancel = (id: string) => {
     Alert.alert('Cancel Leave', 'Are you sure you want to cancel this leave?', [
@@ -184,6 +246,62 @@ export default function LeaveScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Applying was the one thing a teacher could not do from the phone. */}
+      {!loading && !disabled && <FAB icon="add" onPress={() => { setForm(EMPTY_APPLY); setPreview(null); setApplyOpen(true); }} />}
+
+      <FormModal
+        visible={applyOpen}
+        title="Apply for Leave"
+        onClose={() => setApplyOpen(false)}
+        onSubmit={submitApply}
+        submitting={saving}
+        submitLabel="Apply"
+      >
+        <Select
+          label="Leave Type"
+          value={form.leaveTypeId}
+          onChange={(v: string) => setForm(f => ({ ...f, leaveTypeId: v }))}
+          options={policies
+            .filter((p: any) => p.eligible)
+            .map((p: any) => ({ label: `${p.leaveType.name} (${p.leaveType.code})`, value: p.leaveType._id }))}
+          placeholder="Select type…"
+        />
+        {/* A type this employee does not qualify for is shown with the reason
+            rather than silently missing from the list. */}
+        {policies.some((p: any) => !p.eligible) ? (
+          <Text style={s.applyNote}>
+            Not available to you:{' '}
+            {policies.filter((p: any) => !p.eligible)
+              .map((p: any) => `${p.leaveType.code} (${p.ineligibleReason})`).join(', ')}
+          </Text>
+        ) : null}
+
+        <LeavePreviewPanel preview={preview} loading={previewLoading} />
+
+        <Input label="From (YYYY-MM-DD)" value={form.fromDate} placeholder={todayStr()}
+          onChange={(v: string) => setForm(f => ({
+            ...f, fromDate: v,
+            // Carry a now-earlier To along rather than leave an impossible range
+            toDate: f.toDate && f.toDate < v ? v : (f.leaveMode === 'half_day' ? v : f.toDate),
+          }))} />
+        <Input label="To (YYYY-MM-DD)" value={form.toDate} placeholder={todayStr()}
+          editable={form.leaveMode !== 'half_day'}
+          onChange={(v: string) => setForm(f => ({ ...f, toDate: v }))} />
+        {dateError ? <Text style={s.applyErr}>{dateError}</Text> : null}
+        {dateHint && !dateError ? <Text style={s.applyNote}>{dateHint}</Text> : null}
+
+        <Select
+          label="Leave Mode"
+          value={form.leaveMode}
+          onChange={(v: string) => setForm(f => ({ ...f, leaveMode: v, toDate: v === 'half_day' ? f.fromDate : f.toDate }))}
+          options={[{ label: 'Full Day', value: 'full_day' }, { label: 'Half Day', value: 'half_day' }]}
+        />
+
+        <Input label="Reason" value={form.reason} multiline
+          onChange={(v: string) => setForm(f => ({ ...f, reason: v }))}
+          placeholder="At least 10 characters" />
+      </FormModal>
     </>
   );
 }
@@ -228,4 +346,6 @@ const s = StyleSheet.create({
     paddingVertical: 8, alignItems: 'center',
   },
   cancelBtnText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  applyNote: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 18 },
+  applyErr:  { ...Typography.bodySmall, color: Colors.danger, marginTop: -4, marginBottom: 8, lineHeight: 18 },
 });

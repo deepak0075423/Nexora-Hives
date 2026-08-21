@@ -122,11 +122,21 @@ export const getLeaveTypes          = ()             => api.get('/admin/leave/ty
 export const createLeaveType        = (data: object) => api.post('/admin/leave/types', data);
 export const updateLeaveType        = (id: string, data: object) => api.put(`/admin/leave/types/${id}`, data);
 export const deleteLeaveType        = (id: string)   => api.delete(`/admin/leave/types/${id}`);
+// What a delete would take with it — teachers holding days, plus the things
+// that block the delete outright. Powers the delete confirm.
+export const getLeaveTypeImpact     = (id: string)   => api.get(`/admin/leave/types/${id}/impact`);
 export const getLeaveRequests       = (params?: object) => api.get('/admin/leave/requests', { params });
 export const approveLeave           = (id: string, data?: object) => api.post(`/admin/leave/requests/${id}/approve`, data ?? {});
 export const rejectLeave            = (id: string, data?: object) => api.post(`/admin/leave/requests/${id}/reject`, data ?? {});
 export const getLeaveAllocations    = (params?: object) => api.get('/admin/leave/allocations', { params });
 export const allocateLeave          = (data: object) => api.post('/admin/leave/allocations', data);
+// Zeroes allocated + carried-forward days, keeping used/pending history
+export const clearLeaveAllocations  = (data: object) => api.post('/admin/leave/allocations/clear', data);
+export const runCarryForward        = (data: object) => api.post('/admin/leave/allocations/carry-forward', data);
+export const runLeaveAccrual        = ()             => api.post('/admin/leave/accrual/run');
+export const adminApplyLeave        = (data: FormData) => api.post('/admin/leave/requests', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+// Balance for the picked type + what the picked dates will actually cost
+export const getLeaveApplyPreview   = (params: object) => api.get('/admin/leave/apply-preview', { params });
 export const getTeacherLeaveBalance = (teacherId: string) => api.get('/admin/leave/balance', { params: { teacherId } });
 export const getLeaveReports        = (params?: object) => api.get('/admin/leave/reports', { params });
 // Undoes an approved leave and returns the days to the balance. For Comp Off it
