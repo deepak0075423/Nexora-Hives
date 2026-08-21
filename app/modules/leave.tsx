@@ -12,7 +12,7 @@ import { MODULE_BLOCKED_CODES, FormModal, Input, Select, FAB, unwrap } from '@/c
 import LeavePreviewPanel from '@/components/LeavePreviewPanel';
 import { validateLeaveDates, dateRuleHint, todayStr } from '@/utils/leaveDates';
 
-const EMPTY_APPLY = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
+const EMPTY_APPLY = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:  { bg: Colors.warningLight, color: Colors.warning },
@@ -106,6 +106,7 @@ export default function LeaveScreen() {
       fd.append('fromDate',    form.fromDate);
       fd.append('toDate',      form.toDate);
       fd.append('leaveMode',   form.leaveMode);
+      if (form.leaveMode === 'half_day') fd.append('halfDaySession', form.halfDaySession);
       fd.append('reason',      form.reason);
       await teacherApi.applyLeave(fd);
       setApplyOpen(false); setForm(EMPTY_APPLY); setPreview(null);
@@ -297,6 +298,18 @@ export default function LeaveScreen() {
           onChange={(v: string) => setForm(f => ({ ...f, leaveMode: v, toDate: v === 'half_day' ? f.fromDate : f.toDate }))}
           options={[{ label: 'Full Day', value: 'full_day' }, { label: 'Half Day', value: 'half_day' }]}
         />
+        {/* Which half decides which periods need cover. */}
+        {form.leaveMode === 'half_day' ? (
+          <Select
+            label="Which half"
+            value={form.halfDaySession}
+            onChange={(v: string) => setForm(f => ({ ...f, halfDaySession: v }))}
+            options={[
+              { label: 'First half (morning)', value: 'first' },
+              { label: 'Second half (afternoon)', value: 'second' },
+            ]}
+          />
+        ) : null}
 
         <Input label="Reason" value={form.reason} multiline
           onChange={(v: string) => setForm(f => ({ ...f, reason: v }))}

@@ -133,6 +133,11 @@ export const allocateLeave          = (data: object) => api.post('/admin/leave/a
 // Zeroes allocated + carried-forward days, keeping used/pending history
 export const clearLeaveAllocations  = (data: object) => api.post('/admin/leave/allocations/clear', data);
 export const runCarryForward        = (data: object) => api.post('/admin/leave/allocations/carry-forward', data);
+// Year-end: lapse whatever carry-forward did not move
+export const getYearClosePreview    = (params: object) => api.get('/admin/leave/year-close/preview', { params });
+export const closeAcademicYear      = (data: object) => api.post('/admin/leave/year-close', data);
+// Final settlement for someone leaving
+export const settleEmployeeLeave    = (data: object) => api.post('/admin/leave/settle', data);
 export const runLeaveAccrual        = ()             => api.post('/admin/leave/accrual/run');
 export const adminApplyLeave        = (data: FormData) => api.post('/admin/leave/requests', data, { headers: { 'Content-Type': 'multipart/form-data' } });
 // Balance for the picked type + what the picked dates will actually cost

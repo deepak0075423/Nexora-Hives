@@ -12,7 +12,7 @@ import {
 import LeavePreviewPanel from '@/components/LeavePreviewPanel';
 import { validateLeaveDates, dateRuleHint, todayStr } from '@/utils/leaveDates';
 
-const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', reason: '' };
+const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
 
 const STATUS_TABS = [
   { key: 'pending', label: 'Pending' },
@@ -115,6 +115,7 @@ export default function AdminLeaveScreen() {
       fd.append('fromDate',    form.fromDate);
       fd.append('toDate',      form.toDate);
       fd.append('leaveMode',   form.leaveMode);
+      if (form.leaveMode === 'half_day') fd.append('halfDaySession', form.halfDaySession);
       fd.append('reason',      form.reason);
       await adminApi.adminApplyLeave(fd);
       setApplyOpen(false); setForm(EMPTY_APPLY); setPreview(null);
@@ -192,6 +193,10 @@ export default function AdminLeaveScreen() {
               </View>
               <KV label="Type" value={lv.leaveType?.name ?? lv.leaveType?.code ?? '--'} />
               <KV label="Dates" value={`${fmtDate(lv.fromDate)} – ${fmtDate(lv.toDate)}${lv.totalDays ? ` (${lv.totalDays}d)` : ''}`} />
+              {lv.leaveMode === 'half_day'
+                ? <KV label="Half" value={lv.halfDaySession === 'second' ? 'Second (afternoon)' : 'First (morning)'} /> : null}
+              {lv.lopDays > 0
+                ? <KV label="Loss of pay" value={`${lv.lopDays} day(s)`} /> : null}
               {lv.reason ? <KV label="Reason" value={lv.reason} /> : null}
               <KV label="Status" value={<Badge label={lv.status} />} />
               {lv.status === 'pending' && (
@@ -250,6 +255,15 @@ export default function AdminLeaveScreen() {
         <Select label="Leave Mode" value={form.leaveMode}
           onChange={(v: string) => setForm(f => ({ ...f, leaveMode: v, toDate: v === 'half_day' ? f.fromDate : f.toDate }))}
           options={[{ label: 'Full Day', value: 'full_day' }, { label: 'Half Day', value: 'half_day' }]} />
+        {/* Which half decides which periods need cover. */}
+        {form.leaveMode === 'half_day' ? (
+          <Select label="Which half" value={form.halfDaySession}
+            onChange={(v: string) => setForm(f => ({ ...f, halfDaySession: v }))}
+            options={[
+              { label: 'First half (morning)', value: 'first' },
+              { label: 'Second half (afternoon)', value: 'second' },
+            ]} />
+        ) : null}
 
         <Input label="Reason" value={form.reason} multiline
           onChange={(v: string) => setForm(f => ({ ...f, reason: v }))} />

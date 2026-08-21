@@ -198,6 +198,18 @@ export default function AdminLeavePoliciesScreen() {
                     <Input label="Maximum overdraft (days, 0 = unlimited)" value={numVal('maxNegativeDays')}
                       onChange={numSet('maxNegativeDays')} keyboardType="numeric" />
                   ) : null}
+
+                  {/* Without this the only answer to "no balance left but the
+                      day must be taken" was to refuse the application. */}
+                  <Toggle label="Allow applying beyond the balance as loss of pay"
+                    value={form.allowLopBeyondBalance}
+                    onChange={(v: boolean) => set({ allowLopBeyondBalance: v })}
+                    sub="Days past the balance are accepted and marked unpaid instead of refused. Payroll deducts them automatically." />
+                  {form.allowLopBeyondBalance ? (
+                    <Input label="Max loss-of-pay days per application (0 = no limit)"
+                      value={numVal('maxLopDaysPerApplication')}
+                      onChange={numSet('maxLopDaysPerApplication')} keyboardType="numeric" />
+                  ) : null}
                 </Card>
 
                 <Text style={s.group}>Entitlement mechanics</Text>
@@ -248,7 +260,7 @@ export default function AdminLeavePoliciesScreen() {
                   ) : null}
                   <Toggle label="Encashable" value={form.encashable}
                     onChange={(v: boolean) => set({ encashable: v })}
-                    sub="Unused days of this type can be paid out" />
+                    sub="Marks unused days as eligible for payout. They are listed on the employee's exit settlement for payroll to action — nothing is paid out automatically." />
                   {form.encashable ? (
                     <Input label="Max encashable days (0 = no limit)" value={numVal('maxEncashableDays')}
                       onChange={numSet('maxEncashableDays')} keyboardType="numeric" />

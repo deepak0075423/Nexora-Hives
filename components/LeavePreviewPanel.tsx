@@ -88,6 +88,11 @@ export default function LeavePreviewPanel({ preview, loading }: { preview: any; 
               {d.calendarDays} calendar day(s)
             </Text>
             <Text style={[s.alertText, { marginTop: 2 }]}>{describeDays(d)}</Text>
+            {d.lopDays > 0 ? (
+              <Text style={[s.alertText, { color: Colors.warning, fontWeight: '600', marginTop: 4 }]}>
+                {d.paidDays} day(s) paid · {d.lopDays} day(s) loss of pay — payroll deducts the unpaid days.
+              </Text>
+            ) : null}
             {preview.sufficient === false ? (
               <Text style={[s.alertText, { color: Colors.danger, fontWeight: '600', marginTop: 4 }]}>
                 Insufficient balance — {d.totalDays} needed, {b.spendable ?? 0} available.
