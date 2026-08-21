@@ -232,10 +232,18 @@ export function Select({ label, value, options, onChange, placeholder = 'Selectâ
         </Text>
         <Ionicons name="chevron-down" size={16} color={Colors.textLight} />
       </TouchableOpacity>
+      {/* The backdrop is inert on purpose: a tap beside the card â€” or on the
+          card's own title, which a plain View lets bubble up â€” used to dismiss
+          the picker mid-form. Closing is the âœ• or the Android back button. */}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={k.sheetBackdrop} activeOpacity={1} onPress={() => setOpen(false)}>
+        <View style={k.sheetBackdrop}>
           <View style={k.sheet}>
-            <Text style={k.sheetTitle}>{label}</Text>
+            <View style={k.sheetHeader}>
+              <Text style={[k.sheetTitle, { flex: 1, marginBottom: 0 }]}>{label}</Text>
+              <TouchableOpacity onPress={() => setOpen(false)} hitSlop={10} accessibilityLabel="close-picker">
+                <Ionicons name="close" size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
             <ScrollView style={{ maxHeight: maxListH }}>
               {options.length === 0 && <Text style={k.sheetEmpty}>No options available</Text>}
               {options.map(o => (
@@ -252,7 +260,7 @@ export function Select({ label, value, options, onChange, placeholder = 'Selectâ
               ))}
             </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -440,6 +448,7 @@ const k = StyleSheet.create({
 
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
   sheet: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.md },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 10 },
   sheetTitle: { ...Typography.h4, color: Colors.text, marginBottom: 10 },
   sheetEmpty: { ...Typography.bodySmall, color: Colors.textSecondary, paddingVertical: 16, textAlign: 'center' },
   sheetOption: {

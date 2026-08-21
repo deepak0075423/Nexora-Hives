@@ -8,6 +8,7 @@ import {
   KV, ActionBtn, confirmAsync,
 } from '@/components/ui/kit';
 import StudentFormModal from './student-form';
+import BulkImportModal from '@/components/BulkImportModal';
 
 export default function AdminStudentsScreen() {
   const [list, setList] = useState<any[]>([]);
@@ -22,6 +23,7 @@ export default function AdminStudentsScreen() {
   // Create / edit wizard — `editing` null means "add"
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [showBulk, setShowBulk] = useState(false);
 
   const load = async (p = 1, q = search) => {
     try {
@@ -82,6 +84,12 @@ export default function AdminStudentsScreen() {
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(1); }} tintColor={Colors.primary} />}
         >
+          <RowItem
+            icon="cloud-upload" iconColor={Colors.accent} iconBg={Colors.accentLight}
+            title="Bulk Import Students"
+            sub="Admit a whole class from one Excel sheet"
+            onPress={() => setShowBulk(true)}
+          />
           <SearchBar value={search} onChange={setSearch} placeholder="Search students…" />
           {loading ? <LoaderView /> : list.length === 0 ? (
             <Empty icon="school-outline" text="No students found" />
@@ -139,6 +147,9 @@ export default function AdminStudentsScreen() {
         onClose={() => { setShowForm(false); setEditing(null); }}
         onSaved={() => load(1)}
       />
+
+      <BulkImportModal kind="students" visible={showBulk}
+        onClose={() => setShowBulk(false)} onImported={() => load(1)} />
     </>
   );
 }

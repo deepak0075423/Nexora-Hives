@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import TeacherFormModal from './teacher-form';
+import BulkImportModal from '@/components/BulkImportModal';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
   Input, Select, KV, ActionBtn, confirmAsync,
@@ -20,6 +21,7 @@ export default function AdminTeachersScreen() {
 
   const [detail, setDetail] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [editing, setEditing] = useState<{ _id: string; name?: string } | null>(null);
 
   const load = async (p = 1, q = search) => {
@@ -79,6 +81,12 @@ export default function AdminTeachersScreen() {
             sub="What each designation may reach, and with which privileges"
             onPress={() => router.push('/modules/admin/designations' as any)}
           />
+          <RowItem
+            icon="cloud-upload" iconColor={Colors.accent} iconBg={Colors.accentLight}
+            title="Bulk Import Teachers"
+            sub="Add a whole staff list from one Excel sheet"
+            onPress={() => setShowBulk(true)}
+          />
           <SearchBar value={search} onChange={setSearch} placeholder="Search teachers…" />
           {loading ? <LoaderView /> : list.length === 0 ? (
             <Empty icon="people-outline" text="No teachers found" />
@@ -135,6 +143,9 @@ export default function AdminTeachersScreen() {
 
       <TeacherFormModal visible={!!editing} teacher={editing} onClose={() => setEditing(null)}
         onCreated={() => load(1)} designations={designations} />
+
+      <BulkImportModal kind="teachers" visible={showBulk}
+        onClose={() => setShowBulk(false)} onImported={() => load(1)} />
     </>
   );
 }
