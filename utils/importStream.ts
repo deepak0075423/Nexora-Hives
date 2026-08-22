@@ -9,7 +9,15 @@
  */
 
 export type RowError = { row: number; name?: string; reason: string };
-export type ImportResult = { created: number; updated: number; errors: RowError[] };
+/**
+ * The failed rows as a workbook: the admin's own sheet cut down to what did not
+ * import, with the reason alongside. `rows` is how many are in the file and
+ * `total` how many failed, which differ only when the server capped a huge run.
+ */
+export type ErrorFile = { filename: string; base64: string; rows: number; total: number };
+export type ImportResult = {
+  created: number; updated: number; errors: RowError[]; errorFile: ErrorFile | null;
+};
 export type ImportProgress = { current: number; total: number; name: string };
 
 /** The `data:` frames that have fully arrived. A partial trailing frame is skipped. */
@@ -39,12 +47,18 @@ export function readResult(body: string, streamed: boolean): ImportResult {
   if (!streamed) {
     const json = JSON.parse(body);
     if (!json?.success) throw new Error(json?.message || 'Import failed');
-    return { created: json.created ?? 0, updated: json.updated ?? 0, errors: json.errors ?? [] };
+    return {
+      created: json.created ?? 0, updated: json.updated ?? 0,
+      errors: json.errors ?? [], errorFile: json.errorFile ?? null,
+    };
   }
   const events = parseSSE(body);
   const failed = events.find((e) => e.type === 'error');
   if (failed) throw new Error(failed.message || 'Import failed');
   const done = [...events].reverse().find((e) => e.type === 'done');
   if (!done) throw new Error('The import ended without a result');
-  return { created: done.created ?? 0, updated: done.updated ?? 0, errors: done.errors ?? [] };
+  return {
+    created: done.created ?? 0, updated: done.updated ?? 0,
+    errors: done.errors ?? [], errorFile: done.errorFile ?? null,
+  };
 }

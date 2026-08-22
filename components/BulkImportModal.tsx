@@ -86,8 +86,35 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
   const [progress, setProgress]   = useState<{ current: number; total: number; name: string } | null>(null);
   const [result, setResult]       = useState<ImportResult | null>(null);
 
-  const reset = () => { setFile(null); setResult(null); setProgress(null); setImporting(false); };
-  const close = () => { reset(); onClose(); };
+  const [savingErrors, setSavingErrors] = useState(false);
+  const [errorsSaved, setErrorsSaved]   = useState(false);
+
+  const reset = () => {
+    setFile(null); setResult(null); setProgress(null); setImporting(false); setErrorsSaved(false);
+  };
+
+  /**
+   * The failed-row sheet is built once, inside the import response, and is not
+   * stored on the server — so walking away without saving it silently throws
+   * away the only record of what went wrong. `then` runs once that is settled.
+   */
+  const guardUnsaved = (then: () => void) => {
+    if (!result?.errorFile || errorsSaved) { then(); return; }
+    const n = result.errorFile.rows;
+    Alert.alert(
+      'Download the failed rows first?',
+      `${n} row${n !== 1 ? 's' : ''} did not import. The sheet listing them — with the reason against `
+      + 'each row — has not been saved, and the server does not keep a copy. Leave now and the only '
+      + 'way to see those rows again is to run the whole import a second time.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Leave anyway', style: 'destructive', onPress: then },
+        { text: 'Download', onPress: () => { saveErrorSheet(); } },
+      ],
+    );
+  };
+
+  const close = () => guardUnsaved(() => { reset(); onClose(); });
 
   const downloadTemplate = async () => {
     setDown(true);
@@ -110,6 +137,28 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
     } catch (err: any) {
       Alert.alert('Download failed', err.message ?? 'Could not download the template');
     } finally { setDown(false); }
+  };
+
+  const saveErrorSheet = async () => {
+    if (!result?.errorFile) return;
+    setSavingErrors(true);
+    try {
+      const target = new File(Paths.cache, result.errorFile.filename);
+      target.create({ overwrite: true });
+      target.write(result.errorFile.base64, { encoding: 'base64' });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(target.uri, {
+          mimeType: XLSX_MIME,
+          UTI: 'org.openxmlformats.spreadsheetml.sheet',
+          dialogTitle: result.errorFile.filename,
+        });
+      } else {
+        Alert.alert('Saved', `Saved to ${target.uri}`);
+      }
+      setErrorsSaved(true);
+    } catch (err: any) {
+      Alert.alert('Could not save', err.message ?? 'Failed to write the file');
+    } finally { setSavingErrors(false); }
   };
 
   const pickFile = async () => {
@@ -173,7 +222,27 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
             ))}
           </ScrollView>
         )}
-        <TouchableOpacity style={s.secondaryBtn} onPress={reset}>
+        {result.errorFile && (
+          <>
+            <TouchableOpacity style={s.outlineBtn} onPress={saveErrorSheet} disabled={savingErrors}>
+              {savingErrors
+                ? <ActivityIndicator size="small" color={Colors.accent} />
+                : <Ionicons name="download-outline" size={18} color={Colors.accent} />}
+              <Text style={s.outlineText}>
+                Download the {result.errorFile.rows} failed row{result.errorFile.rows !== 1 ? 's' : ''} (.xlsx)
+              </Text>
+            </TouchableOpacity>
+            <Text style={s.noteText}>
+              That file is your own sheet with just these rows and an Error column saying what stopped
+              each one. Fix them there and upload the same file again — the rows that already imported
+              are not in it.
+              {result.errorFile.total > result.errorFile.rows
+                ? ` Showing the first ${result.errorFile.rows} of ${result.errorFile.total} failures.`
+                : ''}
+            </Text>
+          </>
+        )}
+        <TouchableOpacity style={s.secondaryBtn} onPress={() => guardUnsaved(reset)}>
           <Text style={s.secondaryText}>Import another sheet</Text>
         </TouchableOpacity>
       </FormModal>
