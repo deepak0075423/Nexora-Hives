@@ -154,6 +154,8 @@ export default function TimetableVersionScreen() {
       .map(name.teacher), ' · '),
     room: (e: any) => uniqJoin([e.room, ...(e.additionalSubjects ?? []).map((m: any) => m.room)]
       .map(name.room), ' · '),
+    // The other sections sitting in this same lesson.
+    withSections: (e: any) => (e.mergedSections ?? []).map(name.section).filter(Boolean).join(', '),
   };
 
   /* ── Actions ───────────────────────────────────────────────────────────── */
@@ -196,13 +198,61 @@ export default function TimetableVersionScreen() {
       'Publish',
     );
     if (!okToGo) return;
+    await publishNow(false);
+  };
+
+  /**
+   * The server refuses a publish that would silently destroy work: hand edits
+   * made in the live grid since the last publish, or a clash with a section this
+   * version does not own. Both come back as 409 with the detail — show it and
+   * let the admin decide, rather than dead-ending on a toast.
+   */
+  const publishNow = async (overwriteLiveEdits: boolean) => {
     setBusy(true);
     try {
-      const d = unwrap(await ttApi.publishVersion(String(id)));
+      const d = unwrap(await ttApi.publishVersion(String(id),
+        overwriteLiveEdits ? { overwriteLiveEdits: true } : undefined));
       await load();
       setTab('class');
       setError(d.message ?? 'Timetable published.');
-    } catch (err: any) { setError(err?.message ?? 'Publish failed'); setTab('conflicts'); await load(); }
+    } catch (err: any) {
+      const detail = err?.data?.data ?? err?.data;
+      const outside: any[] = detail?.outsideClashes ?? [];
+      const liveEdits: any[] = detail?.liveEdits ?? [];
+
+      if (outside.length) {
+        const shown = outside.slice(0, 6).map((c: any) => `• ${c.message}`).join('\n');
+        const more = outside.length > 6 ? `\n…and ${outside.length - 6} more` : '';
+        const go = await confirmAsync(
+          'Clashes with other sections',
+          `This draft is fine on its own, but ${outside.length} period(s) collide with timetables already `
+          + `published for sections it does not cover.\n\n${shown}${more}`,
+          'Publish anyway',
+        );
+        if (go) await publishNow(true);
+        else setBusy(false);
+        return;
+      }
+
+      if (liveEdits.length) {
+        const shown = liveEdits.slice(0, 6)
+          .map((e: any) => `• ${e.sectionName} ${e.dayOfWeek} P${e.periodNumber} — ${e.subjectName}`).join('\n');
+        const more = liveEdits.length > 6 ? `\n…and ${liveEdits.length - 6} more` : '';
+        const go = await confirmAsync(
+          'Hand edits will be replaced',
+          `${liveEdits.length} period(s) were edited by hand since the last publish. Publishing rebuilds `
+          + `every section from this draft, so those corrections will be lost.\n\n${shown}${more}`,
+          'Replace and publish',
+        );
+        if (go) await publishNow(true);
+        else setBusy(false);
+        return;
+      }
+
+      setError(err?.message ?? 'Publish failed');
+      setTab('conflicts');
+      await load();
+    }
     finally { setBusy(false); }
   };
 
@@ -260,6 +310,9 @@ export default function TimetableVersionScreen() {
                           </Text>
                           {slot.teacher(entry) ? <Text numberOfLines={1} style={tk.periodMeta}>{slot.teacher(entry)}</Text> : null}
                           {slot.room(entry) ? <Text numberOfLines={1} style={tk.periodMeta}>📍{slot.room(entry)}</Text> : null}
+                          {slot.withSections(entry)
+                            ? <Text numberOfLines={1} style={tk.periodMeta}>🔗 with {slot.withSections(entry)}</Text>
+                            : null}
                         </View>
                       ) : (
                         <Text style={v.emptyCell}>{isTarget ? '＋' : ''}</Text>
@@ -340,6 +393,9 @@ export default function TimetableVersionScreen() {
                           {slot.subject(entry)}
                         </Text>
                         <Text numberOfLines={1} style={tk.periodMeta}>{slot.teacher(entry)}</Text>
+                        {slot.withSections(entry)
+                          ? <Text numberOfLines={1} style={tk.periodMeta}>🔗 with {slot.withSections(entry)}</Text>
+                          : null}
                       </View>
                     ) : null}
                   </View>

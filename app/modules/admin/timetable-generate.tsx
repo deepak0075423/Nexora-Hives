@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -45,6 +45,11 @@ export default function TimetableGenerateScreen() {
   /* The subject plan: periods a week per subject, and which subjects are merged
      into the same period. Reloaded whenever the class or section pick changes. */
   const [plan, setPlan] = useState<any>(null);
+  // Sections taught a subject together — one teacher, one room, one lesson.
+  const [sectionMerges, setSectionMerges] = useState<any[]>([]);
+  const [ccSubject, setCcSubject] = useState('');
+  const [ccPicked, setCcPicked] = useState<string[]>([]);
+  const [ccBusy, setCcBusy] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [rules, setRules] = useState<Record<string, any>>({});
   const [merges, setMerges] = useState<Record<string, string>>({});
@@ -79,8 +84,40 @@ export default function TimetableGenerateScreen() {
   const scopeCount = scopeSectionIds.length;
 
   /* ── The class's subjects + what the week can actually hold ─────────────── */
+  const reloadMerges = async () => {
+    try {
+      const m: any = await ttApi.getMerges({
+        yearId: yearId || undefined,
+        sectionIds: sectionsOf.map((x: any) => x._id).join(','),
+      });
+      setSectionMerges(unwrap(m) ?? []);
+    } catch { /* the list just stays as it was */ }
+  };
+
+  const addSectionMerge = async () => {
+    if (!ccSubject) return Alert.alert('Pick a subject', 'Choose the subject these sections share.');
+    if (ccPicked.length < 2) return Alert.alert('Pick sections', 'A merge needs at least two sections.');
+    setCcBusy(true);
+    try {
+      await ttApi.saveMerge({ yearId: yearId || undefined, subject: ccSubject, sections: ccPicked });
+      setCcSubject(''); setCcPicked([]);
+      await reloadMerges();
+    } catch (err: any) { Alert.alert('Could not merge', err?.message ?? 'Failed'); }
+    finally { setCcBusy(false); }
+  };
+
+  const removeSectionMerge = async (mergeId: string) => {
+    setCcBusy(true);
+    try { await ttApi.deleteMerge(mergeId); await reloadMerges(); }
+    catch (err: any) { Alert.alert('Could not remove', err?.message ?? 'Failed'); }
+    finally { setCcBusy(false); }
+  };
+
   useEffect(() => {
-    if (!classId || !scopeCount) { setPlan(null); setRules({}); setMerges({}); setPicked([]); setTuning(null); return; }
+    if (!classId || !scopeCount) {
+      setPlan(null); setRules({}); setMerges({}); setPicked([]); setTuning(null); setSectionMerges([]);
+      return;
+    }
     let cancelled = false;
     setPlanLoading(true);
     ttApi.getClassPlan(classId, allSections ? [] : scopeSectionIds, yearId)
@@ -92,6 +129,11 @@ export default function TimetableGenerateScreen() {
         setMerges(Object.fromEntries(d.subjects.filter((x: any) => x.mergeGroup).map((x: any) => [x._id, x.mergeGroup])));
         setPicked([]);
         setTuning(null);
+        // Merges belong to the year, not the run: one set up while generating a
+        // single section still applies when the others are generated later.
+        ttApi.getMerges({ yearId: yearId || undefined, sectionIds: sectionsOf.map((x: any) => x._id).join(',') })
+          .then((m: any) => { if (!cancelled) setSectionMerges(unwrap(m) ?? []); })
+          .catch(() => { if (!cancelled) setSectionMerges([]); });
       })
       .catch((err: any) => {
         if (!cancelled) { setPlan(null); setRules({}); setMerges({}); setError(err?.message ?? 'Could not load subjects'); }
@@ -398,6 +440,58 @@ export default function TimetableGenerateScreen() {
               </Text> {remaining < 0 ? 'over' : 'free'}
             </Text>
 
+            {/* ── Combined classes ─────────────────────────────────────── */}
+            <View style={g.ccMergeBox}>
+              <Text style={g.ccMergeTitle}>Combined classes</Text>
+              <Text style={g.ccMergeHint}>
+                Sections that sit together for a subject — one teacher, one room, at the same time in
+                every section&rsquo;s grid. Set up here, it still applies when you generate the other
+                sections later.
+              </Text>
+
+              {sectionMerges.map((m: any) => (
+                <View key={m._id} style={g.ccMergeRow}>
+                  <Ionicons name="link" size={15} color={Colors.accent} />
+                  <Text style={g.ccMergeRowText} numberOfLines={2}>
+                    <Text style={{ fontWeight: '700' }}>{m.subjectName}</Text>
+                    {'  '}{m.sections.map((x: any) => x.label).join('  +  ')}
+                  </Text>
+                  <TouchableOpacity onPress={() => removeSectionMerge(m._id)} disabled={ccBusy} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={Colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <Select label="Subject" value={ccSubject} placeholder="Choose a subject"
+                options={subjects.map((x: any) => ({ label: x.subjectName, value: x._id }))}
+                onChange={setCcSubject} />
+
+              <Text style={g.ccMergeLabel}>Sections that sit together</Text>
+              <View style={g.ccMergeChips}>
+                {sectionsOf.map((sec: any) => {
+                  const on = ccPicked.includes(sec._id);
+                  return (
+                    <TouchableOpacity key={sec._id} style={[g.ccMergeChip, on && g.ccMergeChipOn]}
+                      onPress={() => setCcPicked(prev => (on
+                        ? prev.filter(x => x !== sec._id)
+                        : [...prev, sec._id]))}>
+                      <Text style={[g.ccMergeChipText, on && { color: '#fff' }]}>{sec.sectionName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {!sectionsOf.length && <Text style={g.ccMergeHint}>This class has no sections</Text>}
+              </View>
+
+              <TouchableOpacity
+                style={[g.ccMergeBtn, (!ccSubject || ccPicked.length < 2 || ccBusy) && { opacity: 0.5 }]}
+                disabled={!ccSubject || ccPicked.length < 2 || ccBusy}
+                onPress={addSectionMerge}>
+                {ccBusy
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={g.ccMergeBtnText}>Merge these sections</Text>}
+              </TouchableOpacity>
+            </View>
+
             {subjects.map((sub: any) => {
               const key = merges[sub._id];
               const tone = key ? groupTone(key) : null;
@@ -502,7 +596,7 @@ export default function TimetableGenerateScreen() {
         <SubjectRules
           subject={subjects.find((x: any) => x._id === tuning)}
           rule={rules[tuning]}
-          teachers={meta?.teachers ?? []}
+          teachers={subjects.find((x: any) => x._id === tuning)?.teachers ?? []}
           rooms={meta?.rooms ?? []}
           workingDays={plan?.capacity?.days ?? []}
           perSectionTeachers={allSections}
@@ -568,7 +662,8 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, perSectionT
           Each section keeps its own subject teacher — pick a single section to choose one here.
         </Text>
       ) : (
-        <Select label="Teacher" value={rule.teacher ?? ''} placeholder="No teacher"
+        <Select label="Teacher" value={rule.teacher ?? ''}
+          placeholder={teachers.length ? 'No teacher' : 'Nobody is assigned to this subject here'}
           options={teachers.map((t: any) => ({ label: t.name, value: t._id }))}
           onChange={(v) => onChange({ teacher: v || null })} />
       )}
@@ -649,6 +744,32 @@ const g = StyleSheet.create({
   },
   dayChipText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
   capacityLine: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 8, marginBottom: 4 },
+
+  ccMergeBox: {
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
+    padding: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.surfaceAlt,
+  },
+  ccMergeTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  ccMergeHint: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: Spacing.sm },
+  ccMergeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.surface, borderRadius: Radius.sm,
+    paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6,
+  },
+  ccMergeRowText: { flex: 1, fontSize: 12.5, color: Colors.text },
+  ccMergeLabel: { fontSize: 12, fontWeight: '600', color: Colors.text, marginTop: 4, marginBottom: 6 },
+  ccMergeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.sm },
+  ccMergeChip: {
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.full,
+    paddingVertical: 5, paddingHorizontal: 13, backgroundColor: Colors.surface,
+  },
+  ccMergeChipOn: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  ccMergeChipText: { fontSize: 12.5, color: Colors.text, fontWeight: '600' },
+  ccMergeBtn: {
+    backgroundColor: Colors.accent, borderRadius: Radius.md,
+    paddingVertical: 11, alignItems: 'center',
+  },
+  ccMergeBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   subjectRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 9,

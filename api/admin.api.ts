@@ -169,6 +169,10 @@ export const getSectionTimetable = (sectionId: string, yearId?: string) =>
   api.get(`/admin/sections/${sectionId}/timetable`, { params: yearId ? { yearId } : {} });
 export const getSectionEntries   = (sectionId: string, yearId?: string) =>
   api.get(`/admin/sections/${sectionId}/timetable/entries`, { params: yearId ? { yearId } : {} });
+// Teachers available to a section, each with what they already carry this year.
+export const getSectionTeacherOptions = (sectionId: string) =>
+  api.get(`/admin/sections/${sectionId}/teacher-options`);
+
 export const saveTimetableEntries = (sectionId: string, data: object) =>
   api.put(`/admin/sections/${sectionId}/timetable/entries`, data);
 

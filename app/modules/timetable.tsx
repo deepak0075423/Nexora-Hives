@@ -95,6 +95,11 @@ export default function TimetableScreen() {
                         : (sl.teacher?.name
                             ? <Text style={s.teacher} numberOfLines={1}>{sl.teacher.name}</Text>
                             : null)}
+                      {(sl.mergedSections ?? []).length > 0 && (
+                        <Text style={s.teacher} numberOfLines={1}>
+                          🔗 with {(sl.mergedSections as any[]).map((m: any) => m.sectionName ?? m).join(', ')}
+                        </Text>
+                      )}
                     </View>
                   ))}
                 </ScrollView>

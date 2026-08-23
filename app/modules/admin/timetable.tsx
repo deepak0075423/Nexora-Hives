@@ -110,6 +110,11 @@ export default function AdminTimetableScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={tt.subject}>{e.subject?.subjectName ?? 'Free period'}</Text>
                     {e.teacher?.name ? <Text style={tt.teacher}>{e.teacher.name}</Text> : null}
+                    {(e.mergedSections ?? []).length > 0 && (
+                      <Text style={tt.teacher} numberOfLines={1}>
+                        🔗 with {(e.mergedSections as any[]).map((m: any) => m.sectionName ?? m).join(', ')}
+                      </Text>
+                    )}
                   </View>
                 </View>
               ))}

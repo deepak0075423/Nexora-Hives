@@ -37,7 +37,9 @@ export const getProgress      = (id: string)           => api.get(`${base}/versi
 export const getConflicts     = (id: string)           => api.get(`${base}/versions/${id}/conflicts`);
 export const deleteVersion    = (id: string)           => api.delete(`${base}/versions/${id}`);
 export const validateVersion  = (id: string)           => api.post(`${base}/versions/${id}/validate`);
-export const publishVersion   = (id: string)           => api.post(`${base}/versions/${id}/publish`);
+export const publishVersion   = (id: string, body?: object) => api.post(`${base}/versions/${id}/publish`, body ?? {});
+// What publishing would overwrite or collide with, before committing to it.
+export const publishPreview   = (id: string)           => api.get(`${base}/versions/${id}/publish-preview`);
 export const regenerate       = (id: string, d?: object) => api.post(`${base}/versions/${id}/regenerate`, d ?? {});
 export const duplicateVersion = (id: string)           => api.post(`${base}/versions/${id}/duplicate`, {});
 export const restoreVersion   = (id: string)           => api.post(`${base}/versions/${id}/restore`, {});
@@ -51,3 +53,12 @@ export const deleteEntry = (id: string, entryId: string)            => api.delet
 
 // ── Audit ─────────────────────────────────────────────────────────────────────
 export const getAudit = (params?: object) => api.get(`${base}/audit`, { params });
+
+// ── Merge groups — sections taught a subject together ─────────────────────────
+export const getMerges   = (params?: object)      => api.get(`${base}/merges`, { params });
+export const saveMerge   = (data: object)         => api.post(`${base}/merges`, data);
+export const deleteMerge = (id: string)           => api.delete(`${base}/merges/${id}`);
+
+// ── Reports over the published week ───────────────────────────────────────────
+export const getTeacherWorkload = (yearId?: string) => api.get(`${base}/reports/teacher-workload`, { params: yearId ? { yearId } : {} });
+export const getRoomUtilisation = (yearId?: string) => api.get(`${base}/reports/room-utilisation`, { params: yearId ? { yearId } : {} });

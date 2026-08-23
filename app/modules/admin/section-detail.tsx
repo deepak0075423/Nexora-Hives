@@ -17,6 +17,8 @@ export default function AdminSectionDetailScreen() {
   const [tab, setTab] = useState('students');
 
   const [teachers, setTeachers] = useState<any[]>([]);
+  // teacherId -> { total, bySubject: [{ subject, subjectName, sections }] }
+  const [teacherLoad, setTeacherLoad] = useState<Record<string, any>>({});
   const [subjects, setSubjects] = useState<any[]>([]);
 
   const [showTeacherForm, setShowTeacherForm] = useState(false);
@@ -49,11 +51,14 @@ export default function AdminSectionDetailScreen() {
 
   const loadPickers = async () => {
     try {
-      const [t, s]: any[] = await Promise.all([
+      const [t, s, opts]: any[] = await Promise.all([
         adminApi.getTeachers({ page: 1, limit: 200 }),
         adminApi.getSubjects(),
+        // Carries each teacher's current load, so the assign list can show it.
+        adminApi.getSectionTeacherOptions(id!).catch(() => null),
       ]);
       setTeachers(unwrap(t)?.data ?? []);
+      setTeacherLoad(unwrap(opts)?.load ?? {});
       setSubjects(unwrap(s) ?? []);
     } catch {}
   };
@@ -61,6 +66,22 @@ export default function AdminSectionDetailScreen() {
 
   const teacherOptions = useMemo(
     () => teachers.map((t: any) => ({ label: `${t.name} (${t.email})`, value: t._id })), [teachers]);
+
+  /**
+   * "Anita Sharma — Computer 1 · Mathematics 1 · total 2"
+   *
+   * The subject being assigned comes first, so the number that matters for this
+   * decision sits right after the name. Someone with nothing yet says so, rather
+   * than looking the same as a teacher already carrying eight classes.
+   */
+  const subjectTeacherOptions = useMemo(() => teachers.map((t: any) => {
+    const load = teacherLoad[t._id];
+    if (!load?.bySubject?.length) return { label: `${t.name} — no classes yet`, value: t._id };
+    const here  = load.bySubject.filter((x: any) => x.subject === subjForm.subjectId);
+    const other = load.bySubject.filter((x: any) => x.subject !== subjForm.subjectId);
+    const parts = [...here, ...other].map((x: any) => `${x.subjectName} ${x.sections}`);
+    return { label: `${t.name} — ${parts.join(' · ')} · total ${load.total}`, value: t._id };
+  }), [teachers, teacherLoad, subjForm.subjectId]);
   const subjectOptions = useMemo(
     () => subjects.map((s: any) => ({ label: s.subjectName, value: s._id })), [subjects]);
 
@@ -238,7 +259,7 @@ export default function AdminSectionDetailScreen() {
         <Input label={`Roll number for ${rollEdit?.name ?? ''}`} value={rollEdit?.value ?? ''}
           onChange={v => setRollEdit(r => (r ? { ...r, value: v } : r))} placeholder="e.g. 12" />
         <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 4 }}>
-          Must be unique within this section. Leave blank to clear it — the student's record is updated too.
+          Must be unique within this section. Leave blank to clear it — the student&rsquo;s record is updated too.
         </Text>
       </FormModal>
 
@@ -254,7 +275,7 @@ export default function AdminSectionDetailScreen() {
 
       <FormModal visible={showAssignSubject} title="Assign Subject Teacher" onClose={() => setShowAssignSubject(false)} onSubmit={assignSubjectTeacher} submitting={saving}>
         <Select label="Subject" value={subjForm.subjectId} onChange={v => setSubjForm(f => ({ ...f, subjectId: v }))} options={subjectOptions} />
-        <Select label="Teacher" value={subjForm.teacherId} onChange={v => setSubjForm(f => ({ ...f, teacherId: v }))} options={teacherOptions} />
+        <Select label="Teacher" value={subjForm.teacherId} onChange={v => setSubjForm(f => ({ ...f, teacherId: v }))} options={subjectTeacherOptions} />
       </FormModal>
     </>
   );
