@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
+import { FocusRow } from '@/components/FocusHighlight';
 import { Stack, useRouter } from 'expo-router';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
@@ -22,6 +23,10 @@ const STATUS_TABS = [
 ];
 
 export default function AdminLeaveScreen() {
+  // First hook in the component on purpose: the early module-disabled
+  // return sits below, and a hook after it would not run every render.
+  // Held so a notification can scroll its record into view.
+  const scrollRef = useRef<ScrollView>(null);
   const router = useRouter();
   const [status, setStatus] = useState('pending');
   const [compOffPending, setCompOffPending] = useState<number | null>(null);
@@ -152,6 +157,7 @@ export default function AdminLeaveScreen() {
     <>
       <Stack.Screen options={{ title: 'Leave Requests' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -187,7 +193,10 @@ export default function AdminLeaveScreen() {
           <Empty icon="airplane-outline" text="No leave requests" />
         ) : (
           list.map((lv: any) => (
-            <Card key={lv._id}>
+            // The leave notification names its application — this scrolls to it
+            // and flags it on arrival.
+            <FocusRow key={lv._id} id={lv._id} scrollRef={scrollRef}>
+            <Card>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <KV label="Teacher" value={lv.teacher?.name ?? '--'} />
               </View>
@@ -218,6 +227,7 @@ export default function AdminLeaveScreen() {
                 </View>
               )}
             </Card>
+            </FocusRow>
           ))
         )}
       </ScrollView>

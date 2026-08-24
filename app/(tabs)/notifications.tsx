@@ -1,15 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity, Alert, Modal, Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import * as notifApi from '@/api/notifications.api';
+import { notificationPath, hasTarget, type NotificationLink } from '@/utils/notificationLink';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ interface Receipt {
     senderRole: string;
     createdAt: string;
   } | null;
+  /** Resolved server-side for this reader's role — see utils/notificationLink */
+  link?: NotificationLink;
   createdAt: string;
 }
 
@@ -68,6 +71,9 @@ export default function NotificationsTab() {
   const { lastEventAt } = useNotifications();
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
+  // The deep-link screen sends readers here with ?receipt= when a notification
+  // has nowhere more specific to go — so it opens on itself, not a bare list.
+  const { receipt: openReceiptId } = useLocalSearchParams<{ receipt?: string }>();
   const role      = user?.role ?? 'student';
   const canSend   = (CAN_SEND as readonly string[]).includes(role);
 
@@ -154,8 +160,22 @@ export default function NotificationsTab() {
 
   const openDetail = (receipt: Receipt) => {
     if (!receipt.isRead) handleMarkOneRead(receipt._id);
-    setSelected(receipt);
+    // A notification that names a destination goes straight there — reading the
+    // body in a sheet first is a step nobody wants. One without (a message an
+    // admin typed by hand) is its own content, so the sheet IS the destination.
+    if (hasTarget(receipt)) router.push(notificationPath(receipt) as any);
+    else setSelected(receipt);
   };
+
+  // Arriving with ?receipt= opens that one, once the list has actually loaded.
+  const openedFromLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!openReceiptId || loading || openedFromLink.current === openReceiptId) return;
+    const r = inbox.find(x => x._id === openReceiptId);
+    if (!r) return;
+    openedFromLink.current = String(openReceiptId);
+    openDetail(r);
+  }, [openReceiptId, loading, inbox]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -248,7 +268,7 @@ export default function NotificationsTab() {
                       <View style={s.senderPill}>
                         <Text style={s.senderText}>From: {ROLE_LABEL[n.senderRole] ?? n.senderRole}</Text>
                       </View>
-                      <Text style={s.tapHint}>Tap to read</Text>
+                      <Text style={s.tapHint}>{hasTarget(receipt) ? 'Tap to open →' : 'Tap to read'}</Text>
                     </View>
                   </View>
                   <TouchableOpacity

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { FocusRow } from '@/components/FocusHighlight';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
@@ -11,7 +12,15 @@ import {
 } from '@/components/ui/kit';
 
 export default function AdminAttendanceScreen() {
-  const [tab, setTab] = useState('requests');
+  // First hook in the component on purpose: the early module-disabled
+  // return sits below, and a hook after it would not run every render.
+  // Held so a notification can scroll its record into view.
+  const scrollRef = useRef<ScrollView>(null);
+  // A notification links straight at a tab (?tab=…), so the screen opens on
+  // the list the notification was about rather than its default.
+  const { tab: wantedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState(
+    ['requests', 'mine'].includes(String(wantedTab)) ? String(wantedTab) : 'requests');
   const [requests, setRequests] = useState<any[]>([]);
   const [myAtt, setMyAtt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -68,6 +77,7 @@ export default function AdminAttendanceScreen() {
     <>
       <Stack.Screen options={{ title: 'Attendance' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -82,7 +92,10 @@ export default function AdminAttendanceScreen() {
             {tab === 'requests' ? (
               requests.length === 0 ? <Empty icon="checkmark-done-outline" text="No pending regularization requests" /> :
               requests.map((r: any) => (
-                <Card key={r._id}>
+                // A regularization notification names its request — this is
+                // what scrolls to it and flags it on arrival.
+                <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+                <Card>
                   <KV label="Teacher" value={r.teacher?.name ?? '--'} />
                   <KV label="Date" value={fmtDate(r.date)} />
                   <KV label="Type" value={r.requestType ?? '--'} />
@@ -99,6 +112,7 @@ export default function AdminAttendanceScreen() {
                     </View>
                   </View>
                 </Card>
+                </FocusRow>
               ))
             ) : (
               <>

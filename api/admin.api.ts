@@ -106,6 +106,8 @@ export const getSectionDetail            = (id: string) => api.get(`/admin/secti
 export const deleteSection               = (id: string) => api.delete(`/admin/sections/${id}`);
 export const updateSectionTeacher        = (id: string, data: object) => api.put(`/admin/sections/${id}/teachers`, data);
 export const getSectionSubjectTeachers   = (id: string) => api.get(`/admin/sections/${id}/subjects`);
+export const getAssignableStudents       = (sectionId: string, params?: any) => api.get(`/admin/sections/${sectionId}/assignable-students`, { params });
+export const assignStudentsToSection     = (sectionId: string, studentIds: string[]) => api.post(`/admin/sections/${sectionId}/assign-student`, { studentIds });
 export const assignStudentToSection      = (sectionId: string, studentId: string) => api.post(`/admin/sections/${sectionId}/assign-student`, { studentId });
 export const removeStudentFromSection    = (sectionId: string, studentId: string) => api.delete(`/admin/sections/${sectionId}/remove-student`, { data: { studentId } });
 export const assignSectionSubjectTeacher = (id: string, data: object) => api.post(`/admin/sections/${id}/subjects/assign`, data);

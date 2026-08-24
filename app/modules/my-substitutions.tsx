@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native';
+import { FocusRow } from '@/components/FocusHighlight';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -61,6 +62,10 @@ function DutyRow({ d, mine }: { d: any; mine?: boolean }) {
 }
 
 export default function MySubstitutionsScreen() {
+  // First hook in the component on purpose: the early module-disabled
+  // return sits below, and a hook after it would not run every render.
+  // Held so a notification can scroll its record into view.
+  const scrollRef = useRef<ScrollView>(null);
   const [tab, setTab]         = useState('duties');
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +96,7 @@ export default function MySubstitutionsScreen() {
     <>
       <Stack.Screen options={{ title: 'My Substitutions' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing}
@@ -137,7 +143,9 @@ export default function MySubstitutionsScreen() {
             ) : (
               <Card>
                 {list.map((d: any) => (
-                  <DutyRow key={d._id} d={d} mine={tab === 'duties'} />
+                  <FocusRow key={d._id} id={d._id} scrollRef={scrollRef}>
+                    <DutyRow d={d} mine={tab === 'duties'} />
+                  </FocusRow>
                 ))}
               </Card>
             )}

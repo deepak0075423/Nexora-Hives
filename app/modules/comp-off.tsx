@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
@@ -27,7 +27,11 @@ const TABS = [
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 export default function CompOffScreen() {
-  const [tab, setTab] = useState('requests');
+  // A notification links straight at a tab (?tab=…), so the screen opens on
+  // the list the notification was about rather than its default.
+  const { tab: wantedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState(
+    ['requests', 'balance', 'ledger'].includes(String(wantedTab)) ? String(wantedTab) : 'requests');
   const [data, setData] = useState<any>(null);
   const [ledger, setLedger] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

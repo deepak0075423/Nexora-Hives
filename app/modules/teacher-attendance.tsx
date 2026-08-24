@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { Stack } from 'expo-router';
+import { FocusRow } from '@/components/FocusHighlight';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
@@ -25,7 +26,14 @@ const todayStr = () => {
 };
 
 export default function TeacherAttendanceScreen() {
-  const [tab, setTab] = useState('mark');
+  // First hook on purpose — an early module-disabled return sits below.
+  // Held so a notification can scroll its request into view.
+  const scrollRef = useRef<ScrollView>(null);
+  // A notification links straight at a tab (?tab=…), so the screen opens on
+  // the list the notification was about rather than its default.
+  const { tab: wantedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState(
+    ['mark', 'ranking', 'mine', 'corrections'].includes(String(wantedTab)) ? String(wantedTab) : 'mark');
   const [disabled, setDisabled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -181,6 +189,7 @@ export default function TeacherAttendanceScreen() {
     <>
       <Stack.Screen options={{ title: 'Attendance' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
@@ -289,12 +298,16 @@ export default function TeacherAttendanceScreen() {
                 <>
                   <Text style={ta.groupLabel}>My Requests</Text>
                   {myRegs.map((r: any, i: number) => (
-                    <Card key={i}>
-                      <KV label="Date" value={fmtDate(r.date)} />
-                      <KV label="Times" value={`${r.checkIn ?? '--'} → ${r.checkOut ?? '--'}`} />
-                      {r.reason ? <KV label="Reason" value={r.reason} /> : null}
-                      <KV label="Status" value={<Badge label={String(r.status ?? 'pending').toLowerCase()} />} />
-                    </Card>
+                    // The "regularization approved" notification names this
+                    // request — this is what scrolls to it and flags it.
+                    <FocusRow key={r._id ?? i} id={r._id} scrollRef={scrollRef}>
+                      <Card>
+                        <KV label="Date" value={fmtDate(r.date)} />
+                        <KV label="Times" value={`${r.checkIn ?? '--'} → ${r.checkOut ?? '--'}`} />
+                        {r.reason ? <KV label="Reason" value={r.reason} /> : null}
+                        <KV label="Status" value={<Badge label={String(r.status ?? 'pending').toLowerCase()} />} />
+                      </Card>
+                    </FocusRow>
                   ))}
                 </>
               )}
@@ -340,7 +353,8 @@ export default function TeacherAttendanceScreen() {
             <Empty icon="checkmark-done-outline" text="No correction requests from students" />
           ) : (
             corrections.map((r: any) => (
-              <Card key={r._id}>
+              <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+              <Card>
                 <KV label="Student" value={r.student?.name ?? '--'} />
                 <KV label="Date" value={fmtDate(r.date)} />
                 <KV label="Requested" value={r.requestedStatus ?? '--'} />
@@ -357,6 +371,7 @@ export default function TeacherAttendanceScreen() {
                   </View>
                 )}
               </Card>
+              </FocusRow>
             ))
           )
         )}

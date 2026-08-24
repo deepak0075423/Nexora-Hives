@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
@@ -24,9 +24,15 @@ export default function AdminSectionDetailScreen() {
   const [showTeacherForm, setShowTeacherForm] = useState(false);
   const [teacherRole, setTeacherRole] = useState<'class' | 'vice'>('class');
   const [teacherId, setTeacherId] = useState('');
+  // Student picker — multi-select, and the server leaves out anyone already on
+  // this section's roster.
   const [showAssignStudent, setShowAssignStudent] = useState(false);
   const [studentQ, setStudentQ] = useState('');
-  const [studentResults, setStudentResults] = useState<any[]>([]);
+  const [pool, setPool] = useState<any>(null);
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [showTaken, setShowTaken] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
   const [showAssignSubject, setShowAssignSubject] = useState(false);
   const [subjForm, setSubjForm] = useState({ subjectId: '', teacherId: '' });
   const [saving, setSaving] = useState(false);
@@ -85,6 +91,18 @@ export default function AdminSectionDetailScreen() {
   const subjectOptions = useMemo(
     () => subjects.map((s: any) => ({ label: s.subjectName, value: s._id })), [subjects]);
 
+  // ── Student picker, derived ────────────────────────────────────────────────
+  const candidates       = pool?.students ?? [];
+  const freeCandidates   = candidates.filter((c: any) => c.assignable);
+  const takenCount       = candidates.length - freeCandidates.length;
+  // Students another section holds cannot be picked, so they stay out of the
+  // way until asked for.
+  const visibleCandidates = showTaken ? candidates : freeCandidates;
+  const allFreePicked    = freeCandidates.length > 0 && freeCandidates.every((c: any) => picked.includes(c._id));
+  // null when the section has no capacity set, which the server reads as unlimited
+  const seatsFree        = pool?.seats?.free ?? null;
+  const overCapacity     = seatsFree !== null && picked.length > seatsFree;
+
   const saveTeacher = async () => {
     setSaving(true);
     try {
@@ -102,19 +120,52 @@ export default function AdminSectionDetailScreen() {
     setShowTeacherForm(true);
   };
 
-  const searchStudents = async () => {
+  const loadPool = async (search = '') => {
+    setPoolLoading(true);
     try {
-      const d = unwrap(await adminApi.getStudents({ page: 1, limit: 15, search: studentQ }));
-      setStudentResults(d?.data ?? []);
-    } catch (err: any) { Alert.alert('Error', err.message); }
+      setPool(unwrap(await adminApi.getAssignableStudents(id!, { search: search.trim(), limit: 200 })));
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+      setPool({ students: [], total: 0 });
+    } finally { setPoolLoading(false); }
   };
 
-  const assignStudent = async (studentId: string) => {
+  const openStudentPicker = () => {
+    setShowAssignStudent(true);
+    setStudentQ(''); setPicked([]); setShowTaken(false);
+    loadPool('');
+  };
+
+  const togglePick = (studentId: string) =>
+    setPicked(prev => prev.includes(studentId) ? prev.filter(x => x !== studentId) : [...prev, studentId]);
+
+  const enrollPicked = async () => {
+    if (!picked.length) return;
+    if (overCapacity) {
+      return Alert.alert('Not enough seats',
+        `This section has ${seatsFree} seat(s) free but ${picked.length} students are selected.`);
+    }
+    setEnrolling(true);
     try {
-      await adminApi.assignStudentToSection(id!, studentId);
-      setShowAssignStudent(false); setStudentQ(''); setStudentResults([]);
-      load();
+      const d: any = unwrap(await adminApi.assignStudentsToSection(id!, picked));
+      // A batch usually lands partly — name what did not go in rather than
+      // closing on a silent half-result.
+      const failed = d?.failed ?? [];
+      if (failed.length) {
+        Alert.alert(
+          d?.enrolled?.length ? 'Partly enrolled' : 'Could not enroll',
+          failed.map((f: any) => `${f.name}: ${f.reason}`).join('\n'),
+        );
+      }
+      if (d?.enrolled?.length) {
+        setShowAssignStudent(false); setPicked([]);
+        load();
+      } else {
+        setPicked([]);
+        loadPool(studentQ);
+      }
     } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setEnrolling(false); }
   };
 
   const removeStudent = async (st: any) => {
@@ -203,7 +254,7 @@ export default function AdminSectionDetailScreen() {
             {tab === 'students' ? (
               <>
                 <View style={{ marginBottom: Spacing.sm }}>
-                  <ActionBtn label="+ Enroll Student" tone="success" onPress={() => setShowAssignStudent(true)} />
+                  <ActionBtn label="+ Enroll Students" tone="success" onPress={openStudentPicker} />
                 </View>
                 {rollsAssigned ? (
                   <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: Spacing.sm }}>
@@ -263,14 +314,68 @@ export default function AdminSectionDetailScreen() {
         </Text>
       </FormModal>
 
-      <FormModal visible={showAssignStudent} title="Enroll Student" onClose={() => setShowAssignStudent(false)}>
-        <Input label="Search students" value={studentQ} onChange={setStudentQ} placeholder="Name or email" />
-        <ActionBtn label="Search" tone="info" onPress={searchStudents} />
-        <View style={{ height: 10 }} />
-        {studentResults.map((st: any) => (
-          <RowItem key={st._id} title={st.name} sub={`${st.email}${st.className ? ` · ${st.className}` : ''}`}
-            onPress={() => assignStudent(st._id)} />
+      <FormModal
+        visible={showAssignStudent}
+        title="Enroll Students"
+        onClose={() => setShowAssignStudent(false)}
+        onSubmit={enrollPicked}
+        submitting={enrolling}
+        submitLabel={picked.length > 1 ? `Enroll ${picked.length} students` : 'Enroll'}
+      >
+        <Input label="Search students" value={studentQ} onChange={(v: string) => { setStudentQ(v); loadPool(v); }}
+          placeholder="Name or email — or pick from the list" />
+
+        {seatsFree !== null && (
+          <Text style={{ fontSize: 11, marginTop: 4, color: overCapacity ? Colors.danger : Colors.textSecondary }}>
+            {overCapacity
+              ? `Only ${seatsFree} seat${seatsFree === 1 ? '' : 's'} left — ${picked.length} selected.`
+              : `${seatsFree} of ${pool?.seats?.capacity} seats free.`}
+          </Text>
+        )}
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+          <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600' }}
+            onPress={() => setPicked(allFreePicked ? [] : freeCandidates.map((c: any) => c._id))}>
+            {allFreePicked ? 'Clear selection' : `Select all ${freeCandidates.length}`}
+          </Text>
+          <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+            {picked.length} selected
+          </Text>
+        </View>
+
+        <View style={{ height: 6 }} />
+        {poolLoading ? (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <ActivityIndicator color={Colors.primary} />
+          </View>
+        ) : visibleCandidates.length === 0 ? (
+          <Empty text={studentQ
+            ? 'No students match who are not already in this section'
+            : 'Every student is already enrolled in a section'} />
+        ) : visibleCandidates.map((st: any) => (
+          <RowItem
+            key={st._id}
+            title={st.name}
+            sub={`${st.email}${st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}${st.enrolledIn ? ` · in ${st.enrolledIn}` : ''}`}
+            icon={picked.includes(st._id) ? 'checkbox' : st.assignable ? 'square-outline' : 'lock-closed-outline'}
+            iconColor={st.assignable ? Colors.primary : Colors.textLight}
+            onPress={st.assignable ? () => togglePick(st._id) : undefined}
+          />
         ))}
+
+        {takenCount > 0 && (
+          <Text style={{ fontSize: 12, color: Colors.primary, fontWeight: '600', paddingTop: 10 }}
+            onPress={() => setShowTaken(v => !v)}>
+            {showTaken
+              ? 'Hide students enrolled elsewhere'
+              : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} enrolled in another section`}
+          </Text>
+        )}
+        {pool?.truncated && (
+          <Text style={{ fontSize: 11, color: Colors.textSecondary, paddingTop: 8 }}>
+            Showing the first {pool.students.length} of {pool.total} — narrow it down with the search box.
+          </Text>
+        )}
       </FormModal>
 
       <FormModal visible={showAssignSubject} title="Assign Subject Teacher" onClose={() => setShowAssignSubject(false)} onSubmit={assignSubjectTeacher} submitting={saving}>

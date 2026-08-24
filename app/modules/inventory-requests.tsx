@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { FocusRow } from '@/components/FocusHighlight';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +20,10 @@ const blankLine = () => ({ itemName: '', quantity: '1', estimatedPrice: '' });
 const listOf = (res: any) => { const d = unwrap(res); return d?.data ?? d?.items ?? (Array.isArray(d) ? d : []); };
 
 export default function InventoryRequestsScreen() {
+  // First hook in the component on purpose: the early module-disabled
+  // return sits below, and a hook after it would not run every render.
+  // Held so a notification can scroll its record into view.
+  const scrollRef = useRef<ScrollView>(null);
   const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [depts, setDepts] = useState<any[]>([]);
@@ -71,11 +76,12 @@ export default function InventoryRequestsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'My Requests' }} />
-      <ScrollView style={s.root} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 90 }}
+      <ScrollView ref={scrollRef} style={s.root} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 90 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         {rows.length === 0 ? <Empty icon="document-text-outline" text="No requests yet. Tap + to raise one." />
           : rows.map((r) => (
-            <RowItem key={r._id} icon="document-text" title={r.requestNumber || 'Request'}
+            <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+            <RowItem icon="document-text" title={r.requestNumber || 'Request'}
               sub={`${r.items?.length || 0} item(s) · ${fmtMoney(r.estimatedTotal)} · ${new Date(r.createdAt).toLocaleDateString()}`}
               right={
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -85,6 +91,7 @@ export default function InventoryRequestsScreen() {
                   )}
                 </View>
               } />
+            </FocusRow>
           ))}
       </ScrollView>
 

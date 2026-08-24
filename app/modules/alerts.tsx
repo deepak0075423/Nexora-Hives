@@ -1,14 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity, Alert, Modal, Pressable,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as notifApi from '@/api/notifications.api';
 import * as adminApi from '@/api/admin.api';
+import { notificationPath, hasTarget, type NotificationLink } from '@/utils/notificationLink';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,8 @@ interface Receipt {
     senderRole: string;
     createdAt: string;
   } | null;
+  /** Resolved server-side for this reader's role — see utils/notificationLink */
+  link?: NotificationLink;
   createdAt: string;
 }
 
@@ -84,6 +87,9 @@ const CAN_SEE_SENT = ['teacher', 'admin', 'super-admin'] as const;
 export default function AlertsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  // Reached from a notification link with no destination of its own — it opens
+  // on itself rather than on a bare list.
+  const { receipt: openReceiptId } = useLocalSearchParams<{ receipt?: string }>();
   const role = user?.role ?? 'student';
 
   const canSend    = (CAN_SEND    as readonly string[]).includes(role);
@@ -220,8 +226,21 @@ export default function AlertsScreen() {
 
   const openDetail = (receipt: Receipt) => {
     if (!receipt.isRead) handleMarkOneRead(receipt._id);
-    setSelected(receipt);
+    // Straight to what it is about when the notification names a destination;
+    // otherwise its body is all there is, so show that.
+    if (hasTarget(receipt)) router.push(notificationPath(receipt) as any);
+    else setSelected(receipt);
   };
+
+  // Arriving with ?receipt= opens that one, once the list has actually loaded.
+  const openedFromLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!openReceiptId || inboxLoading || openedFromLink.current === openReceiptId) return;
+    const r = inbox.find(x => x._id === openReceiptId);
+    if (!r) return;
+    openedFromLink.current = String(openReceiptId);
+    openDetail(r);
+  }, [openReceiptId, inboxLoading, inbox]);
 
   // Tab list
   const tabs: { key: TabType; label: string }[] = [
@@ -413,7 +432,7 @@ function ReceiptCard({ receipt, onPress, onClear }: { receipt: Receipt; onPress:
           <View style={rc.senderPill}>
             <Text style={rc.senderText}>From: {ROLE_LABEL[n.senderRole] ?? n.senderRole}</Text>
           </View>
-          <Text style={rc.tapHint}>Tap to read ›</Text>
+          <Text style={rc.tapHint}>{hasTarget(receipt) ? 'Tap to open ›' : 'Tap to read ›'}</Text>
         </View>
       </View>
       <TouchableOpacity onPress={onClear} style={rc.clearBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

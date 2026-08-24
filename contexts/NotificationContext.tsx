@@ -3,13 +3,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { connectSocket, disconnectSocket } from '@/utils/socket';
 import { getUnreadCount } from '@/api/notifications.api';
 import storage from '@/utils/storage';
+import type { NotificationLink } from '@/utils/notificationLink';
 
 export interface LiveNotification {
   _id: string;
+  /** This reader's receipt — what a tap resolves against */
+  receiptId?: string | null;
   title: string;
   body: string;
   senderRole?: string;
   createdAt?: string;
+  /** Where it opens, already resolved for this reader's role by the server */
+  link?: NotificationLink;
 }
 
 interface NotificationContextValue {
@@ -17,6 +22,8 @@ interface NotificationContextValue {
   /** Bumps every time a notification:new event arrives — subscribe to refresh lists */
   lastEventAt: number;
   lastNotification: LiveNotification | null;
+  /** Drop the banner without opening it */
+  dismissLast: () => void;
   refreshUnread: () => Promise<void>;
   setUnreadCount: (n: number) => void;
 }
@@ -25,6 +32,7 @@ const NotificationContext = createContext<NotificationContextValue>({
   unreadCount: 0,
   lastEventAt: 0,
   lastNotification: null,
+  dismissLast: () => {},
   refreshUnread: async () => {},
   setUnreadCount: () => {},
 });
@@ -75,8 +83,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => { cancelled = true; };
   }, [user?._id, refreshUnread]);
 
+  const dismissLast = useCallback(() => setLastNotification(null), []);
+
   return (
-    <NotificationContext.Provider value={{ unreadCount, lastEventAt, lastNotification, refreshUnread, setUnreadCount }}>
+    <NotificationContext.Provider
+      value={{ unreadCount, lastEventAt, lastNotification, dismissLast, refreshUnread, setUnreadCount }}
+    >
       {children}
     </NotificationContext.Provider>
   );

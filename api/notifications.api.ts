@@ -14,3 +14,7 @@ export const clearOne           = (id: string) => api.delete(`/notifications/${i
 
 // ── Helper for admin send form ───────────────────────────────────────────────
 export const getSectionsByClass = (classId: string) => api.get(`/notifications/classes/${classId}/sections`);
+
+// Where one notification goes — and marks it read. Behind every deep link, push
+// tap and emailed "Open in Aksharum" button, so a link works from any device.
+export const resolveNotification = (receiptId: string) => api.get(`/notifications/${receiptId}/resolve`);

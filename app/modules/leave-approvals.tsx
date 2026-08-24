@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
+import { FocusRow } from '@/components/FocusHighlight';
 import { Stack } from 'expo-router';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
@@ -22,6 +23,10 @@ const TABS = [
 ];
 
 export default function LeaveApprovalsScreen() {
+  // First hook in the component on purpose: the early module-disabled
+  // return sits below, and a hook after it would not run every render.
+  // Held so a notification can scroll its record into view.
+  const scrollRef = useRef<ScrollView>(null);
   const [status, setStatus] = useState('pending');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,7 @@ export default function LeaveApprovalsScreen() {
     <>
       <Stack.Screen options={{ title: 'Leave Approvals' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -84,7 +90,8 @@ export default function LeaveApprovalsScreen() {
             {items.length === 0 ? (
               <Empty icon="checkmark-done-outline" text="Nothing waiting for you" />
             ) : items.map((lv: any) => (
-              <Card key={lv._id}>
+              <FocusRow key={lv._id} id={lv._id} scrollRef={scrollRef}>
+              <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <Text style={s.title}>{lv.teacher?.name ?? '--'}</Text>
                   <Badge label={lv.status} />
@@ -107,6 +114,7 @@ export default function LeaveApprovalsScreen() {
                   </View>
                 )}
               </Card>
+              </FocusRow>
             ))}
           </>
         )}
