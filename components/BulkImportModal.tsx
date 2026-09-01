@@ -8,7 +8,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
 import storage from '@/utils/storage';
 import { FormModal } from '@/components/ui/kit';
-import { readProgress, readResult, type ImportResult } from '@/utils/importStream';
+import { createProgressReader, readResult, type ImportProgress, type ImportResult } from '@/utils/importStream';
 
 /**
  * Bulk import for teachers and students, matching the web admin screens.
@@ -20,8 +20,8 @@ import { readProgress, readResult, type ImportResult } from '@/utils/importStrea
  *
  * Two things here are deliberately not done through the shared axios client:
  * the download needs the raw bytes on disk (`File.downloadFileAsync` streams
- * them natively), and the student import answers with server-sent events, which
- * only XHR lets us read while they arrive.
+ * them natively), and both imports answer with server-sent events, which only
+ * XHR lets us read while they arrive.
  */
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -83,7 +83,7 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
   const [file, setFile]           = useState<Picked | null>(null);
   const [downloading, setDown]    = useState(false);
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress]   = useState<{ current: number; total: number; name: string } | null>(null);
+  const [progress, setProgress]   = useState<ImportProgress | null>(null);
   const [result, setResult]       = useState<ImportResult | null>(null);
 
   const [savingErrors, setSavingErrors] = useState(false);
@@ -180,14 +180,17 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
       const token = await storage.getItem('token');
       if (!token) throw new Error('Your session has expired — sign in again');
 
-      // Students stream their progress; teachers answer with one JSON body.
-      const streamed = kind === 'students';
+      // One reader per run: it holds the running tallies and only reads the
+      // text that has arrived since the last tick. It returns null until the
+      // row count lands, and on an older server that answers with one JSON
+      // body it simply never fires — the spinner stands in for it.
+      const readProgress = createProgressReader();
       const body = await postSheet(
         `${BASE_URL}/admin/${kind}/bulk`, token, file,
-        (text) => { if (streamed) setProgress(readProgress(text)); },
+        (text) => setProgress(readProgress(text)),
       );
 
-      const outcome = readResult(body, streamed);
+      const outcome = readResult(body);
       setResult(outcome);
       if (outcome.created + outcome.updated > 0) onImported();
     } catch (err: any) {
@@ -203,7 +206,7 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
     return (
       <FormModal visible={visible} title={copy.title} onClose={close}>
         <View style={s.tiles}>
-          <Tile value={result.created} label="Created" tone={Colors.success} bg={Colors.successLight} />
+          <Tile value={result.created} label="Newly created" tone={Colors.success} bg={Colors.successLight} />
           <Tile value={result.updated} label="Updated" tone={Colors.text} bg={Colors.surfaceAlt} />
           <Tile
             value={result.errors.length}
@@ -212,6 +215,22 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
             bg={result.errors.length ? Colors.dangerLight : Colors.surfaceAlt}
           />
         </View>
+        {(() => {
+          // created + updated + errors should account for every row in the
+          // sheet. Anything less and the run stopped early — say so, or a
+          // truncated import reads as a finished one.
+          const seen = result.created + result.updated + result.errors.length;
+          if (!result.total || seen >= result.total) return null;
+          return (
+            <View style={s.shortfall}>
+              <Text style={s.shortfallText}>
+                Only {seen} of {result.total} rows were processed — the import stopped early.
+                Upload the sheet again to carry on; {copy.noun}s already on file are matched by
+                email and updated, not duplicated.
+              </Text>
+            </View>
+          );
+        })()}
         {result.errors.length > 0 && (
           <ScrollView style={s.errorBox}>
             {result.errors.map((e, i) => (
@@ -251,14 +270,45 @@ export default function BulkImportModal({ visible, kind, onClose, onImported }: 
 
   // ── Import in flight ──────────────────────────────────────────────────────
   if (importing) {
+    const pct = progress?.total ? Math.round((progress.current / progress.total) * 100) : 0;
     return (
       <FormModal visible={visible} title={copy.title} onClose={() => {}}>
         <View style={s.busy}>
           <ActivityIndicator size="large" color={Colors.accent} />
-          <Text style={s.busyTitle}>
-            {progress ? `Importing ${progress.current} of ${progress.total}…` : 'Importing…'}
-          </Text>
-          {!!progress?.name && <Text style={s.busySub}>Creating account for {progress.name}</Text>}
+          <Text style={s.busyTitle}>Importing {copy.noun}s…</Text>
+
+          {progress ? (
+            <View style={s.progressWrap}>
+              <View style={s.progressTrack}>
+                <View style={[s.progressFill, { width: `${pct}%` }]} />
+              </View>
+              <View style={s.progressRow}>
+                <Text style={s.busySub}>Processing {progress.current} of {progress.total}</Text>
+                <Text style={s.busySub}>{pct}%</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={s.busySub}>Reading the sheet…</Text>
+          )}
+
+          {!!progress?.name && (
+            <Text style={s.busySub} numberOfLines={1}>Processing {progress.name}</Text>
+          )}
+
+          {!!progress && (
+            <View style={s.tiles}>
+              <Tile value={progress.created} label="Created" tone={Colors.success} bg={Colors.successLight} />
+              <Tile value={progress.updated} label="Updated" tone={Colors.text} bg={Colors.surfaceAlt} />
+              <Tile
+                value={progress.errors}
+                label="Errors"
+                tone={progress.errors ? Colors.danger : Colors.textSecondary}
+                bg={progress.errors ? Colors.dangerLight : Colors.surfaceAlt}
+              />
+              <Tile value={progress.total} label="Total" tone={Colors.text} bg={Colors.surfaceAlt} />
+            </View>
+          )}
+
           <Text style={s.busyNote}>Each new account is emailed a one-time password. Keep this screen open.</Text>
         </View>
       </FormModal>
@@ -328,10 +378,16 @@ const s = StyleSheet.create({
   noteTitle: { fontSize: 12, fontWeight: '700', color: Colors.text, marginBottom: 4 },
   noteText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
 
-  tiles: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  tiles: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md, alignSelf: 'stretch' },
   tile: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   tileValue: { ...Typography.h3, fontWeight: '700' },
-  tileLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  tileLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
+
+  shortfall: {
+    backgroundColor: Colors.dangerLight, borderWidth: 1, borderColor: Colors.danger,
+    borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  shortfallText: { fontSize: 12, color: Colors.danger, lineHeight: 18 },
 
   errorBox: {
     maxHeight: 220, borderWidth: 1, borderColor: Colors.border,
@@ -343,6 +399,14 @@ const s = StyleSheet.create({
 
   secondaryBtn: { alignItems: 'center', paddingVertical: 12 },
   secondaryText: { fontSize: 14, fontWeight: '600', color: Colors.accent },
+
+  progressWrap: { alignSelf: 'stretch', marginTop: Spacing.xs },
+  progressTrack: {
+    height: 8, borderRadius: 99, backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 99, backgroundColor: Colors.accent },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
 
   busy: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
   busyTitle: { ...Typography.h4, color: Colors.text, marginTop: Spacing.sm },
