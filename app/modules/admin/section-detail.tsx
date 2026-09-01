@@ -58,7 +58,7 @@ export default function AdminSectionDetailScreen() {
   const loadPickers = async () => {
     try {
       const [t, s, opts]: any[] = await Promise.all([
-        adminApi.getTeachers({ page: 1, limit: 200 }),
+        adminApi.getTeachers({ page: 1, limit: 200, status: 'active' }),
         adminApi.getSubjects(),
         // Carries each teacher's current load, so the assign list can show it.
         adminApi.getSectionTeacherOptions(id!).catch(() => null),

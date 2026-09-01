@@ -5,9 +5,10 @@ import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import TeacherFormModal from './teacher-form';
 import BulkImportModal from '@/components/BulkImportModal';
+import TeacherDependencyModal from '@/components/TeacherDependencyModal';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
-  Input, Select, KV, ActionBtn, confirmAsync,
+  KV, ActionBtn,
 } from '@/components/ui/kit';
 
 export default function AdminTeachersScreen() {
@@ -23,6 +24,10 @@ export default function AdminTeachersScreen() {
   const [showForm, setShowForm] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [editing, setEditing] = useState<{ _id: string; name?: string } | null>(null);
+  // Delete and Deactivate both go through the dependency sheet — it is what
+  // shows the classes, subjects, books and periods still attached, and it is the
+  // only thing that fires either action.
+  const [depTarget, setDepTarget] = useState<{ teacher: any; action: 'delete' | 'deactivate' } | null>(null);
 
   const load = async (p = 1, q = search) => {
     try {
@@ -53,15 +58,26 @@ export default function AdminTeachersScreen() {
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
-  const handleToggle = async (id: string) => {
-    try { await adminApi.toggleUser(id); setDetail(null); load(1); }
+  /**
+   * Activating is immediate; deactivating is not.
+   *
+   * Switching an account back on resolves dependencies rather than creating
+   * them, so there is nothing to check — but switching it off strands whatever
+   * still points at it, which is what the sheet is for.
+   */
+  const handleToggle = async (user: any) => {
+    if (user.isActive !== false) {
+      setDepTarget({ teacher: { _id: user._id, name: user.name }, action: 'deactivate' });
+      setDetail(null);
+      return;
+    }
+    try { await adminApi.toggleUser(user._id); setDetail(null); load(1); }
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!(await confirmAsync('Delete Teacher', `Delete ${name}? This cannot be undone.`, 'Delete'))) return;
-    try { await adminApi.deleteTeacher(id); setDetail(null); load(1); }
-    catch (err: any) { Alert.alert('Error', err.message); }
+  const handleDelete = (user: any) => {
+    setDepTarget({ teacher: { _id: user._id, name: user.name }, action: 'delete' });
+    setDetail(null);
   };
 
   const u = detail?.user;
@@ -130,10 +146,10 @@ export default function AdminTeachersScreen() {
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
           <View style={{ flex: 1 }}>
-            <ActionBtn label={u?.isActive === false ? 'Activate' : 'Deactivate'} tone="warning" onPress={() => handleToggle(u._id)} />
+            <ActionBtn label={u?.isActive === false ? 'Activate' : 'Deactivate'} tone="warning" onPress={() => handleToggle(u)} />
           </View>
           <View style={{ flex: 1 }}>
-            <ActionBtn label="Delete" tone="danger" onPress={() => handleDelete(u._id, u?.name)} />
+            <ActionBtn label="Delete" tone="danger" onPress={() => handleDelete(u)} />
           </View>
         </View>
       </FormModal>
@@ -146,6 +162,15 @@ export default function AdminTeachersScreen() {
 
       <BulkImportModal kind="teachers" visible={showBulk}
         onClose={() => setShowBulk(false)} onImported={() => load(1)} />
+
+      {/* Delete / Deactivate — dependencies first, the action only once clear */}
+      <TeacherDependencyModal
+        visible={!!depTarget}
+        teacher={depTarget?.teacher ?? null}
+        action={depTarget?.action ?? 'deactivate'}
+        onClose={() => setDepTarget(null)}
+        onDone={() => load(1)}
+      />
     </>
   );
 }

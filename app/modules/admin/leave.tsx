@@ -61,7 +61,7 @@ export default function AdminLeaveScreen() {
       // Needed by the apply-on-behalf form. The type list carries each type's
       // effective policy, so the date rules come with it.
       const [tRes, tyRes]: [any, any] = await Promise.all([
-        adminApi.getTeachers({ limit: 500 }).catch(() => null),
+        adminApi.getTeachers({ limit: 500, status: 'active' }).catch(() => null),
         adminApi.getLeaveTypes().catch(() => null),
       ]);
       setTeachers(unwrap(tRes)?.data ?? unwrap(tRes) ?? []);

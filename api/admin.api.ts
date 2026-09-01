@@ -58,7 +58,13 @@ export const updateStudentRollNumber  = (sectionId: string, studentId: string, r
   api.put(`/admin/sections/${sectionId}/students/${studentId}/roll-number`, { rollNumber });
 export const getHolidayTypes    = () => api.get('/admin/holiday-types');
 export const updateHolidayTypes = (holidayTypes: string[]) => api.put('/admin/holiday-types', { holidayTypes });
-export const deleteTeacher      = (id: string)       => api.delete(`/admin/teachers/${id}`);
+// Everything still pointing at a teacher — classes, subjects, books, periods.
+// The Delete / Deactivate sheet shows this before it will do anything.
+export const getTeacherDependencies = (id: string) => api.get(`/admin/teachers/${id}/dependencies`);
+// `force` clears the teacher out of every timetable period and nothing else;
+// the server refuses it while any other dependency is still outstanding.
+export const deleteTeacher      = (id: string, force = false) =>
+  api.delete(`/admin/teachers/${id}${force ? '?force=true' : ''}`);
 export const updateTeacher      = (id: string, data: object) => api.put(`/admin/users/${id}`, data);
 export const getDesignations    = ()                 => api.get('/admin/designations');
 export const updateDesignations = (designations: string[]) => api.put('/admin/designations', { designations });
@@ -78,7 +84,7 @@ export const parentLookup  = (q: string)        => api.get('/admin/students/pare
 export const pincodeLookup = (pin: string)      => api.get(`/admin/pincode/${pin}`);
 
 // ── Shared user ops ──────────────────────────────────────────────────────────
-export const toggleUser  = (id: string)    => api.patch(`/admin/users/${id}/toggle`);
+export const toggleUser  = (id: string, force = false) => api.patch(`/admin/users/${id}/toggle`, force ? { force: true } : {});
 export const deleteUser  = (id: string)    => api.delete(`/admin/users/${id}`);
 export const checkEmail  = (email: string) => api.get('/admin/users/check-email', { params: { email } });
 

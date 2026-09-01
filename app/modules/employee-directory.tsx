@@ -24,9 +24,18 @@ const STATUS_TONE: Record<string, any> = { active: 'success', on_leave: 'warning
 const STATUS_LABEL: Record<string, string> = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };
 
 
-// Deliberately just these two: the directory is a lookup, and every other filter
-// it could offer keys on data the normal tier never receives.
-const EMPTY_FILTERS: Record<string, string> = { designation: '' };
+// Deliberately just these: the directory is a lookup, and every other filter it
+// could offer keys on data the normal tier never receives.
+//
+// `accountStatus` starts at 'active' — an inactive account is one pick away, and
+// Clear returns here rather than to "everyone", so the list keeps its meaning.
+const EMPTY_FILTERS: Record<string, string> = { designation: '', accountStatus: 'active' };
+
+const ACCOUNT_STATUS_OPTIONS = [
+  { label: 'Active teachers',   value: 'active' },
+  { label: 'Inactive teachers', value: 'inactive' },
+  { label: 'All teachers',      value: 'all' },
+];
 
 // The page sizes the list offers, matching the web directory.
 const PAGE_SIZES = [5, 10, 15, 20];
@@ -131,7 +140,7 @@ export default function EmployeeDirectoryScreen() {
   const opts = meta?.filters || {};
   const isAdmin = !!meta?.viewer?.isAdmin;
   const t = dashboard?.totals || {};
-  const activeCount = Object.values(filters).filter(Boolean).length;
+  const activeCount = Object.entries(filters).filter(([k, v]) => v && v !== EMPTY_FILTERS[k]).length;
 
   const opt = (list: any[], labelKey = 'label', valueKey = '_id') =>
     [{ label: 'All', value: '' }, ...(list || []).map((x: any) =>
@@ -178,6 +187,13 @@ export default function EmployeeDirectoryScreen() {
           value={filters.designation}
           options={opt(opts.designations)}
           onChange={v => setFilter('designation', v)}
+        />
+
+        <Select
+          label="Status"
+          value={filters.accountStatus}
+          options={ACCOUNT_STATUS_OPTIONS}
+          onChange={v => setFilter('accountStatus', v)}
         />
 
         <View style={s.filterBar}>

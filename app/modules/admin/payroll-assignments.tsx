@@ -34,7 +34,7 @@ export default function AdminPayrollAssignmentsScreen() {
   useEffect(() => {
     load();
     payrollApi.getStructures().then((r: any) => setStructures((r as any)?.data ?? [])).catch(() => {});
-    adminApi.getTeachers({ page: 1, limit: 200 }).then((r: any) => setTeachers(unwrap(r)?.data ?? [])).catch(() => {});
+    adminApi.getTeachers({ page: 1, limit: 200, status: 'active' }).then((r: any) => setTeachers(unwrap(r)?.data ?? [])).catch(() => {});
   }, []);
 
   const teacherOptions = useMemo(

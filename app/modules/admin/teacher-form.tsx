@@ -7,6 +7,7 @@ import * as adminApi from '@/api/admin.api';
 import { isEmail, isPhone } from '@/utils/validators';
 import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
 import { FormModal, Input, Select, SectionTitle, ActionBtn } from '@/components/ui/kit';
+import ExistingDoc from '@/components/ExistingDoc';
 
 // Mirrors school-frontend/src/pages/admin/TeacherForm.jsx and
 // validateTeacherIntake() in the backend controller.
@@ -37,8 +38,9 @@ export const EMPTY_TEACHER = {
 type Picked = { uri: string; name: string; type: string } | null;
 
 /** Photo capture / library pick for an ID scan or letter. */
-function DocField({ label, required, value, onChange, hint }: {
-  label: string; required?: boolean; value: Picked; onChange: (f: Picked) => void; hint?: string;
+function DocField({ label, required, value, existing, onChange, hint }: {
+  label: string; required?: boolean; value: Picked; existing?: string;
+  onChange: (f: Picked) => void; hint?: string;
 }) {
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -67,9 +69,10 @@ function DocField({ label, required, value, onChange, hint }: {
       ) : (
         <TouchableOpacity style={s.docBtn} onPress={pick}>
           <Ionicons name="cloud-upload-outline" size={15} color={Colors.accent} />
-          <Text style={s.docBtnText}>Choose image</Text>
+          <Text style={s.docBtnText}>{existing ? 'Replace image' : 'Choose image'}</Text>
         </TouchableOpacity>
       )}
+      {!value && existing ? <ExistingDoc folder="staff-docs" file={existing} /> : null}
       {hint ? <Text style={s.docHint}>{hint}</Text> : null}
     </View>
   );
@@ -289,7 +292,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       onClose={close}
       onSubmit={isLast ? submit : next}
       submitting={saving}
-      submitLabel={isLast ? (editing ? 'Save Changes' : 'Create Teacher') : 'Next →'}
+      submitLabel={isLast ? (editing ? 'Update Teacher' : 'Create Teacher') : 'Next →'}
     >
       {/* progress dots */}
       <View style={s.dots}>
@@ -362,10 +365,10 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       {step === 3 && (
         <>
           <Input label="Aadhaar Card Number *" value={form.aadhaarNumber} onChange={set('aadhaarNumber')} keyboardType="numeric" placeholder="12 digits" />
-          <DocField label="Aadhaar — Front" required value={files.aadhaarFront} onChange={file('aadhaarFront')} />
-          <DocField label="Aadhaar — Back" required value={files.aadhaarBack} onChange={file('aadhaarBack')} />
+          <DocField label="Aadhaar — Front" required value={files.aadhaarFront} existing={onFile.aadhaarFront} onChange={file('aadhaarFront')} />
+          <DocField label="Aadhaar — Back" required value={files.aadhaarBack} existing={onFile.aadhaarBack} onChange={file('aadhaarBack')} />
           <Input label="PAN Card Number *" value={form.panNumber} onChange={v => set('panNumber')(v.toUpperCase())} placeholder="ABCDE1234F" />
-          <DocField label="PAN Card" required value={files.panCard} onChange={file('panCard')} />
+          <DocField label="PAN Card" required value={files.panCard} existing={onFile.panCard} onChange={file('panCard')} />
           <Input label="UAN / PF Account Number" value={form.uanNumber} onChange={set('uanNumber')} placeholder="Optional" />
         </>
       )}
@@ -394,9 +397,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
               <Input label="Total Years of Experience *" value={form.totalExperience} onChange={set('totalExperience')} placeholder="e.g. 5 years" />
               <Input label="Name of Previous School *" value={form.previousSchool} onChange={set('previousSchool')} />
               <Input label="Last Job Designation *" value={form.lastDesignation} onChange={set('lastDesignation')} />
-              <DocField label="Resignation Letter" required value={files.resignationLetter} onChange={file('resignationLetter')} />
-              <DocField label="Experience Certificate" hint="Optional" value={files.experienceCertificate} onChange={file('experienceCertificate')} />
-              <DocField label="Joining Letter" hint="Optional" value={files.joiningLetter} onChange={file('joiningLetter')} />
+              <DocField label="Resignation Letter" required value={files.resignationLetter} existing={onFile.resignationLetter} onChange={file('resignationLetter')} />
+              <DocField label="Experience Certificate" hint="Optional" value={files.experienceCertificate} existing={onFile.experienceCertificate} onChange={file('experienceCertificate')} />
+              <DocField label="Joining Letter" hint="Optional" value={files.joiningLetter} existing={onFile.joiningLetter} onChange={file('joiningLetter')} />
             </>
           )}
         </>

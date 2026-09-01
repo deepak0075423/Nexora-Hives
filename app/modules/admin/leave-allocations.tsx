@@ -55,7 +55,7 @@ export default function AdminLeaveAllocationsScreen() {
     try {
       const [aRes, tRes]: [any, any] = await Promise.all([
         adminApi.getLeaveAllocations(),
-        adminApi.getTeachers({ limit: 500 }).catch(() => null),
+        adminApi.getTeachers({ limit: 500, status: 'active' }).catch(() => null),
       ]);
       // The allocations payload carries the year list and the policy-merged
       // types, so this screen never needs the general-admin academic-year

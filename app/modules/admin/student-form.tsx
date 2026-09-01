@@ -9,6 +9,7 @@ import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
 import {
   FormModal, Input, Select, SectionTitle, ActionBtn, Toggle, SegTabs, RowItem, unwrap,
 } from '@/components/ui/kit';
+import ExistingDoc from '@/components/ExistingDoc';
 
 // Mirrors school-frontend/src/pages/admin/StudentForm.jsx and
 // validateStudentProfile() / resolveNewParent() in the backend controller.
@@ -90,7 +91,7 @@ function DocField({ label, required, value, existing, onChange, hint }: {
           <Text style={s.docBtnText}>{existing ? 'Replace image' : 'Choose image'}</Text>
         </TouchableOpacity>
       )}
-      {!value && existing ? <Text style={s.docOnFile}>✓ A file is already on record</Text> : null}
+      {!value && existing ? <ExistingDoc folder="student-docs" file={existing} /> : null}
       {hint ? <Text style={s.docHint}>{hint}</Text> : null}
     </View>
   );
@@ -434,7 +435,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       onClose={close}
       onSubmit={isLast ? submit : next}
       submitting={saving}
-      submitLabel={isLast ? (isEdit ? 'Save Changes' : 'Create Student') : 'Next →'}
+      submitLabel={isLast ? (isEdit ? 'Update Student' : 'Create Student') : 'Next →'}
     >
       {/* progress dots */}
       <View style={s.dots}>
@@ -718,7 +719,6 @@ const s = StyleSheet.create({
   docThumb: { width: 40, height: 40, borderRadius: 6, backgroundColor: Colors.border },
   docName: { flex: 1, fontSize: 12, color: Colors.text },
   docHint: { fontSize: 11, color: Colors.textLight, marginTop: 4 },
-  docOnFile: { fontSize: 11, color: Colors.success, marginTop: 4 },
   note: { fontSize: 11, color: Colors.textSecondary, marginTop: 4, marginBottom: 10, lineHeight: 16 },
   linked: { fontSize: 13, color: Colors.success, fontWeight: '600', marginBottom: 8 },
 });
