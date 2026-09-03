@@ -103,9 +103,15 @@ export const setActiveYear      = (id: string)   => api.patch(`/admin/academic-y
 // ── Classes & sections ───────────────────────────────────────────────────────
 export const getClasses             = (params?: object) => api.get('/admin/classes', { params });
 export const createClass            = (data: object)     => api.post('/admin/classes', data);
+// A whole grade range plus N sections each, in one call. Pass `preview: true`
+// to get back exactly what a real run would create, without writing anything.
+export const bulkCreateClasses      = (data: object)     => api.post('/admin/classes/bulk', data);
 export const getClassDetail         = (id: string)       => api.get(`/admin/classes/${id}`);
 export const deleteClass            = (id: string)       => api.delete(`/admin/classes/${id}`);
 export const createSection          = (classId: string, data: object) => api.post(`/admin/classes/${classId}/sections`, data);
+// Several sections onto one class. `count` is how many to ADD — the server picks
+// the next free letters. `preview: true` names them without writing anything.
+export const bulkCreateSections     = (classId: string, data: object) => api.post(`/admin/classes/${classId}/sections/bulk`, data);
 export const getClassesWithSections = (all?: boolean)    => api.get('/admin/classes-with-sections', all ? { params: { all: 'true' } } : {});
 
 export const getSectionDetail            = (id: string) => api.get(`/admin/sections/${id}`);
