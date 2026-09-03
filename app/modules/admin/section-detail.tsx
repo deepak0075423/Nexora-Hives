@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
@@ -41,6 +41,10 @@ export default function AdminSectionDetailScreen() {
   const [enrolling, setEnrolling] = useState(false);
   const [showAssignSubject, setShowAssignSubject] = useState(false);
   const [subjForm, setSubjForm] = useState({ subjectId: '', teacherId: '' });
+  // Sibling sections of this class, and the ids this assignment goes to. Hindi
+  // in Class 5 is rarely section A alone, so the sheet offers all of them.
+  const [siblings, setSiblings] = useState<any[]>([]);
+  const [subjSections, setSubjSections] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   // Roll numbers: one bulk assignment per section, then manual corrections
   const [rollEdit, setRollEdit] = useState<{ _id: string; name: string; value: string } | null>(null);
@@ -75,6 +79,16 @@ export default function AdminSectionDetailScreen() {
     } catch {}
   };
   useEffect(() => { loadPickers(); }, []);
+
+  // The other sections of this class, for the multi-section assign picker.
+  // Keyed on the class rather than the section, so it survives a section reload.
+  useEffect(() => {
+    const cid = section?.class;
+    if (!cid) return;
+    adminApi.getClassDetail(String(cid))
+      .then((res: any) => setSiblings(unwrap(res)?.sections ?? []))
+      .catch(() => setSiblings([]));
+  }, [section?.class]);
 
   const teacherOptions = useMemo(
     () => teachers.map((t: any) => ({ label: `${t.name} (${t.email})`, value: t._id })), [teachers]);
@@ -203,11 +217,36 @@ export default function AdminSectionDetailScreen() {
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  const openAssignSubject = () => {
+    setSubjForm({ subjectId: '', teacherId: '' });
+    setSubjSections([String(id)]);
+    setShowAssignSubject(true);
+  };
+
+  const toggleSubjSection = (secId: string) => setSubjSections(cur =>
+    cur.includes(secId) ? cur.filter(x => x !== secId) : [...cur, secId]);
+
+  /**
+   * One section still goes through the single-section endpoint it always did;
+   * several go through the class-scoped one, which checks they are all siblings
+   * and skips any that already hold this exact subject-and-teacher pairing.
+   */
   const assignSubjectTeacher = async () => {
     if (!subjForm.subjectId || !subjForm.teacherId) return Alert.alert('Required', 'Pick both subject and teacher');
+    if (!subjSections.length) return Alert.alert('Required', 'Pick at least one section');
     setSaving(true);
     try {
-      await adminApi.assignSectionSubjectTeacher(id!, { subject: subjForm.subjectId, teacher: subjForm.teacherId });
+      if (subjSections.length === 1) {
+        await adminApi.assignSectionSubjectTeacher(subjSections[0], { subject: subjForm.subjectId, teacher: subjForm.teacherId });
+      } else {
+        const res: any = await adminApi.assignSubjectToSections(String(section?.class), {
+          subject: subjForm.subjectId, teacher: subjForm.teacherId, sectionIds: subjSections,
+        });
+        const d = unwrap(res);
+        Alert.alert('Assigned', d.created
+          ? `${d.subjectName} assigned to section(s) ${d.toCreate.join(', ')}.`
+          : 'Those sections already had this teacher for this subject.');
+      }
       setShowAssignSubject(false); setSubjForm({ subjectId: '', teacherId: '' });
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
@@ -312,7 +351,7 @@ export default function AdminSectionDetailScreen() {
             ) : (
               <>
                 <View style={{ marginBottom: Spacing.sm }}>
-                  <ActionBtn label="+ Assign Subject Teacher" tone="success" onPress={() => setShowAssignSubject(true)} />
+                  <ActionBtn label="+ Assign Subject Teacher" tone="success" onPress={openAssignSubject} />
                 </View>
                 {subjectTeachers.length === 0 ? <Empty icon="book-outline" text="No subject teachers assigned" /> :
                   subjectTeachers.map((sst: any) => (
@@ -428,10 +467,47 @@ export default function AdminSectionDetailScreen() {
         </Text>
       </FormModal>
 
-      <FormModal visible={showAssignSubject} title="Assign Subject Teacher" onClose={() => setShowAssignSubject(false)} onSubmit={assignSubjectTeacher} submitting={saving}>
+      <FormModal visible={showAssignSubject} title="Assign Subject Teacher" onClose={() => setShowAssignSubject(false)} onSubmit={assignSubjectTeacher} submitting={saving}
+        submitLabel={subjSections.length > 1 ? `Assign to ${subjSections.length} sections` : 'Assign'}>
         <Select label="Subject" value={subjForm.subjectId} onChange={v => setSubjForm(f => ({ ...f, subjectId: v }))} options={subjectOptions} />
         <Select label="Teacher" value={subjForm.teacherId} onChange={v => setSubjForm(f => ({ ...f, teacherId: v }))} options={subjectTeacherOptions} />
+
+        {/* Ticking several writes the subject to all of them in one action —
+            the whole point on a setup day, where Hindi goes to A, B, C and D. */}
+        <Text style={ss.subjSecLabel}>Sections</Text>
+        <View style={ss.subjSecWrap}>
+          {siblings.map((sec: any) => {
+            const sid = String(sec._id);
+            const on = subjSections.includes(sid);
+            return (
+              <TouchableOpacity key={sid} onPress={() => toggleSubjSection(sid)}
+                style={[ss.subjSecChip, on && ss.subjSecChipOn]}>
+                <Text style={[ss.subjSecChipText, on && ss.subjSecChipTextOn]}>
+                  {sec.sectionName}{sid === String(id) ? ' · this one' : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={ss.subjSecHint}>
+          {subjSections.length > 1
+            ? `This teacher takes this subject in ${subjSections.length} sections. Any section that already has this exact pairing is left alone.`
+            : 'Tap more sections to assign the same subject and teacher to all of them at once.'}
+        </Text>
       </FormModal>
     </>
   );
 }
+
+const ss = StyleSheet.create({
+  subjSecLabel: { fontSize: 13, fontWeight: '500', color: Colors.text, marginBottom: 6 },
+  subjSecWrap:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  subjSecChip: {
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+    borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14,
+  },
+  subjSecChipOn:      { borderColor: Colors.accent, backgroundColor: Colors.accent },
+  subjSecChipText:    { fontSize: 13, fontWeight: '600', color: Colors.text },
+  subjSecChipTextOn:  { color: Colors.textInverse },
+  subjSecHint: { fontSize: 11, color: Colors.textSecondary, marginTop: 8, lineHeight: 16 },
+});

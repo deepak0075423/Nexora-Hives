@@ -127,6 +127,11 @@ export const assignStudentsToSection     = (sectionId: string, studentIds: strin
 export const assignStudentToSection      = (sectionId: string, studentId: string) => api.post(`/admin/sections/${sectionId}/assign-student`, { studentId });
 export const removeStudentFromSection    = (sectionId: string, studentId: string) => api.delete(`/admin/sections/${sectionId}/remove-student`, { data: { studentId } });
 export const assignSectionSubjectTeacher = (id: string, data: object) => api.post(`/admin/sections/${id}/subjects/assign`, data);
+// One subject + teacher onto several sections of the same class at once.
+// Note the path: `/subjects/assign` on a class is a different, older endpoint
+// that links a subject to the class itself. `preview: true` names the sections
+// it would write without writing them.
+export const assignSubjectToSections     = (classId: string, data: object) => api.post(`/admin/classes/${classId}/subjects/assign-sections`, data);
 export const removeSectionSubjectTeacher = (id: string, subjectId: string, teacherId: string) => api.delete(`/admin/sections/${id}/subjects/${subjectId}/teachers/${teacherId}`);
 
 // ── Subjects ─────────────────────────────────────────────────────────────────
