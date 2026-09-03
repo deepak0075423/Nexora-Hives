@@ -21,6 +21,12 @@ export default function AdminSectionDetailScreen() {
   const [teacherLoad, setTeacherLoad] = useState<Record<string, any>>({});
   const [subjects, setSubjects] = useState<any[]>([]);
 
+  // Capacity — editable after the section exists, because a class grows and the
+  // seat count set on day one stops being true.
+  const [showCapacity, setShowCapacity] = useState(false);
+  const [capValue, setCapValue] = useState('');
+  const [capErr, setCapErr] = useState('');
+
   const [showTeacherForm, setShowTeacherForm] = useState(false);
   const [teacherRole, setTeacherRole] = useState<'class' | 'vice'>('class');
   const [teacherId, setTeacherId] = useState('');
@@ -111,6 +117,29 @@ export default function AdminSectionDetailScreen() {
       setShowTeacherForm(false);
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setSaving(false); }
+  };
+
+  const openCapacity = () => {
+    setCapValue(String(section?.maxStudents ?? 40));
+    setCapErr('');
+    setShowCapacity(true);
+  };
+
+  const saveCapacity = async () => {
+    const n = Number(capValue);
+    if (!Number.isFinite(n) || n < 1) { setCapErr('Capacity must be a positive number'); return; }
+    // Answered here instantly; the server enforces the same rule on the write.
+    if (n < students.length) {
+      setCapErr(`${students.length} student${students.length === 1 ? ' is' : 's are'} already enrolled — capacity cannot be below that.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminApi.updateSectionCapacity(id!, n);
+      setShowCapacity(false);
+      load();
+    } catch (err: any) { setCapErr(err.message ?? 'Could not update the capacity'); }
     finally { setSaving(false); }
   };
 
@@ -235,6 +264,9 @@ export default function AdminSectionDetailScreen() {
             <KV label="Class Teacher" value={section?.classTeacher ? `${section.classTeacher.name}` : 'Not assigned'} />
             <KV label="Vice / Substitute Teacher" value={section?.substituteTeacher ? `${section.substituteTeacher.name}` : 'Not assigned'} />
             <KV label="Capacity" value={`${students.length}/${section?.maxStudents ?? '--'}`} />
+            <View style={{ marginTop: 6 }}>
+              <ActionBtn label="Edit capacity" tone="neutral" onPress={openCapacity} />
+            </View>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.md, marginTop: 6 }}>
               <View style={{ flex: 1 }}>
                 <ActionBtn label={section?.classTeacher ? 'Change Class Teacher' : 'Assign Class Teacher'} tone="info"
@@ -376,6 +408,24 @@ export default function AdminSectionDetailScreen() {
             Showing the first {pool.students.length} of {pool.total} — narrow it down with the search box.
           </Text>
         )}
+      </FormModal>
+
+      <FormModal
+        visible={showCapacity}
+        title={`Capacity — Section ${section?.sectionName ?? ''}`}
+        onClose={() => setShowCapacity(false)}
+        onSubmit={saveCapacity}
+        submitting={saving}
+        submitLabel="Save"
+      >
+        <Input label="Seats" value={capValue} onChange={v => { setCapErr(''); setCapValue(v); }}
+          placeholder="40" keyboardType="numeric" />
+        {capErr ? <Text style={{ color: Colors.danger, fontSize: 12, marginBottom: 8 }}>{capErr}</Text> : null}
+        <Text style={{ fontSize: 12, color: Colors.textSecondary, lineHeight: 18 }}>
+          {students.length} student{students.length === 1 ? ' is' : 's are'} enrolled, so the capacity cannot
+          go below that — move students out of the section first if you need a smaller number. This is the
+          figure the admission wizard and the bulk importer check before seating another student here.
+        </Text>
       </FormModal>
 
       <FormModal visible={showAssignSubject} title="Assign Subject Teacher" onClose={() => setShowAssignSubject(false)} onSubmit={assignSubjectTeacher} submitting={saving}>

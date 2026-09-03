@@ -109,6 +109,10 @@ export const createSection          = (classId: string, data: object) => api.pos
 export const getClassesWithSections = (all?: boolean)    => api.get('/admin/classes-with-sections', all ? { params: { all: 'true' } } : {});
 
 export const getSectionDetail            = (id: string) => api.get(`/admin/sections/${id}`);
+// Seats in a section. The server refuses a figure below the students already
+// enrolled, so the caller can surface that as a form error.
+export const updateSectionCapacity       = (id: string, maxStudents: number) =>
+  api.put(`/admin/sections/${id}/capacity`, { maxStudents });
 export const deleteSection               = (id: string) => api.delete(`/admin/sections/${id}`);
 export const updateSectionTeacher        = (id: string, data: object) => api.put(`/admin/sections/${id}/teachers`, data);
 export const getSectionSubjectTeachers   = (id: string) => api.get(`/admin/sections/${id}/subjects`);
