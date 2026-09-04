@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
+import ImportYearStructureSheet from '@/components/ImportYearStructureSheet';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import {
@@ -15,6 +16,9 @@ export default function AdminAcademicYearsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ yearName: '', startDate: '', endDate: '' });
+
+  // The year being filled from another year's structure, or null.
+  const [importInto, setImportInto] = useState<any>(null);
 
   const load = async () => {
     try { setList(unwrap(await adminApi.getAcademicYears()) ?? []); }
@@ -74,6 +78,7 @@ export default function AdminAcademicYearsScreen() {
                 onPress={() => {
                   Alert.alert(y.yearName, undefined, [
                     { text: 'Close', style: 'cancel' },
+                    { text: 'Import Structure', onPress: () => setImportInto(y) },
                     ...(y.status !== 'active' ? [{ text: 'Set Active', onPress: () => setActive(y) }] : []),
                     { text: 'Delete', style: 'destructive' as const, onPress: () => handleDelete(y) },
                   ]);
@@ -85,6 +90,14 @@ export default function AdminAcademicYearsScreen() {
         <FAB onPress={() => setShowForm(true)} />
       </View>
 
+      <ImportYearStructureSheet
+        visible={!!importInto}
+        targetYear={importInto}
+        years={list}
+        onClose={() => setImportInto(null)}
+        onImported={load}
+      />
+
       <FormModal visible={showForm} title="Add Academic Year" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input label="Year Name *" value={form.yearName} onChange={v => setForm(f => ({ ...f, yearName: v }))} placeholder="e.g. 2026-27" />
         <Input label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-04-01" />
@@ -93,3 +106,4 @@ export default function AdminAcademicYearsScreen() {
     </>
   );
 }
+

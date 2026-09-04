@@ -99,6 +99,10 @@ export const createAcademicYear = (data: object) => api.post('/admin/academic-ye
 export const updateAcademicYear = (id: string, data: object) => api.put(`/admin/academic-years/${id}`, data);
 export const deleteAcademicYear = (id: string)   => api.delete(`/admin/academic-years/${id}`);
 export const setActiveYear      = (id: string)   => api.patch(`/admin/academic-years/${id}/set-active`);
+// Copy another year's classes, sections, subject links and subject-teacher
+// assignments into `id`. `preview: true` runs every check and reports what it
+// would create, and what it would skip and why, without writing.
+export const importYearStructure = (id: string, data: object) => api.post(`/admin/academic-years/${id}/import-structure`, data);
 
 // ── Classes & sections ───────────────────────────────────────────────────────
 export const getClasses             = (params?: object) => api.get('/admin/classes', { params });
@@ -135,7 +139,10 @@ export const assignSubjectToSections     = (classId: string, data: object) => ap
 export const removeSectionSubjectTeacher = (id: string, subjectId: string, teacherId: string) => api.delete(`/admin/sections/${id}/subjects/${subjectId}/teachers/${teacherId}`);
 
 // ── Subjects ─────────────────────────────────────────────────────────────────
-export const getSubjects   = ()             => api.get('/admin/subjects');
+// `academicYear` does not filter the catalogue — subjects belong to the school
+// and every year shares them. It attaches a per-subject `usage` block saying
+// where that subject is used in that year. Omit it for the plain catalogue.
+export const getSubjects   = (params?: object) => api.get('/admin/subjects', { params });
 export const createSubject = (data: object) => api.post('/admin/subjects', data);
 export const updateSubject = (id: string, data: object) => api.put(`/admin/subjects/${id}`, data);
 export const deleteSubject = (id: string)   => api.delete(`/admin/subjects/${id}`);

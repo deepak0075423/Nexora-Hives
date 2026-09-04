@@ -3,6 +3,7 @@ import { View, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
+import ImportYearStructureSheet from '@/components/ImportYearStructureSheet';
 import {
   unwrap, LoaderView, Empty, RowItem, FAB, FormModal, Input, Select,
   confirmAsync, Badge,
@@ -23,13 +24,30 @@ export default function AdminSubjectsScreen() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ subjectName: '', subjectCode: '', type: 'theory' });
 
-  const load = async () => {
-    try { setList(unwrap(await adminApi.getSubjects()) ?? []); }
+  // A subject belongs to the SCHOOL, not to a year — every year shares one
+  // "Hindi". What changes year to year is where a subject is USED, so this
+  // picker does not filter the catalogue: it decides what counts as in use.
+  const [years, setYears] = useState<any[]>([]);
+  const [yearId, setYearId] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+
+  const load = async (yr = yearId) => {
+    try { setList(unwrap(await adminApi.getSubjects(yr ? { academicYear: yr } : undefined)) ?? []); }
     catch (err: any) { Alert.alert('Error', err.message); }
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    adminApi.getAcademicYears()
+      .then((res: any) => {
+        const ys = unwrap(res) ?? [];
+        setYears(ys);
+        const active = ys.find((y: any) => y.status === 'active') ?? ys[0];
+        setYearId(active?._id ?? '');
+        load(active?._id ?? '');
+      })
+      .catch(() => load(''));
+  }, []);
 
   const openCreate = () => { setEditing(null); setForm({ subjectName: '', subjectCode: '', type: 'theory' }); setShowForm(true); };
   const openEdit = (s: any) => {
@@ -49,7 +67,8 @@ export default function AdminSubjectsScreen() {
     setSaving(true);
     try {
       if (editing) await adminApi.updateSubject(editing._id, form);
-      else await adminApi.createSubject(form);
+      // Created INTO the year the screen is showing — subjects are per-year.
+      else await adminApi.createSubject({ ...form, academicYear: yearId || undefined });
       setShowForm(false);
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
@@ -64,16 +83,43 @@ export default function AdminSubjectsScreen() {
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         >
+          {years.length > 0 && (
+            <Select label="Academic Year" value={yearId}
+              options={years.map((y: any) => ({ label: `${y.yearName}${y.status === 'active' ? ' · active' : ''}`, value: y._id }))}
+              onChange={v => { setYearId(v); setLoading(true); load(v); }} />
+          )}
+
+          {years.length > 1 && (
+            <RowItem
+              icon="download" iconColor={Colors.accent} iconBg={Colors.accentLight}
+              title="Import from another year"
+              sub="Copy a previous year's subject list into this one"
+              onPress={() => setImportOpen(true)}
+            />
+          )}
+
           {loading ? <LoaderView /> : list.length === 0 ? (
-            <Empty icon="book-outline" text="No subjects yet" />
+            <Empty icon="book-outline"
+              text={years.length > 1
+                ? "No subjects in this year yet — import them from another year, or add one with +."
+                : 'No subjects yet'} />
           ) : (
             list.map((s: any) => (
               <RowItem
                 key={s._id}
                 icon="book" iconColor={Colors.warning} iconBg={Colors.warningLight}
                 title={s.subjectName}
-                sub={`${s.subjectCode ? `Code ${s.subjectCode} · ` : ''}${(s.teachers ?? []).length} teacher(s)`}
-                right={<Badge label={s.type ?? 'theory'} tone="info" />}
+                sub={[
+                  s.subjectCode ? `Code ${s.subjectCode}` : null,
+                  `${(s.teachers ?? []).length} teacher(s)`,
+                  s.usage
+                    ? (s.usage.inUse
+                      ? `${s.usage.classCount} class(es) · ${s.usage.sectionCount} section(s) this year`
+                      : 'Not used this year')
+                    : null,
+                ].filter(Boolean).join(' · ')}
+                right={<Badge label={s.usage && !s.usage.inUse ? 'unused' : (s.type ?? 'theory')}
+                  tone={s.usage && !s.usage.inUse ? 'warning' : 'info'} />}
                 onPress={() => {
                   Alert.alert(s.subjectName, undefined, [
                     { text: 'Close', style: 'cancel' },
@@ -87,6 +133,17 @@ export default function AdminSubjectsScreen() {
         </ScrollView>
         <FAB onPress={openCreate} />
       </View>
+
+      {/* Opened from Subjects, so it starts on the subject list alone — the
+          other parts are still there to tick if the year needs building out. */}
+      <ImportYearStructureSheet
+        visible={importOpen}
+        targetYear={years.find((y: any) => String(y._id) === String(yearId)) ?? null}
+        years={years}
+        defaultParts={{ classes: false, sections: false, subjects: true, assignments: false }}
+        onClose={() => setImportOpen(false)}
+        onImported={() => load()}
+      />
 
       <FormModal visible={showForm} title={editing ? 'Edit Subject' : 'Add Subject'} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input label="Subject Name *" value={form.subjectName} onChange={v => setForm(f => ({ ...f, subjectName: v }))} placeholder="e.g. Mathematics" />
