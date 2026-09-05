@@ -60,7 +60,9 @@ export default function LibraryAdminDashboardScreen() {
             </StatRow>
             <StatRow>
               <StatTile label="Copies" value={data?.totalCopies ?? '--'} icon="albums" tone="neutral" />
-              <StatTile label="Reservations" value={data?.reservations ?? '--'} icon="bookmark" tone="info" />
+              {/* Queued plus held for collection — the server counted only the
+                  queue, so a title with everyone already called up read 0. */}
+              <StatTile label="Active Reservations" value={data?.reservations ?? '--'} icon="bookmark" tone="info" />
               <StatTile label="Fines Due" value={data?.pendingFines ?? '--'} icon="cash" tone="warning" />
             </StatRow>
 

@@ -193,7 +193,9 @@ export default function LibraryCirculationScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         >
           <SegTabs
-            tabs={[{ key: 'issued', label: 'Issued' }, { key: 'overdue', label: 'Overdue' }, { key: 'returned', label: 'Returned' }, { key: '', label: 'All' }]}
+            tabs={[{ key: 'issued', label: 'Issued' }, { key: 'overdue', label: 'Overdue' },
+                   { key: 'returned', label: 'Returned' }, { key: 'lost', label: 'Lost' },
+                   { key: '', label: 'All' }]}
             active={tab} onChange={changeTab}
           />
           {loading ? <LoaderView /> : list.length === 0 ? (
@@ -204,7 +206,18 @@ export default function LibraryCirculationScreen() {
                 <RowItem
                   icon="book" iconColor="#059669" iconBg="#D1FAE5"
                   title={iss.book?.title ?? '--'}
-                  sub={`${iss.issuedTo?.name ?? '--'} (${iss.issuedToRole || 'member'}) · ${fmtDate(iss.issueDate)} → due ${fmtDate(iss.dueDate)}`}
+                  /* A loan closed as lost is a debt as much as a write-off, so
+                     the row says what it cost and whether that is settled. */
+                  sub={[
+                    `${iss.issuedTo?.name ?? '--'} (${iss.issuedToRole || 'member'})`,
+                    `${fmtDate(iss.issueDate)} → due ${fmtDate(iss.dueDate)}`,
+                    iss.fineSummary
+                      ? `fine ₹${Number(iss.fineSummary.charged || 0).toLocaleString('en-IN')} · ${
+                          iss.fineSummary.outstanding > 0
+                            ? `₹${Number(iss.fineSummary.outstanding).toLocaleString('en-IN')} unpaid`
+                            : (iss.fineSummary.paid > 0 ? 'paid' : 'waived')}`
+                      : null,
+                  ].filter(Boolean).join(' · ')}
                   right={<Badge label={iss.status} />}
                 />
                 {(iss.status === 'issued' || iss.status === 'overdue') && (

@@ -14,6 +14,17 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import FinePayments from '@/components/library/FinePayments';
 
+// LibraryIssuance.status: issued | returned | overdue | lost. A book the member
+// still holds is one that has neither come back nor been written off.
+const OUT_ON_LOAN = ['issued', 'overdue'];
+
+const ISSUE_BADGE: Record<string, { label: string; bg: string; fg: string }> = {
+  issued:   { label: 'Issued',   bg: Colors.infoLight,    fg: Colors.info },
+  overdue:  { label: 'Overdue',  bg: Colors.dangerLight,  fg: Colors.danger },
+  returned: { label: 'Returned', bg: Colors.successLight, fg: Colors.success },
+  lost:     { label: 'Lost',     bg: Colors.warningLight, fg: Colors.warning },
+};
+
 export default function LibraryScreen() {
   const { user } = useAuth();
   const [dashboard, setDashboard] = useState<any>(null);
@@ -100,7 +111,21 @@ export default function LibraryScreen() {
   );
 
   const featuredBooks: any[] = dashboard?.featuredBooks ?? dashboard?.books ?? [];
-  const stats = dashboard?.stats;
+
+  // /library/student returns the member's own loans, fines and reservations —
+  // it has never returned a `stats` block, so the banner below rendered for
+  // nobody. The numbers it wanted are all derivable from what we already have.
+  //
+  // `myBooks` is the member's whole history, returned and written-off books
+  // included, so counting its length as "books issued" overstates it for
+  // anybody who has ever borrowed anything.
+  const onLoan  = myBooks.filter((b: any) => OUT_ON_LOAN.includes(b.status));
+  const overdue = myBooks.filter((b: any) => b.status === 'overdue' || b.isOverdue).length;
+  const owed    = (dashboard?.pendingFines ?? []).reduce(
+    (sum: number, f: any) => sum + Math.max(
+      0, Number(f.amount || 0) - Number(f.waivedAmount || 0) - Number(f.paidAmount || 0)),
+    0,
+  );
 
   return (
     <>
@@ -115,16 +140,15 @@ export default function LibraryScreen() {
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
         ) : (
           <>
-            {/* Stats banner */}
-            {stats && (
-              <View style={s.banner}>
-                <StatItem label="Total Books" value={stats.totalBooks ?? '--'} />
-                <View style={s.divider} />
-                <StatItem label="Available" value={stats.availableCopies ?? '--'} />
-                <View style={s.divider} />
-                <StatItem label="My Books" value={myBooks.length} />
-              </View>
-            )}
+            {/* Stats banner — the member's own position, which is the only
+                thing this screen can speak to. */}
+            <View style={s.banner}>
+              <StatItem label="Books Issued" value={onLoan.length} />
+              <View style={s.divider} />
+              <StatItem label="Overdue" value={overdue} />
+              <View style={s.divider} />
+              <StatItem label="Fines Due" value={owed > 0 ? `₹${owed.toLocaleString('en-IN')}` : '0'} />
+            </View>
 
             {/* Search */}
             <View style={s.searchRow}>
@@ -153,7 +177,7 @@ export default function LibraryScreen() {
               {(['browse', 'mybooks', 'fines'] as const).map((t) => (
                 <TouchableOpacity key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
                   <Text style={[s.tabText, tab === t && s.tabTextActive]}>
-                    {t === 'browse' ? 'Browse' : t === 'mybooks' ? `My Books (${myBooks.length})` : 'Fines'}
+                    {t === 'browse' ? 'Browse' : t === 'mybooks' ? `My Books (${onLoan.length})` : 'Fines'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -226,6 +250,14 @@ function BookCard({ book, issued, onRenew, onReserve, renewing }: {
   const available = book.availableCopies ?? book.available;
   const dueDate = book.dueDate ?? book.returnDate;
 
+  // A loan the server has not swept yet is still overdue to the person holding
+  // it, so an open loan past its date is shown as overdue either way.
+  const status = (book.status === 'issued' && (book.isOverdue || (dueDate && new Date(dueDate) < new Date())))
+    ? 'overdue'
+    : book.status;
+  const state = ISSUE_BADGE[status] ?? { label: status || 'Issued', bg: Colors.infoLight, fg: Colors.info };
+  const fine  = book.fineSummary;
+
   return (
     <View style={bc.card}>
       <View style={bc.iconBox}>
@@ -236,7 +268,22 @@ function BookCard({ book, issued, onRenew, onReserve, renewing }: {
         {author ? <Text style={bc.meta}>{author}</Text> : null}
         {book.genre ? <Text style={bc.genre}>{book.genre}</Text> : null}
         {issued && dueDate && (
-          <Text style={bc.due}>Return by: {new Date(dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+          <Text style={bc.due}>
+            {book.status === 'lost' || book.status === 'returned' ? 'Closed' : 'Return by'}
+            {': '}
+            {new Date(dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </Text>
+        )}
+        {/* Losing a book is a charge, not just a status. Without this the card
+            said "Lost" and nothing about what it cost or whether it is paid. */}
+        {issued && fine && (
+          <Text style={[bc.fine, { color: fine.outstanding > 0 ? Colors.danger : Colors.success }]}>
+            Fine ₹{Number(fine.charged || 0).toLocaleString('en-IN')}
+            {' · '}
+            {fine.outstanding > 0
+              ? `₹${Number(fine.outstanding).toLocaleString('en-IN')} unpaid`
+              : (fine.paid > 0 ? 'Paid' : 'Waived')}
+          </Text>
         )}
       </View>
       {!issued && available != null && (
@@ -258,8 +305,8 @@ function BookCard({ book, issued, onRenew, onReserve, renewing }: {
         </TouchableOpacity>
       )}
       {issued && (
-        <View style={[bc.badge, { backgroundColor: Colors.infoLight }]}>
-          <Text style={[bc.badgeText, { color: Colors.info }]}>Issued</Text>
+        <View style={[bc.badge, { backgroundColor: state.bg }]}>
+          <Text style={[bc.badgeText, { color: state.fg }]}>{state.label}</Text>
         </View>
       )}
     </View>
@@ -281,6 +328,7 @@ const bc = StyleSheet.create({
   meta: { ...Typography.bodySmall, color: Colors.textSecondary, marginTop: 2 },
   genre: { fontSize: 10, color: Colors.textLight, marginTop: 2 },
   due: { fontSize: 11, color: Colors.warning, marginTop: 3, fontWeight: '500' },
+  fine: { fontSize: 11, marginTop: 3, fontWeight: '600' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
   badgeText: { fontSize: 10, fontWeight: '600' },
 });
