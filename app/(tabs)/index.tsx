@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
+import { Colors, Spacing, Radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
@@ -16,6 +15,10 @@ import * as superApi from '@/api/superadmin.api';
 import * as notifApi from '@/api/notifications.api';
 import { useModules } from '@/hooks/useModules';
 import AppHeader from '@/components/AppHeader';
+import {
+  Hero, Highlight, Panel, RowLink, RowSep, LabelledBars, Columns, MeterBar,
+  Note, CardRow, BRAND, BRAND_SOFT, TONE, toneFor,
+} from '@/components/dashboard/kit';
 
 // ─── Module lists per role ────────────────────────────────────────────────────
 // moduleFlag: the key in school.modules that must be true for this module to show.
@@ -161,6 +164,10 @@ function moduleColor(key: string) {
   return map[key] ?? { bg: '#EDE9FE', icon: '#7C3AED' };
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
 function dayLabel() {
   return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
 }
@@ -198,220 +205,300 @@ const grid = StyleSheet.create({
   label: { fontSize: 10, fontWeight: '500', color: Colors.textSecondary, textAlign: 'center' },
 });
 
-function StatCard({ icon, iconColor, iconBg, label, value, sub, subColor }: {
-  icon: string; iconColor: string; iconBg: string;
-  label: string; value: string; sub?: string; subColor?: string;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const money = (n?: number) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
+/** "09:00" → "9:00 AM". Times are plain HH:MM strings; some seeds carry "010:00". */
+function prettyTime(t?: string) {
+  if (!t) return '';
+  const [h, m] = String(t).split(':').map(Number);
+  if (Number.isNaN(h)) return t;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** A UTC-midnight date from the server, read as the local calendar day it means. */
+function serverDay(iso: string) {
+  const d = new Date(iso);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+function relTime(iso?: string) {
+  if (!iso) return '';
+  const mins = Math.floor(Math.max(0, Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `${Math.max(1, mins)} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+/** Holidays that have not finished yet, nearest first. */
+function upcomingFrom(holidays: any[], limit = 3) {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  return (holidays || [])
+    .filter((x) => x?.startDate)
+    .map((x) => ({ ...x, _start: serverDay(x.startDate), _end: serverDay(x.endDate || x.startDate) }))
+    .filter((x) => x._end >= midnight)
+    .sort((a, b) => +a._start - +b._start)
+    .slice(0, limit);
+}
+
+function EverythingSection({ modules, onPress, title = 'Quick Access' }: {
+  modules: any[]; onPress: (r: string) => void; title?: string;
 }) {
   return (
-    <View style={sc.card}>
-      <View style={[sc.iconBox, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={14} color={iconColor} />
+    <View style={s.section}>
+      <View style={s.sectionRow}>
+        <Text style={s.sectionTitle}>{title}</Text>
+        <Text style={s.sectionMeta}>{modules.length} modules</Text>
       </View>
-      <Text style={sc.label}>{label}</Text>
-      <Text style={sc.value}>{value}</Text>
-      {sub ? <Text style={[sc.sub, subColor ? { color: subColor } : null]}>{sub}</Text> : null}
+      <ModuleGrid modules={modules} onPress={onPress} />
     </View>
   );
 }
 
-const sc = StyleSheet.create({
-  card: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: 12, borderWidth: 1, borderColor: Colors.border,
-  },
-  iconBox: {
-    width: 26, height: 26, borderRadius: 7,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 6,
-  },
-  label: { fontSize: 9, fontWeight: '600', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  value: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  sub: { fontSize: 10, color: Colors.success, fontWeight: '500', marginTop: 2 },
-});
-
 // ─── Student content ──────────────────────────────────────────────────────────
+//  Reads GET /student/dashboard exactly as the controller returns it:
+//  { profile, attendance, attendancePrev, upcomingExams, feeBalance, performance }.
 
-function StudentContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
+function StudentContent({ data, schoolModules, holidays }: {
+  data: any; schoolModules?: Record<string, boolean>; holidays: any[];
+}) {
   const router = useRouter();
   const modules = filterModules(STUDENT_MODULES, schoolModules);
-  const liveClass = data?.liveClass;
-  const attendance = data?.attendance;
-  const avgScore = data?.avgScore;
-  const fees = data?.fees;
-  const drops: any[] = data?.recentActivity ?? [];
+  const on = (flag: string) => !schoolModules || schoolModules[flag] === true;
 
-  // A module flag is "enabled" when: no schoolModules config (show all), or the flag is explicitly true
-  const isEnabled = (flag: string) => !schoolModules || schoolModules[flag] === true;
+  const att     = data?.attendance;
+  const prev    = data?.attendancePrev;
+  const exams   = data?.upcomingExams ?? [];
+  const balance = data?.feeBalance ?? 0;
+  const perf    = data?.performance;
+  const delta   = (att?.percentage != null && prev?.percentage != null)
+    ? att.percentage - prev.percentage : null;
 
-  // Build only the stats whose module is enabled
-  type StatDef = { key: string; el: React.ReactElement };
-  const visibleStats: StatDef[] = [];
-  if (isEnabled('attendance')) visibleStats.push({
-    key: 'attendance',
-    el: <StatCard icon="checkmark-circle" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Attendance"
-          value={attendance?.percentage != null ? `${attendance.percentage}%` : '--'}
-          sub={attendance?.weekChange ? `+${attendance.weekChange} this wk` : undefined}
-          subColor={Colors.success} />,
-  });
-  if (isEnabled('result')) visibleStats.push({
-    key: 'result',
-    el: <StatCard icon="star" iconColor="#D97706" iconBg="#FEF3C7"
-          label="Avg Score"
-          value={avgScore?.score != null ? String(avgScore.score) : '--'}
-          sub={avgScore?.grade} />,
-  });
-  if (isEnabled('fees')) visibleStats.push({
-    key: 'fees',
-    el: <StatCard icon="card" iconColor={Colors.danger} iconBg={Colors.dangerLight}
-          label="Fees Due"
-          value={fees?.daysLeft != null ? `${fees.daysLeft}d` : '--'}
-          sub={fees?.amount ? `₹${fees.amount.toLocaleString('en-IN')}` : undefined}
-          subColor={Colors.danger} />,
-  });
+  const section   = data?.profile?.currentSection;
+  const classLine = section
+    ? [section.class?.className, section.sectionName].filter(Boolean).join(' — ')
+    : '';
+
+  const events = upcomingFrom(holidays);
 
   return (
     <>
-      {/* Live Class Banner */}
-      <View style={bn.card}>
-        <View style={bn.topRow}>
-          <View style={bn.livePill}>
-            <View style={bn.dot} />
-            <Text style={bn.liveText}>Live now</Text>
-          </View>
-          {liveClass?.timeLeft != null && (
-            <View>
-              <Text style={bn.timer}>{liveClass.timeLeft}</Text>
-              <Text style={bn.timerSub}>MIN LEFT</Text>
-            </View>
-          )}
-        </View>
-        <Text style={bn.subject}>{liveClass?.subject ?? 'No live class right now'}</Text>
-        {liveClass?.chapter ? (
-          <Text style={bn.detail}>
-            {liveClass.chapter}{liveClass.room ? `  ·  Room ${liveClass.room}` : ''}
-          </Text>
-        ) : null}
-        {liveClass && (
-          <TouchableOpacity style={bn.joinBtn} onPress={() => router.push('/modules/my-class' as any)}>
-            <Text style={bn.joinText}>Join class</Text>
-            <Ionicons name="arrow-forward" size={14} color="#fff" />
-          </TouchableOpacity>
+      <CardRow>
+        {on('attendance') && (
+          <Highlight
+            icon="checkmark-circle" tint={BRAND} tintBg={BRAND_SOFT}
+            label="Attendance (This Month)"
+            value={att?.percentage != null ? `${att.percentage}%` : '—'}
+            valueColor={att?.percentage != null ? toneFor(att.percentage) : undefined}
+            caption={att ? `${att.present} of ${att.total} classes attended` : 'Nothing marked this month yet'}
+            meter={att?.percentage ?? null}
+            delta={delta}
+            onPress={() => router.push('/modules/attendance' as any)}
+            actionLabel="View attendance"
+          />
         )}
-      </View>
+        {on('aptitudeExam') && (
+          <Highlight
+            icon="document-text" tint="#7C3AED" tintBg="#F3E8FF"
+            label="Upcoming Exams"
+            value={String(exams.length)}
+            caption={exams.length
+              ? exams.map((e: any) => e.title).join(', ')
+              : 'Nothing scheduled right now'}
+            onPress={() => router.push('/modules/exams' as any)}
+            actionLabel="View exams"
+          />
+        )}
+        {on('fees') && (
+          <Highlight
+            icon="card" tint={balance > 0 ? TONE.warn : TONE.good}
+            tintBg={balance > 0 ? '#FEF3C7' : '#DCFCE7'}
+            label="Fees Due"
+            value={balance > 0 ? money(balance) : '✓ Clear'}
+            valueColor={balance > 0 ? TONE.bad : TONE.good}
+            caption={balance > 0 ? 'Payable now' : 'Nothing outstanding'}
+            onPress={() => router.push('/modules/fees' as any)}
+            actionLabel={balance > 0 ? 'Pay now' : 'View receipt'}
+            wide={!on('attendance') || !on('aptitudeExam')}
+          />
+        )}
+      </CardRow>
 
-      {/* Stats — only renders cards whose module is enabled by super admin */}
-      {visibleStats.length > 0 && (
-        <View style={s.row}>
-          {visibleStats.map((item, i) => (
-            <React.Fragment key={item.key}>
-              {i > 0 && <View style={{ width: 8 }} />}
-              {item.el}
-            </React.Fragment>
-          ))}
-        </View>
+      {!!classLine && (
+        <Panel padded={false}>
+          <RowLink icon="school" tint={BRAND} tintBg={BRAND_SOFT}
+            title={classLine}
+            sub={data?.profile?.rollNumber ? `Roll ${data.profile.rollNumber}` : 'My class'}
+            onPress={() => router.push('/modules/my-class' as any)} />
+        </Panel>
       )}
 
-      {/* Modules */}
-      <View style={s.section}>
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Everything</Text>
-          <Text style={s.sectionMeta}>{modules.length} modules</Text>
-        </View>
-        <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
-      </View>
+      <EverythingSection modules={modules} onPress={(r) => router.push(r as any)} />
 
-      {/* Today's Drop */}
-      {drops.length > 0 && (
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Today's drop</Text>
-          {drops.map((item, i) => (
-            <View key={i} style={dr.card}>
-              <View style={dr.iconBox}>
-                <Ionicons name="megaphone" size={18} color={Colors.accent} />
-              </View>
-              <View style={dr.body}>
-                <Text style={dr.title}>{item.title}</Text>
-                {item.sub && <Text style={dr.sub}>{item.sub}</Text>}
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
-            </View>
+      {on('result') && (
+        <Panel title="Subject Wise Marks" subtitle={perf?.latest?.title}
+          actionLabel="Results" onAction={() => router.push('/modules/results' as any)}>
+          {perf?.subjects?.length
+            ? <LabelledBars rows={perf.subjects.map((x: any) => ({
+                key: x.name, label: x.name, value: x.percentage,
+                note: `${x.marksObtained} / ${x.maxMarks}${x.grade ? ` · ${x.grade}` : ''}`,
+              }))} />
+            : <Note icon="book">No subject marks published yet.</Note>}
+        </Panel>
+      )}
+
+      {events.length > 0 && (
+        <Panel title="Upcoming Events" padded={false}>
+          {events.map((ev, i) => (
+            <React.Fragment key={ev._id ?? i}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="calendar" tint="#0D9488" tintBg="#CCFBF1"
+                title={ev.name}
+                sub={ev._start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                onPress={() => router.push('/modules/holidays' as any)} />
+            </React.Fragment>
           ))}
-        </View>
+        </Panel>
       )}
     </>
   );
 }
 
-const bn = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.primary, borderRadius: Radius.xl,
-    padding: Spacing.md, marginBottom: Spacing.md,
-  },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  livePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full,
-  },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF6B6B' },
-  liveText: { fontSize: 11, color: '#fff', fontWeight: '600' },
-  timer: { fontSize: 28, fontWeight: '700', color: Colors.accent, textAlign: 'right' },
-  timerSub: { fontSize: 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, textAlign: 'right' },
-  subject: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  detail: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 14 },
-  joinBtn: {
-    alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: Radius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  joinText: { fontSize: 12, color: '#fff', fontWeight: '600' },
-});
-
-const dr = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface,
-    borderRadius: Radius.lg, padding: Spacing.sm + 4, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  iconBox: {
-    width: 38, height: 38, borderRadius: Radius.md,
-    backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center', marginRight: 12,
-  },
-  body: { flex: 1 },
-  title: { ...Typography.label, color: Colors.text, marginBottom: 2 },
-  sub: { fontSize: 11, color: Colors.textSecondary },
-});
-
 // ─── Teacher content ──────────────────────────────────────────────────────────
+//  Reads GET /teacher/dashboard: { profile, mySection, todayPeriods,
+//  substitutions, classPerformance, pending, leaveRemaining }.
 
-function TeacherContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
+function TeacherContent({ data, schoolModules, holidays }: {
+  data: any; schoolModules?: Record<string, boolean>; holidays: any[];
+}) {
   const router = useRouter();
   const modules = filterModules(TEACHER_MODULES, schoolModules);
-  // moduleAdmin is 'admin' access resolved from the designation, already AND-ed
-  // with the school's module flags — so this list empties when either changes.
   const moduleAdmin = (schoolModules as any)?.moduleAdmin as Record<string, boolean> | undefined;
   const adminModules = moduleAdmin
-    ? TEACHER_ADMIN_MODULES.filter(m => moduleAdmin[m.adminOf] === true)
+    ? TEACHER_ADMIN_MODULES.filter((m) => moduleAdmin[m.adminOf] === true)
     : [];
+  const on = (flag: string) => !schoolModules || schoolModules[flag] === true;
+
+  const section  = data?.mySection;
+  const periods  = data?.todayPeriods ?? [];
+  const subs     = data?.substitutions ?? [];
+  const pending  = data?.pending ?? {};
+  const classes  = data?.classPerformance ?? [];
+  const total    = periods.length + subs.length;
+
+  // Own periods and cover duties are one day — sorted together by period number.
+  const day = [...periods.map((x: any) => ({ ...x, cover: false })),
+               ...subs.map((x: any) => ({ ...x, cover: true }))]
+    .sort((a, b) => (a.periodNumber || 0) - (b.periodNumber || 0));
+
+  const attention = [
+    on('attendance') && pending.corrections > 0 && {
+      key: 'corrections', icon: 'person-circle', tint: '#DB2777', bg: '#FCE7F3',
+      title: `${pending.corrections} attendance correction request${pending.corrections === 1 ? '' : 's'}`,
+      sub: 'Awaiting your review', route: '/modules/teacher-attendance',
+    },
+    on('result') && pending.validation > 0 && {
+      key: 'validation', icon: 'bar-chart', tint: BRAND, bg: BRAND_SOFT,
+      title: `${pending.validation} exam${pending.validation === 1 ? '' : 's'} awaiting marks validation`,
+      sub: 'Action required', route: '/modules/results',
+    },
+  ].filter(Boolean) as any[];
+
+  const events = upcomingFrom(holidays);
+
   return (
     <>
-      <View style={s.row}>
-        <StatCard icon="people" iconColor={Colors.info} iconBg={Colors.infoLight}
-          label="Students" value={data?.totalStudents != null ? String(data.totalStudents) : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="calendar" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Today" value={data?.todayClasses != null ? String(data.todayClasses) : '--'} sub="classes" />
-        <View style={{ width: 8 }} />
-        <StatCard icon="time" iconColor={Colors.warning} iconBg={Colors.warningLight}
-          label="Pending" value={data?.pendingApprovals != null ? String(data.pendingApprovals) : '--'} />
-      </View>
-      <View style={s.section}>
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Everything</Text>
-          <Text style={s.sectionMeta}>{modules.length} modules</Text>
-        </View>
-        <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
-      </View>
+      <CardRow>
+        <Highlight
+          icon="time" tint="#D97706" tintBg="#FEF3C7"
+          label="Classes Today"
+          value={String(total)}
+          caption={subs.length
+            ? `${periods.length} of your own · ${subs.length} covering`
+            : total ? 'On your timetable today' : 'Nothing scheduled today'}
+          onPress={() => router.push('/modules/timetable' as any)}
+          actionLabel="View timetable"
+        />
+        {on('leave') && (
+          <Highlight
+            icon="airplane" tint={TONE.good} tintBg="#DCFCE7"
+            label="Leave Balance"
+            value={String(data?.leaveRemaining ?? 0)}
+            caption={`day${(data?.leaveRemaining ?? 0) === 1 ? '' : 's'} remaining across all types`}
+            onPress={() => router.push('/modules/leave' as any)}
+            actionLabel="Apply for leave"
+          />
+        )}
+      </CardRow>
+
+      {!!section && (
+        <Panel padded={false}>
+          <RowLink icon="people" tint={BRAND} tintBg={BRAND_SOFT}
+            title={[section.className, section.sectionName].filter(Boolean).join(' — ') || section.sectionName}
+            sub={`${section.studentCount} student${section.studentCount === 1 ? '' : 's'} in your care`}
+            onPress={() => router.push('/modules/my-section' as any)} />
+        </Panel>
+      )}
+
+      <Panel title="Today's Classes"
+        subtitle={day.length
+          ? `${day.length} period${day.length === 1 ? '' : 's'}${subs.length ? ` · ${subs.length} covering` : ''}`
+          : undefined}
+        actionLabel={on('timetable') ? 'Timetable' : undefined}
+        onAction={() => router.push('/modules/timetable' as any)}
+        padded={false}>
+        {day.length === 0
+          ? <Note icon="time">No classes scheduled for today.</Note>
+          : day.map((pd, i) => (
+            <React.Fragment key={`${pd.cover ? 's' : 'p'}-${pd.periodNumber}-${i}`}>
+              {i > 0 && <RowSep />}
+              <RowLink
+                icon={pd.cover ? 'repeat' : 'book'}
+                tint={pd.cover ? '#C2410C' : BRAND}
+                tintBg={pd.cover ? '#FFEDD5' : BRAND_SOFT}
+                title={`P${pd.periodNumber} · ${pd.subject || 'Class'}${pd.cover ? '  (covering)' : ''}`}
+                sub={[[pd.className, pd.section].filter(Boolean).join(' — '),
+                      pd.startTime ? `${prettyTime(pd.startTime)}${pd.endTime ? `–${prettyTime(pd.endTime)}` : ''}` : '']
+                      .filter(Boolean).join(' · ') || undefined}
+              />
+            </React.Fragment>
+          ))}
+      </Panel>
+
+      {attention.length > 0 && (
+        <Panel title="Needs your attention" padded={false}>
+          {attention.map((a, i) => (
+            <React.Fragment key={a.key}>
+              {i > 0 && <RowSep />}
+              <RowLink icon={a.icon} tint={a.tint} tintBg={a.bg} title={a.title} sub={a.sub}
+                onPress={() => router.push(a.route as any)} />
+            </React.Fragment>
+          ))}
+        </Panel>
+      )}
+
+      {on('result') && (
+        <Panel title="Student Performance"
+          subtitle={classes.length
+            ? `My classes · ${Math.round(classes.reduce((t: number, c: any) => t + c.percentage, 0) / classes.length)}% average`
+            : undefined}
+          padded={false}>
+          {classes.length
+            ? <View style={{ paddingVertical: 10 }}>
+                <Columns rows={classes.map((c: any) => ({
+                  key: c.sectionId, label: c.className || c.sectionName || 'Class', value: c.percentage,
+                }))} />
+              </View>
+            : <Note icon="bar-chart">No published results yet.</Note>}
+        </Panel>
+      )}
+
+      <EverythingSection modules={modules} onPress={(r) => router.push(r as any)} />
+
       {adminModules.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionRow}>
@@ -421,119 +508,308 @@ function TeacherContent({ data, schoolModules }: { data: any; schoolModules?: Re
           <ModuleGrid modules={adminModules as any} onPress={(r) => router.push(r as any)} />
         </View>
       )}
+
+      {events.length > 0 && (
+        <Panel title="Upcoming Events" padded={false}>
+          {events.map((ev, i) => (
+            <React.Fragment key={ev._id ?? i}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="calendar" tint="#0D9488" tintBg="#CCFBF1"
+                title={ev.name}
+                sub={ev._start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                onPress={() => router.push('/modules/holidays' as any)} />
+            </React.Fragment>
+          ))}
+        </Panel>
+      )}
     </>
   );
 }
 
 // ─── Parent content ───────────────────────────────────────────────────────────
+//  Reads GET /parent/dashboard: { parent, children[], child }. `child` carries
+//  the selected student's detail block; older builds return summary rows only,
+//  so it falls back to the first of `children`.
 
-function ParentContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
+function ParentContent({ data, schoolModules, holidays, childId, onPickChild }: {
+  data: any; schoolModules?: Record<string, boolean>; holidays: any[];
+  childId: string; onPickChild: (id: string) => void;
+}) {
   const router = useRouter();
-  const child = data?.child;
   const modules = filterModules(PARENT_MODULES, schoolModules);
+  const on = (flag: string) => !schoolModules || schoolModules[flag] === true;
+
+  const children = data?.children ?? [];
+  const child = data?.child
+    ?? children.find((c: any) => String(c._id) === String(childId))
+    ?? children[0]
+    ?? null;
+
+  const att = child?.attendance
+    ?? (child?.attendancePercentage != null ? { percentage: child.attendancePercentage } : null);
+  const prev    = child?.attendancePrev;
+  const exams   = child?.upcomingExams ?? [];
+  const balance = child?.feeBalance ?? 0;
+  const perf    = child?.performance;
+  const delta   = (att?.percentage != null && prev?.percentage != null)
+    ? att.percentage - prev.percentage : null;
+
+  const events = upcomingFrom(holidays);
+
   return (
     <>
-      {child && (
-        <View style={pc.card}>
-          <View style={pc.avatar}>
-            <Text style={pc.avatarText}>{child.name?.[0] ?? 'C'}</Text>
-          </View>
-          <View>
-            <Text style={pc.name}>{child.name}</Text>
-            <Text style={pc.cls}>{child.className}{child.section ? ` · ${child.section}` : ''}</Text>
-          </View>
+      {children.length > 1 && (
+        <View style={kid.row}>
+          {children.map((c: any) => {
+            const active = String(c._id) === String(child?._id);
+            return (
+              <TouchableOpacity key={c._id} style={[kid.btn, active && kid.btnOn]}
+                onPress={() => onPickChild(c._id)} activeOpacity={0.75}>
+                <View style={[kid.avatar, active && { backgroundColor: BRAND }]}>
+                  <Text style={kid.avatarText}>{(c.name ?? '?')[0]?.toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={kid.name} numberOfLines={1}>{c.name}</Text>
+                  <Text style={kid.sub} numberOfLines={1}>
+                    {[c.className, c.sectionName].filter(Boolean).join(' — ') || 'No section'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
-      <View style={s.row}>
-        <StatCard icon="checkmark-circle" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Attendance" value={data?.attendance?.percentage != null ? `${data.attendance.percentage}%` : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="card" iconColor={Colors.danger} iconBg={Colors.dangerLight}
-          label="Fees Due"
-          value={data?.fees?.daysLeft != null ? `${data.fees.daysLeft}d` : '--'}
-          sub={data?.fees?.amount ? `₹${data.fees.amount.toLocaleString('en-IN')}` : undefined}
-          subColor={Colors.danger}
-        />
-      </View>
-      <View style={s.section}>
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Everything</Text>
-          <Text style={s.sectionMeta}>{modules.length} modules</Text>
-        </View>
-        <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
-      </View>
+
+      {!child ? (
+        <Panel title="No child linked">
+          <Note icon="alert-circle">
+            No student is linked to this account yet — your school office can connect one.
+          </Note>
+        </Panel>
+      ) : (
+        <>
+          <CardRow>
+            {on('attendance') && (
+              <Highlight
+                icon="checkmark-circle" tint={BRAND} tintBg={BRAND_SOFT}
+                label="Attendance (This Month)"
+                value={att?.percentage != null ? `${att.percentage}%` : '—'}
+                valueColor={att?.percentage != null ? toneFor(att.percentage) : undefined}
+                caption={att?.total != null
+                  ? `${att.present} of ${att.total} days attended`
+                  : att ? 'Recorded this month' : 'Nothing marked this month yet'}
+                meter={att?.percentage ?? null}
+                delta={delta}
+                onPress={() => router.push('/modules/attendance' as any)}
+                actionLabel="View attendance"
+              />
+            )}
+            {on('aptitudeExam') && (
+              <Highlight
+                icon="document-text" tint="#7C3AED" tintBg="#F3E8FF"
+                label="Upcoming Exams"
+                value={String(exams.length)}
+                caption={exams.length ? exams.map((e: any) => e.title).join(', ') : 'Nothing scheduled right now'}
+                onPress={() => router.push('/modules/exams' as any)}
+                actionLabel="View exams"
+              />
+            )}
+            {on('fees') && (
+              <Highlight
+                icon="card" tint={balance > 0 ? TONE.warn : TONE.good}
+                tintBg={balance > 0 ? '#FEF3C7' : '#DCFCE7'}
+                label="Fees Due"
+                value={balance > 0 ? money(balance) : '✓ Clear'}
+                valueColor={balance > 0 ? TONE.bad : TONE.good}
+                caption={balance > 0 ? 'Payable now' : 'Nothing outstanding'}
+                onPress={() => router.push('/modules/fees' as any)}
+                actionLabel={balance > 0 ? 'Pay now' : 'View receipt'}
+                wide={!on('attendance') || !on('aptitudeExam')}
+              />
+            )}
+          </CardRow>
+
+          <EverythingSection modules={modules} onPress={(r) => router.push(r as any)} />
+
+          {on('result') && (
+            <Panel title="Subject Wise Marks" subtitle={perf?.latest?.title}
+              actionLabel="Results" onAction={() => router.push('/modules/results' as any)}>
+              {perf?.subjects?.length
+                ? <LabelledBars rows={perf.subjects.map((x: any) => ({
+                    key: x.name, label: x.name, value: x.percentage,
+                    note: `${x.marksObtained} / ${x.maxMarks}${x.grade ? ` · ${x.grade}` : ''}`,
+                  }))} />
+                : <Note icon="book">No subject marks published yet.</Note>}
+            </Panel>
+          )}
+        </>
+      )}
+
+      {events.length > 0 && (
+        <Panel title="Upcoming Events" padded={false}>
+          {events.map((ev, i) => (
+            <React.Fragment key={ev._id ?? i}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="calendar" tint="#0D9488" tintBg="#CCFBF1"
+                title={ev.name}
+                sub={ev._start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                onPress={() => router.push('/modules/holidays' as any)} />
+            </React.Fragment>
+          ))}
+        </Panel>
+      )}
     </>
   );
 }
 
-const pc = StyleSheet.create({
-  card: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary,
-    borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.md, gap: 14,
+const kid = StyleSheet.create({
+  row: { gap: 8, marginBottom: Spacing.md },
+  btn: {
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    backgroundColor: Colors.surface, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: Colors.border, padding: 8, paddingRight: 16,
   },
+  btnOn: { borderColor: BRAND, backgroundColor: '#F5F3FF' },
   avatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.textLight,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  name: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  cls: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  avatarText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  name: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  sub:  { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
 });
 
 // ─── Admin content ────────────────────────────────────────────────────────────
+//  Reads GET /admin/dashboard: { teachers, students, parents, sections, pending,
+//  recentNotifications, academicYear, growth, attendance{trend,today} }.
 
-function AdminContent({ data, schoolModules }: { data: any; schoolModules?: Record<string, boolean> }) {
+function AdminContent({ data, schoolModules, holidays }: {
+  data: any; schoolModules?: Record<string, boolean>; holidays: any[];
+}) {
   const router = useRouter();
   const modules = filterModules(ADMIN_MODULES, schoolModules);
   const pending = data?.pending ?? {};
+  const growth  = data?.growth;
+  const today   = data?.attendance?.today;
+  const notices = data?.recentNotifications ?? [];
+
   const pendingItems = [
-    { label: 'Leave requests',    count: pending.leaves,          route: '/modules/admin/leave',      flag: 'leave' },
-    { label: 'Fee payments',      count: pending.payments,        route: '/modules/admin/fees-payments', flag: 'fees' },
-    { label: 'Results to publish',count: pending.examsToPublish,  route: '/modules/admin/results',    flag: 'result' },
-    { label: 'Regularizations',   count: pending.regularizations, route: '/modules/admin/attendance', flag: 'attendance' },
-  ].filter(p => p.count > 0 && (!schoolModules || schoolModules[p.flag] === true));
+    { key: 'regularizations', one: 'attendance regularization', many: 'attendance regularizations',
+      count: pending.regularizations,
+      route: '/modules/admin/attendance', flag: 'attendance', icon: 'person-circle', tint: '#DB2777', bg: '#FCE7F3' },
+    { key: 'leaves', one: 'leave request', many: 'leave requests', count: pending.leaves,
+      route: '/modules/admin/leave', flag: 'leave', icon: 'airplane', tint: '#D97706', bg: '#FEF3C7' },
+    { key: 'examsToPublish', one: 'result to publish', many: 'results to publish',
+      count: pending.examsToPublish,
+      route: '/modules/admin/results', flag: 'result', icon: 'bar-chart', tint: BRAND, bg: BRAND_SOFT },
+    { key: 'payments', one: 'fee payment to verify', many: 'fee payments to verify', count: pending.payments,
+      route: '/modules/admin/fees-payments', flag: 'fees', icon: 'card', tint: '#0284C7', bg: '#E0F2FE' },
+  ].filter((x) => x.count > 0 && (!schoolModules || schoolModules[x.flag] === true));
+  const pendingTotal = pendingItems.reduce((t, x) => t + x.count, 0);
+
+  const events = upcomingFrom(holidays);
 
   return (
     <>
-      <View style={s.row}>
-        <StatCard icon="people" iconColor={Colors.info} iconBg={Colors.infoLight}
-          label="Teachers" value={data?.teachers != null ? String(data.teachers) : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="school" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Students" value={data?.students != null ? String(data.students) : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="business" iconColor={Colors.warning} iconBg={Colors.warningLight}
-          label="Sections" value={data?.sections != null ? String(data.sections) : '--'} />
-      </View>
+      <CardRow>
+        <Highlight icon="people" tint={BRAND} tintBg={BRAND_SOFT}
+          label="Teachers" value={data?.teachers != null ? String(data.teachers) : '—'}
+          caption="Active teachers" delta={growth?.teachers ?? null} deltaSuffix="this month" deltaUnit=""
+          onPress={() => router.push('/modules/admin/teachers' as any)} actionLabel="Manage" />
+        <Highlight icon="school" tint={TONE.good} tintBg="#DCFCE7"
+          label="Students" value={data?.students != null ? String(data.students) : '—'}
+          caption="Enrolled students" delta={growth?.students ?? null} deltaSuffix="this month" deltaUnit=""
+          onPress={() => router.push('/modules/admin/students' as any)} actionLabel="Manage" />
+        <Highlight icon="people-circle" tint="#D97706" tintBg="#FEF3C7"
+          label="Parents" value={data?.parents != null ? String(data.parents) : '—'}
+          caption="Registered parents" delta={growth?.parents ?? null} deltaSuffix="this month" deltaUnit="" />
+        <Highlight icon="business" tint="#7C3AED" tintBg="#F3E8FF"
+          label="Sections" value={data?.sections != null ? String(data.sections) : '—'}
+          caption="Total sections" delta={growth?.sections ?? null} deltaSuffix="this month" deltaUnit=""
+          onPress={() => router.push('/modules/admin/classes' as any)} actionLabel="Manage" />
+      </CardRow>
 
-      {pendingItems.length > 0 && (
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Needs attention</Text>
-          {pendingItems.map((p) => (
-            <TouchableOpacity key={p.label} style={dr.card} onPress={() => router.push(p.route as any)} activeOpacity={0.7}>
-              <View style={[dr.iconBox, { backgroundColor: Colors.warningLight }]}>
-                <Ionicons name="alert-circle" size={18} color={Colors.warning} />
+      {(!schoolModules || schoolModules.attendance === true) && (
+        <Panel title="Attendance Overview"
+          subtitle={today?.marked ? "Today, across every section" : undefined}
+          actionLabel="Open" onAction={() => router.push('/modules/admin/attendance' as any)}>
+          {today?.marked ? (
+            <View style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+              <Text style={ad.big}>{today.percentage}%</Text>
+              <Text style={ad.bigSub}>present today</Text>
+              <MeterBar value={today.percentage} height={8} color={toneFor(today.percentage)} />
+              <View style={ad.legend}>
+                <Text style={ad.legendItem}>
+                  <Text style={{ color: TONE.good, fontWeight: '700' }}>{today.present + (today.late || 0)}</Text> present
+                </Text>
+                <Text style={ad.legendItem}>
+                  <Text style={{ color: TONE.bad, fontWeight: '700' }}>{today.absent}</Text> absent
+                </Text>
+                <Text style={ad.legendItem}>
+                  <Text style={{ fontWeight: '700', color: Colors.text }}>{today.total}</Text> marked
+                </Text>
               </View>
-              <View style={dr.body}>
-                <Text style={dr.title}>{p.label}</Text>
-                <Text style={dr.sub}>{p.count} pending</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
-            </TouchableOpacity>
-          ))}
-        </View>
+            </View>
+          ) : (
+            <Note icon="checkmark-circle">No attendance marked today yet.</Note>
+          )}
+        </Panel>
       )}
 
-      <View style={s.section}>
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Everything</Text>
-          <Text style={s.sectionMeta}>{modules.length} modules</Text>
-        </View>
-        <ModuleGrid modules={modules} onPress={(r) => router.push(r as any)} />
-      </View>
+      <Panel title="Needs your attention"
+        actionLabel={pendingTotal > 0 ? `${pendingTotal} pending` : undefined}
+        padded={false}>
+        {pendingItems.length === 0
+          ? <Note>Nothing is waiting on you right now.</Note>
+          : pendingItems.map((x, i) => (
+            <React.Fragment key={x.key}>
+              {i > 0 && <RowSep />}
+              <RowLink icon={x.icon} tint={x.tint} tintBg={x.bg}
+                title={`${x.count} ${x.count === 1 ? x.one : x.many}`} sub="Tap to review"
+                onPress={() => router.push(x.route as any)} />
+            </React.Fragment>
+          ))}
+      </Panel>
+
+      <EverythingSection modules={modules} onPress={(r) => router.push(r as any)} />
+
+      {events.length > 0 && (
+        <Panel title="Upcoming Events" padded={false}>
+          {events.map((ev, i) => (
+            <React.Fragment key={ev._id ?? i}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="calendar" tint="#0D9488" tintBg="#CCFBF1"
+                title={ev.name}
+                sub={ev._start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                onPress={() => router.push('/modules/admin/holidays' as any)} />
+            </React.Fragment>
+          ))}
+        </Panel>
+      )}
+
+      {notices.length > 0 && (
+        <Panel title="Announcements" actionLabel="View all"
+          onAction={() => router.push('/modules/alerts' as any)} padded={false}>
+          {notices.slice(0, 4).map((n: any, i: number) => (
+            <React.Fragment key={n._id ?? i}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="megaphone" tint={BRAND} tintBg={BRAND_SOFT}
+                title={n.title}
+                sub={`${n.recipientCount ?? 0} recipient${n.recipientCount === 1 ? '' : 's'} · ${relTime(n.createdAt)}`} />
+            </React.Fragment>
+          ))}
+        </Panel>
+      )}
     </>
   );
 }
+
+const ad = StyleSheet.create({
+  big:    { fontSize: 30, fontWeight: '700', color: Colors.text, letterSpacing: -1 },
+  bigSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 10 },
+  legendItem: { fontSize: 11, color: Colors.textSecondary },
+});
 
 // ─── Super admin content ──────────────────────────────────────────────────────
 
@@ -542,43 +818,34 @@ function SuperAdminContent({ data }: { data: any }) {
   const roles = data?.roles ?? {};
   return (
     <>
-      <View style={s.row}>
-        <StatCard icon="business" iconColor={Colors.info} iconBg={Colors.infoLight}
-          label="Schools" value={data?.schoolCount != null ? String(data.schoolCount) : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="people" iconColor={Colors.success} iconBg={Colors.successLight}
-          label="Users" value={data?.userCount != null ? String(data.userCount) : '--'} />
-        <View style={{ width: 8 }} />
-        <StatCard icon="school" iconColor={Colors.warning} iconBg={Colors.warningLight}
-          label="Students" value={roles.students != null ? String(roles.students) : '--'} />
-      </View>
+      <CardRow>
+        <Highlight icon="business" tint={BRAND} tintBg={BRAND_SOFT}
+          label="Schools" value={data?.schoolCount != null ? String(data.schoolCount) : '—'}
+          caption="On the platform"
+          onPress={() => router.push('/modules/super/schools' as any)} actionLabel="Manage" />
+        <Highlight icon="people" tint={TONE.good} tintBg="#DCFCE7"
+          label="Users" value={data?.userCount != null ? String(data.userCount) : '—'}
+          caption="Across every school"
+          onPress={() => router.push('/modules/super/users' as any)} actionLabel="Manage" />
+        <Highlight icon="school" tint="#D97706" tintBg="#FEF3C7"
+          label="Students" value={roles.students != null ? String(roles.students) : '—'}
+          caption="Enrolled overall" wide />
+      </CardRow>
 
-      <View style={s.section}>
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Everything</Text>
-          <Text style={s.sectionMeta}>{SUPER_ADMIN_MODULES.length} modules</Text>
-        </View>
-        <ModuleGrid modules={SUPER_ADMIN_MODULES as any} onPress={(r) => router.push(r as any)} />
-      </View>
+      <EverythingSection modules={SUPER_ADMIN_MODULES as any} onPress={(r) => router.push(r as any)} />
 
       {Array.isArray(data?.recentSchools) && data.recentSchools.length > 0 && (
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Recent schools</Text>
-          {data.recentSchools.map((sc: any) => (
-            <TouchableOpacity key={sc._id} style={dr.card}
-              onPress={() => router.push({ pathname: '/modules/super/school-form', params: { id: sc._id } } as any)}
-              activeOpacity={0.7}>
-              <View style={dr.iconBox}>
-                <Ionicons name="business" size={18} color={Colors.accent} />
-              </View>
-              <View style={dr.body}>
-                <Text style={dr.title}>{sc.name}</Text>
-                <Text style={dr.sub}>{sc.code ?? ''}{sc.isActive === false ? ' · inactive' : ''}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
-            </TouchableOpacity>
+        <Panel title="Recent schools" padded={false}>
+          {data.recentSchools.map((sc: any, i: number) => (
+            <React.Fragment key={sc._id}>
+              {i > 0 && <RowSep />}
+              <RowLink icon="business" tint={BRAND} tintBg={BRAND_SOFT}
+                title={sc.name}
+                sub={`${sc.code ?? ''}${sc.isActive === false ? ' · inactive' : ''}`.trim() || undefined}
+                onPress={() => router.push({ pathname: '/modules/super/school-form', params: { id: sc._id } } as any)} />
+            </React.Fragment>
           ))}
-        </View>
+        </Panel>
       )}
     </>
   );
@@ -588,15 +855,16 @@ function SuperAdminContent({ data }: { data: any }) {
 
 export default function DashboardScreen() {
   const { user, reload } = useAuth();
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { modules: fetchedModules } = useModules();
   // Prefer live module flags (includes isLibrarian); fall back to school config from getMe
   const moduleFlags = (fetchedModules ?? user?.school?.modules) as Record<string, boolean> | undefined;
   const [data, setData] = useState<any>(null);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Which child a parent is looking at. Empty means "whichever the server picks".
+  const [childId, setChildId] = useState('');
 
   const fetchDashboard = useCallback(async () => {
     if (!user?.role) return; // wait for the user record — role decides which dashboard to call
@@ -605,7 +873,7 @@ export default function DashboardScreen() {
       await reload().catch(() => {});
       let res: any;
       if (user?.role === 'teacher') res = await teacherApi.getDashboard();
-      else if (user?.role === 'parent') res = await parentApi.getDashboard();
+      else if (user?.role === 'parent') res = await parentApi.getDashboard(childId || undefined);
       else if (user?.role === 'admin') res = await adminApi.getDashboard();
       else if (user?.role === 'super-admin') res = await superApi.getDashboard();
       else res = await studentApi.getDashboard();
@@ -616,6 +884,21 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  }, [user?.role, childId]);
+
+  // Upcoming events come from the role's own holiday endpoint; a failure here
+  // must not cost the rest of the dashboard, so it degrades to no events.
+  useEffect(() => {
+    if (!user?.role) return;
+    const get = user.role === 'teacher' ? teacherApi.getHolidays
+      : user.role === 'parent' ? parentApi.getHolidays
+      : user.role === 'admin' ? adminApi.getHolidays
+      : user.role === 'super-admin' ? null
+      : studentApi.getHolidays;
+    if (!get) { setHolidays([]); return; }
+    (get as any)()
+      .then((r: any) => setHolidays((r?.data ?? r ?? []) as any[]))
+      .catch(() => setHolidays([]));
   }, [user?.role]);
 
   useEffect(() => {
@@ -630,6 +913,16 @@ export default function DashboardScreen() {
   const onRefresh = () => { setRefreshing(true); fetchDashboard(); };
 
   const firstName = user?.name?.split(' ')[0] ?? 'User';
+  const yearChip  = data?.academicYear?.yearName ? `${data.academicYear.yearName}` : '';
+  const heroLine  = user?.role === 'parent'
+    ? (data?.child?.name ? `Here's what's happening with ${data.child.name} today.` : "Here's what's happening today.")
+    : user?.role === 'teacher'
+      ? (((data?.todayPeriods?.length ?? 0) + (data?.substitutions?.length ?? 0)) > 0
+          ? `You have ${(data.todayPeriods?.length ?? 0) + (data.substitutions?.length ?? 0)} classes today.`
+          : "Here's what's happening today.")
+      : user?.role === 'admin'
+        ? `Here's what's happening at ${user?.school?.name ?? 'your school'} today.`
+        : "Here's what's happening today.";
 
   return (
     <View style={s.root}>
@@ -641,27 +934,28 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {/* Greeting */}
-        <View style={s.topBar}>
-          <View>
-            <Text style={s.dateText}>{dayLabel()} · {dateLabel()}</Text>
-            <Text style={s.greeting}>Hey, {firstName}</Text>
-          </View>
-        </View>
+        <Hero
+          title={`${greeting()}, ${firstName}!`}
+          subtitle={heroLine}
+          chips={[{ icon: 'calendar-outline', text: `${dayLabel()} · ${dateLabel()}` },
+                  ...(yearChip ? [{ icon: 'school-outline', text: yearChip }] : [])]}
+        />
 
         {loading ? (
           <View style={s.loader}>
             <ActivityIndicator size="large" color={Colors.primary} />
           </View>
         ) : user?.role === 'teacher' ? (
-          <TeacherContent data={data} schoolModules={moduleFlags} />
+          <TeacherContent data={data} schoolModules={moduleFlags} holidays={holidays} />
         ) : user?.role === 'parent' ? (
-          <ParentContent data={data} schoolModules={moduleFlags} />
+          <ParentContent data={data} schoolModules={moduleFlags} holidays={holidays}
+            childId={childId} onPickChild={setChildId} />
         ) : user?.role === 'admin' ? (
-          <AdminContent data={data} schoolModules={moduleFlags} />
+          <AdminContent data={data} schoolModules={moduleFlags} holidays={holidays} />
         ) : user?.role === 'super-admin' ? (
           <SuperAdminContent data={data} />
         ) : (
-          <StudentContent data={data} schoolModules={moduleFlags} />
+          <StudentContent data={data} schoolModules={moduleFlags} holidays={holidays} />
         )}
       </ScrollView>
     </View>
