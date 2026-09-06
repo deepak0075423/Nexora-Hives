@@ -134,13 +134,15 @@ export default function AdminSubjectsScreen() {
         <FAB onPress={openCreate} />
       </View>
 
-      {/* Opened from Subjects, so it starts on the subject list alone — the
-          other parts are still there to tick if the year needs building out. */}
+      {/* Opened from Subjects, so it starts on the subject list alone. The
+          curriculum is left off on purpose: importing a subject list must not
+          also decide which class teaches what. The other parts are still there
+          to tick if the year needs building out. */}
       <ImportYearStructureSheet
         visible={importOpen}
         targetYear={years.find((y: any) => String(y._id) === String(yearId)) ?? null}
         years={years}
-        defaultParts={{ classes: false, sections: false, subjects: true, assignments: false }}
+        defaultParts={{ classes: false, sections: false, subjects: true, curriculum: false, assignments: false }}
         onClose={() => setImportOpen(false)}
         onImported={() => load()}
       />

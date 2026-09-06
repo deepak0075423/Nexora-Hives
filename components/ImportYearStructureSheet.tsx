@@ -12,20 +12,59 @@ import { FormModal, Select, Toggle, unwrap } from '@/components/ui/kit';
  * from different starting points — the first is building a year out, the second
  * only wants that year's subject list. `defaultParts` is what separates them.
  *
+ * The subject list and the curriculum are separate parts: copying last year's
+ * subjects must not also put last year's curriculum onto this year's classes.
+ *
  * The year being written to is the one the caller passed; it is not a field
  * here, so the sheet can never write somewhere the screen was not pointing.
  */
 
 export const ALL_PARTS: Record<string, boolean> = {
-  classes: true, sections: true, subjects: true, assignments: true,
+  classes: true, sections: true, subjects: true, curriculum: true, assignments: true,
 };
 
-const PARTS = [
-  { key: 'classes',     label: 'Classes',          hint: 'Class 1, Class 2, …' },
-  { key: 'sections',    label: 'Sections',         hint: 'A, B, C under each class' },
-  { key: 'subjects',    label: 'Subjects',         hint: 'The year’s subject list, plus which class teaches what' },
-  { key: 'assignments', label: 'Subject teachers', hint: 'Who teaches a subject in one section' },
+const LABEL: Record<string, string> = {
+  classes: 'Classes', sections: 'Sections', subjects: 'Subjects',
+  curriculum: 'Curriculum', assignments: 'Subject teachers',
+};
+
+/**
+ * `needs` is what a part rests on. A class↔subject link has nothing to join
+ * without a class and a subject; a subject teacher needs the section and that
+ * link as well, since a teacher against a subject the class is not marked as
+ * teaching cannot be stored. Enforced server-side too — this only greys the row
+ * early rather than failing the submit.
+ */
+const PARTS: { key: string; label: string; hint: string; needs?: string[] }[] = [
+  { key: 'classes',     label: LABEL.classes,     hint: 'Class 1, Class 2, …' },
+  { key: 'sections',    label: LABEL.sections,    hint: 'A, B, C under each class', needs: ['classes'] },
+  { key: 'subjects',    label: LABEL.subjects,    hint: 'The year’s subject list — Science, Hindi, …' },
+  { key: 'curriculum',  label: LABEL.curriculum,  hint: 'Which class teaches which subject',
+    needs: ['subjects', 'classes'] },
+  { key: 'assignments', label: LABEL.assignments, hint: 'Who teaches a subject in one section',
+    needs: ['subjects', 'classes', 'sections', 'curriculum'] },
 ];
+
+/** "Subjects and Classes", "Subjects, Classes and Sections". */
+const listOf = (keys: string[]) => keys.map(k => LABEL[k]).reduce((acc, name, i, all) =>
+  (i === 0 ? name : `${acc}${i === all.length - 1 ? ' and ' : ', '}${name}`), '');
+
+/** Dependencies of `part` that neither the ticks nor the target year supply. */
+const unmetOf = (part: { needs?: string[] }, pick: Record<string, boolean>, has: any) =>
+  (!has || !part.needs) ? [] : part.needs.filter(k => !pick[k] && !(has[k] > 0));
+
+/** Unticking a part takes whatever rested on it with it, transitively. */
+function settle(next: Record<string, boolean>, has: any) {
+  if (!has) return next;
+  let out = next;
+  for (let pass = 0; pass < PARTS.length; pass += 1) {
+    for (const p of PARTS) {
+      if (!out[p.key] || !p.needs) continue;
+      if (p.needs.some(k => !out[k] && !(has[k] > 0))) out = { ...out, [p.key]: false };
+    }
+  }
+  return out;
+}
 
 const KIND_LABEL: Record<string, string> = {
   class: 'Classes', section: 'Sections', subjectRow: 'Subjects', subject: 'Curriculum',
@@ -87,7 +126,13 @@ export default function ImportYearStructureSheet({
       const res: any = await adminApi.importYearStructure(targetYear._id, {
         fromYear: src, include: pick, includeClassTeachers: teachersToo, preview: true,
       });
-      setPlan(unwrap(res)); setError('');
+      const next = unwrap(res);
+      setPlan(next); setError('');
+      // A row ticked before the year's contents were known may now be illegal.
+      if (next?.targetHas) setParts(cur => {
+        const out = settle(cur, next.targetHas);
+        return Object.keys(out).every(k => out[k] === cur[k]) ? cur : out;
+      });
     } catch (err: any) { setPlan(null); setError(err.message ?? 'Could not read that year'); }
   };
 
@@ -101,12 +146,15 @@ export default function ImportYearStructureSheet({
   }, [visible, targetYear?._id]);
 
   const togglePart = (key: string) => {
-    const next = { ...parts, [key]: !parts[key] };
+    const next = settle({ ...parts, [key]: !parts[key] }, plan?.targetHas);
     setParts(next);
     preview(fromYear, next, withTeachers);
   };
 
   const submit = async () => {
+    // FormModal has no disabled state for its button, so the guard lives here:
+    // the server refuses these too, this just says so without a round trip.
+    if (plan?.blocked?.length) { setError(plan.blocked[0].message); return; }
     setSaving(true);
     try {
       const res: any = await adminApi.importYearStructure(targetYear._id, {
@@ -144,16 +192,27 @@ export default function ImportYearStructureSheet({
       />
 
       <Text style={s.partsLabel}>What to import</Text>
-      {PARTS.map(part => (
-        <TouchableOpacity key={part.key} style={s.partRow} onPress={() => togglePart(part.key)}>
-          <Ionicons name={parts[part.key] ? 'checkbox' : 'square-outline'} size={20}
-            color={parts[part.key] ? Colors.accent : Colors.textSecondary} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.partName}>{part.label}</Text>
-            <Text style={s.partHint}>{part.hint}</Text>
-          </View>
-        </TouchableOpacity>
-      ))}
+      {PARTS.map(part => {
+        const missing = unmetOf(part, parts, plan?.targetHas);
+        const off = missing.length > 0;
+        return (
+          <TouchableOpacity key={part.key} style={[s.partRow, off && { opacity: 0.55 }]}
+            disabled={off} onPress={() => togglePart(part.key)}>
+            <Ionicons name={parts[part.key] && !off ? 'checkbox' : 'square-outline'} size={20}
+              color={parts[part.key] && !off ? Colors.accent : Colors.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.partName}>{part.label}</Text>
+              <Text style={s.partHint}>{part.hint}</Text>
+              {off && (
+                <Text style={s.err}>
+                  Needs {listOf(missing)} — tick {missing.length > 1 ? 'them' : 'it'} too, or set
+                  {missing.length > 1 ? ' them' : ' it'} up in {targetYear?.yearName} first.
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
       {nothingPicked && <Text style={s.err}>Tick at least one.</Text>}
 
       <Toggle
@@ -165,6 +224,9 @@ export default function ImportYearStructureSheet({
 
       {error ? <Text style={s.err}>{error}</Text> : plan ? (
         <>
+          {plan.blocked?.length > 0 && plan.blocked.map((b: any) => (
+            <Text key={b.part} style={s.err}>{b.message}</Text>
+          ))}
           <Text style={s.summary}>
             {plan.subjectsToCreate ?? 0} subject(s) · {plan.classesToCreate} class(es) ·{' '}
             {plan.sectionsToCreate} section(s) · {plan.linksToCreate} curriculum link(s) ·{' '}
