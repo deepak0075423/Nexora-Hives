@@ -1,32 +1,47 @@
-﻿import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+/**
+ * Class Info — a parent's view of a child's class.
+ *
+ * A parent can have more than one child and their classes genuinely differ, so
+ * this is told per child: a switch across the top picks whose class is on
+ * screen and everything below belongs to that one child. There is deliberately
+ * no "both children" view — a class is one per child, and merging two would
+ * produce a roster and a class teacher belonging to nobody.
+ *
+ * The body is the same component the child sees on their own My Class screen.
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
+import { Colors, Spacing } from '@/constants/theme';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { unwrap, LoaderView, SegTabs, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { Hero, Blank, Note } from '@/components/library/parts';
+import { ClassBody, classTitle } from '@/components/class/ClassBody';
+
+const firstName = (n?: string) => String(n ?? '').trim().split(/\s+/)[0] || 'your child';
 
 export default function ChildClassScreen() {
-  const [data, setData] = useState<any>(null);
+  const [children, setChildren] = useState<any[]>([]);
+  const [childId, setChildId] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      const res: any = await parentApi.getChildClass();
-      setData((res as any)?.data ?? res);
+      const d: any = unwrap(await parentApi.getChildClass());
+      const kids = d?.children ?? [];
+      setChildren(kids);
+      setChildId((prev) => (prev && kids.some((k: any) => String(k._id) === prev)
+        ? prev : String(kids[0]?._id ?? '')));
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    }
-    finally { setLoading(false); setRefreshing(false); }
-  };
+    } finally { setLoading(false); setRefreshing(false); }
+  }, []);
 
-  useEffect(() => { load(); }, []);
-  const onRefresh = () => { setRefreshing(true); load(); };
-
-  const announcements: any[] = data?.announcements ?? [];
+  useEffect(() => { load(); }, [load]);
 
   if (disabled) return (
     <>
@@ -35,6 +50,11 @@ export default function ChildClassScreen() {
     </>
   );
 
+  const child = children.find((c: any) => String(c._id) === childId) || children[0];
+  const where = child
+    ? [child.className, child.sectionName ? `Section ${child.sectionName}` : ''].filter(Boolean).join(' — ')
+    : '';
+
   return (
     <>
       <Stack.Screen options={{ title: "Child's Class" }} />
@@ -42,46 +62,47 @@ export default function ChildClassScreen() {
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
-        {loading ? (
-          <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+        <Hero icon="school"
+          title={child ? classTitle(child.section, child.pendingClass) : 'Class Info'}
+          blurb={child
+            ? `Everything about ${firstName(child.name)}'s class, in one place.`
+            : "Your child's class, teachers and classmates."}
+          quote="“A better tomorrow starts with what you learn today.”" />
+
+        {loading ? <LoaderView /> : !children.length ? (
+          <Blank icon="school-outline" title="No child is linked to this account yet"
+            body="Ask the school office to link your children, and their class will appear here." />
         ) : (
           <>
-            {/* API shape: { student: StudentProfile, section: { class{className}, sectionName, classTeacher{name} } } */}
-            <View style={s.card}>
-              <Text style={s.cardTitle}>{data?.section?.class?.className ?? 'No class assigned'}</Text>
-              {data?.section?.sectionName && <Text style={s.cardSub}>Section: {data.section.sectionName}</Text>}
-              {data?.student?.rollNumber ? <Text style={s.cardSub}>Roll No: {data.student.rollNumber}</Text> : null}
-              {data?.section?.classTeacher?.name && (
-                <View style={s.teacherRow}>
-                  <Ionicons name="person-circle" size={16} color="rgba(255,255,255,0.7)" />
-                  <Text style={s.teacherName}>{data.section.classTeacher.name}</Text>
-                </View>
-              )}
-            </View>
-
-            {announcements.length > 0 && (
-              <>
-                <Text style={s.groupLabel}>Announcements</Text>
-                {announcements.map((a: any, i: number) => (
-                  <View key={i} style={s.ann}>
-                    <Text style={s.annText}>{a.message ?? a.content ?? ''}</Text>
-                    {a.createdAt && (
-                      <Text style={s.annDate}>
-                        {new Date(a.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      </Text>
-                    )}
-                  </View>
-                ))}
-              </>
+            {/* One child needs no switch; two or more do, because their classes
+                are different classes. */}
+            {children.length > 1 && (
+              <SegTabs
+                tabs={children.map((c: any) => ({ key: String(c._id), label: firstName(c.name) }))}
+                active={String(child?._id ?? '')}
+                onChange={setChildId}
+              />
             )}
 
-            {announcements.length === 0 && !loading && (
-              <View style={s.empty}>
-                <Ionicons name="school-outline" size={48} color={Colors.textLight} />
-                <Text style={s.emptyText}>No announcements</Text>
-              </View>
+            <View style={s.who}>
+              <Ionicons name="person-circle" size={16} color={Colors.primary} />
+              <Text style={s.whoText} numberOfLines={1}>
+                {child?.name}{where ? ` · ${where}` : ''}
+              </Text>
+              {child?.rollNumber ? <Text style={s.whoRoll}>Roll {child.rollNumber}</Text> : null}
+            </View>
+
+            <ClassBody view={child} who={child?.name} quickLinks={[
+              { icon: 'checkbox-outline', label: 'Attendance', to: '/modules/attendance', tone: 'green' },
+              { icon: 'document-text-outline', label: 'Exams', to: '/modules/exams', tone: 'pink' },
+              { icon: 'bar-chart-outline', label: 'Results', to: '/modules/results', tone: 'amber' },
+              { icon: 'wallet-outline', label: 'Fees', to: '/modules/fees', tone: 'blue' },
+            ]} />
+
+            {children.length > 1 && (
+              <Note>Showing {child?.name} — use the switch above for your other child.</Note>
             )}
           </>
         )}
@@ -91,21 +112,11 @@ export default function ChildClassScreen() {
 }
 
 const s = StyleSheet.create({
-  center: { alignItems: 'center', paddingTop: 80 },
-  card: {
-    backgroundColor: Colors.primary, borderRadius: Radius.xl, padding: Spacing.md, marginBottom: Spacing.lg,
+  who: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: Spacing.md,
+    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
   },
-  cardTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  cardSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
-  teacherRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  teacherName: { fontSize: 13, color: 'rgba(255,255,255,0.8)' },
-  groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8 },
-  ann: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  annText: { ...Typography.body, color: Colors.text, lineHeight: 20 },
-  annDate: { fontSize: 10, color: Colors.textLight, marginTop: 4 },
-  empty: { alignItems: 'center', paddingTop: 40, gap: 12 },
-  emptyText: { ...Typography.body, color: Colors.textSecondary },
+  whoText: { flex: 1, fontSize: 12.5, fontWeight: '700', color: Colors.text },
+  whoRoll: { fontSize: 11, color: Colors.textSecondary },
 });

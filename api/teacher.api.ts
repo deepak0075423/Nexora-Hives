@@ -62,5 +62,6 @@ export const getNotifications    = () => api.get('/teacher/notifications');
 
 // Library (teacher browse)
 export const getLibrary          = () => api.get('/library/teacher');
-export const searchLibrary       = (q: string) => api.get('/library/teacher/search', { params: { q } });
+export const searchLibrary       = (params?: object) => api.get('/library/teacher/search', { params });
 export const getMyBooks          = () => api.get('/library/teacher/my-books');
+export const getMyFines          = () => api.get('/library/teacher/my-fines');

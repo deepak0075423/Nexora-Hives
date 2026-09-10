@@ -24,6 +24,6 @@ export const getMyPayments    = () => api.get('/fees/student/payments');
 
 // Library
 export const getLibrary       = () => api.get('/library/student');
-export const searchLibrary    = (q: string) => api.get('/library/student/search', { params: { q } });
+export const searchLibrary    = (params?: object) => api.get('/library/student/search', { params });
 export const getMyBooks       = () => api.get('/library/student/my-books');
 export const getMyFines       = () => api.get('/library/student/my-fines');

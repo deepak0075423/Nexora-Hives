@@ -55,3 +55,5 @@ export const renewMyBook           = (id: string) => api.post(`/library/student/
 export const renewTeacherBook      = (id: string) => api.post(`/library/teacher/issuances/${id}/renew`);
 export const studentReserve        = (bookId: string) => api.post(`/library/student/books/${bookId}/reserve`);
 export const teacherReserve        = (bookId: string) => api.post(`/library/teacher/books/${bookId}/reserve`);
+export const cancelMyReservation   = (id: string) => api.delete(`/library/student/reservations/${id}`);
+export const cancelTeacherReserv   = (id: string) => api.delete(`/library/teacher/reservations/${id}`);
