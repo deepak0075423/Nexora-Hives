@@ -76,6 +76,36 @@ export default function MySectionScreen() {
     params: { id: row._id, title: secLabel(row) },
   } as any);
 
+  /**
+   * What a teacher can do with one section, tucked under its row.
+   *
+   * The register for a class covered as vice class teacher was unreachable
+   * before this: the server picked one section and never said which, so a
+   * teacher with a class of their own could never mark the one they cover.
+   * Every action names its section rather than letting the screen guess.
+   *
+   * Fewer than the web has, and deliberately: this app has no class-timetable
+   * screen and no announcement composer, so those two are not offered here.
+   */
+  const SectionActions = ({ row, canMark }: { row: any; canMark: boolean }) => (
+    <View style={s.acts}>
+      <TouchableOpacity style={s.act} onPress={() => openSection(row)}>
+        <Ionicons name="people-outline" size={15} color={Colors.primary} />
+        <Text style={s.actText}>Students</Text>
+      </TouchableOpacity>
+      {canMark && (
+        <TouchableOpacity style={s.act}
+          onPress={() => router.push({
+            pathname: '/modules/teacher-attendance',
+            params: { tab: 'mark', section: String(row._id) },
+          } as any)}>
+          <Ionicons name="checkbox-outline" size={15} color={Colors.primary} />
+          <Text style={s.actText}>Attendance</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   /** A section as a row: chip, name, facts, badge. */
   const SectionRow = ({ row, tone, badge, chip, title, meta }: {
     row: any; tone: Tone; badge?: string; chip?: string; title?: string; meta?: string;
@@ -106,17 +136,20 @@ export default function MySectionScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
         <Hero icon="people" title="My Section"
-          blurb="Your class section, responsibilities and related information."
+          blurb={`Your class section, responsibilities and related information${data?.currentYear ? ` for ${data.currentYear}` : ''}.`}
           quote="“Teachers plant seeds that grow forever.”" />
 
         {loading ? <LoaderView /> : nothing ? (
-          <Blank icon="people-outline" title="You are not attached to any section yet"
-            body="No class teacher, vice class teacher or subject teacher assignment. Your school office sets these up on the class." />
+          <Blank icon="people-outline"
+            title={`You are not attached to any section${data?.currentYear ? ` in ${data.currentYear}` : ' yet'}`}
+            body="No class teacher, vice class teacher or subject teacher assignment this academic year. Your school office sets these up on the class." />
         ) : (
           <>
             <Figures items={[
+              // Class alone is ambiguous — a teacher holds one SECTION of it,
+              // so the figure names both.
               { icon: 'school', tone: 'indigo', label: 'Class Teacher',
-                value: classTeacherOf.length ? classLabel(classTeacherOf[0]) : 'None',
+                value: classTeacherOf.length ? secLabel(classTeacherOf[0]) : 'None',
                 caption: classTeacherOf[0]
                   ? `Academic Year ${classTeacherOf[0].yearName || data?.currentYear || '—'}`
                   : 'No section of your own' },
@@ -168,8 +201,12 @@ export default function MySectionScreen() {
             {viceOf.length > 0 && (
               <Panel icon="people" tone="green" title={`Vice Class Teacher (${viceOf.length})`}>
                 {viceOf.map((r: any) => (
-                  <SectionRow key={r._id} row={r} tone="green" badge="Vice"
-                    meta={`Section ${r.sectionName} · ${plural(r.studentCount, 'Student')}`} />
+                  <View key={r._id}>
+                    <SectionRow row={r} tone="green" badge="Vice"
+                      meta={`Section ${r.sectionName} · ${plural(r.studentCount, 'Student')}`} />
+                    {/* A vice class teacher covers the class, register included. */}
+                    <SectionActions row={r} canMark />
+                  </View>
                 ))}
               </Panel>
             )}
@@ -177,10 +214,15 @@ export default function MySectionScreen() {
             {subjectClasses.length > 0 && (
               <Panel icon="book" tone="violet" title={`Subject Classes (${subjectClasses.length})`}>
                 {subjectClasses.map((r: any) => (
-                  <SectionRow key={`${r._id}:${r.subject}`} row={r} tone="violet"
-                    chip={String(r.subject ?? '?')[0].toUpperCase()}
-                    title={r.subject || 'Subject'}
-                    meta={`${secLabel(r)} · ${plural(r.studentCount, 'Student')}`} />
+                  <View key={`${r._id}:${r.subject}`}>
+                    <SectionRow row={r} tone="violet"
+                      chip={String(r.subject ?? '?')[0].toUpperCase()}
+                      title={r.subject || 'Subject'}
+                      meta={`${secLabel(r)} · ${plural(r.studentCount, 'Student')}`} />
+                    {/* No register: the day belongs to the section, and a
+                        subject teacher has the class for a period. */}
+                    <SectionActions row={r} canMark={false} />
+                  </View>
                 ))}
               </Panel>
             )}
@@ -242,6 +284,14 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
   },
   actText: { fontSize: 11.5, fontWeight: '700', color: Colors.text },
+
+  // The same actions under a listed section — lighter, because a row in a list
+  // is not the screen's subject the way the teacher's own class is.
+  acts: {
+    flexDirection: 'row', gap: 6,
+    paddingBottom: 10, paddingLeft: 44,
+    marginTop: -4,
+  },
 
   ann: { paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.divider },
   annTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -31,7 +31,8 @@ export default function TeacherAttendanceScreen() {
   const scrollRef = useRef<ScrollView>(null);
   // A notification links straight at a tab (?tab=…), so the screen opens on
   // the list the notification was about rather than its default.
-  const { tab: wantedTab } = useLocalSearchParams<{ tab?: string }>();
+  // My Section links here with the section it wants the register for.
+  const { tab: wantedTab, section: wantedSection } = useLocalSearchParams<{ tab?: string; section?: string }>();
   const [tab, setTab] = useState(
     ['mark', 'ranking', 'mine', 'corrections'].includes(String(wantedTab)) ? String(wantedTab) : 'mark');
   const [disabled, setDisabled] = useState(false);
@@ -39,15 +40,24 @@ export default function TeacherAttendanceScreen() {
 
   // ── Mark class ──────────────────────────────────────────────────────────────
   const [date, setDate] = useState(todayStr());
+  // A teacher can own more than one register: their own class, plus any they
+  // cover as vice. The server used to pick one and never say which.
+  const [sectionId, setSectionId] = useState<string>(wantedSection ? String(wantedSection) : '');
+  const [sections, setSections] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [records, setRecords] = useState<Record<string, string>>({});
   const [markLoading, setMarkLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const loadMark = async (d = date) => {
+  const loadMark = async (d = date, id = sectionId) => {
     setMarkLoading(true);
     try {
-      const res = unwrap(await teacherApi.getAttendance({ date: d }));
+      const res = unwrap(await teacherApi.getAttendance({ date: d, section: id || undefined }));
+      setSections(res?.sections ?? []);
+      // The server answers with the section it actually used, so the picker
+      // shows the register on screen rather than the one that was asked for.
+      if (res?.section?._id) setSectionId(String(res.section._id));
+      if (res?.refused) Alert.alert('Not your section', res.refused);
       setStudents(res?.students ?? []);
       const map: Record<string, string> = {};
       (res?.records ?? []).forEach((r: any) => { map[String(r.student)] = String(r.status).toLowerCase(); });
@@ -56,6 +66,8 @@ export default function TeacherAttendanceScreen() {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setMarkLoading(false); setRefreshing(false); }
   };
+
+  const pickSection = (id: string) => { setSectionId(id); loadMark(date, id); };
 
   const idOf = (s: any) => String(s.user?._id ?? s._id);
   const setStatus = (s: any, status: string) => setRecords(r => ({ ...r, [idOf(s)]: status }));
@@ -70,6 +82,7 @@ export default function TeacherAttendanceScreen() {
     try {
       await teacherApi.markAttendance({
         date,
+        section: sectionId || undefined,
         records: students.map(s => ({ studentId: idOf(s), status: records[idOf(s)] || 'absent' })),
       });
       Alert.alert('Saved', 'Attendance saved for ' + fmtDate(date));
@@ -85,7 +98,7 @@ export default function TeacherAttendanceScreen() {
     const nd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (nd > todayStr()) return;
     setDate(nd);
-    loadMark(nd);
+    loadMark(nd, sectionId);
   };
 
   // ── My attendance ───────────────────────────────────────────────────────────
@@ -200,6 +213,22 @@ export default function TeacherAttendanceScreen() {
         {tab === 'mark' && (
           markLoading ? <LoaderView /> : (
             <>
+              {/* More than one register to keep: the class of their own plus
+                  any they cover as vice. */}
+              {sections.length > 1 && (
+                <View style={ta.secRow}>
+                  {sections.map((sec: any) => (
+                    <TouchableOpacity key={sec._id}
+                      style={[ta.secChip, String(sec._id) === sectionId && ta.secChipOn]}
+                      onPress={() => pickSection(String(sec._id))}>
+                      <Text style={[ta.secChipText, String(sec._id) === sectionId && { color: '#fff' }]}>
+                        {sec.className || 'Class'} {sec.sectionName}{sec.role === 'vice' ? ' · vice' : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               <View style={ta.dateRow}>
                 <TouchableOpacity onPress={() => shiftDate(-1)} style={ta.dateBtn}>
                   <Ionicons name="chevron-back" size={18} color={Colors.text} />
@@ -211,7 +240,9 @@ export default function TeacherAttendanceScreen() {
               </View>
 
               {students.length === 0 ? (
-                <Empty icon="people-outline" text="No students in your section (only class teachers can mark attendance)" />
+                <Empty icon="people-outline" text={sections.length
+                  ? 'No students enrolled in this section.'
+                  : 'You are not the class teacher or vice class teacher of any section, so there is no register to mark.'} />
               ) : (
                 <>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.sm }}>
@@ -389,6 +420,14 @@ export default function TeacherAttendanceScreen() {
 }
 
 const ta = StyleSheet.create({
+  // Which register is being marked — only shown when there is more than one.
+  secRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.sm },
+  secChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+  },
+  secChipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  secChipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
   dateRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 8,

@@ -254,9 +254,26 @@ export default function AdminSectionDetailScreen() {
   };
 
   const removeSubjectTeacher = async (sst: any) => {
-    if (!(await confirmAsync('Remove', `Unassign ${sst.teacher?.name} from ${sst.subject?.subjectName}?`, 'Remove'))) return;
-    try { await adminApi.removeSectionSubjectTeacher(id!, sst.subject?._id, sst.teacher?._id); load(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
+    // The last teacher leaving takes the subject with them — off this section,
+    // and off the class when no sibling section teaches it either. Say so
+    // before it happens rather than only after.
+    const others = sst.subject?._id
+      ? subjectTeachers.filter((r: any) => String(r.subject?._id) === String(sst.subject._id)).length - 1
+      : 0;
+    const warn = others > 0
+      ? ''
+      : ' They are the only teacher for it here, so the subject leaves this section — and the class too if no other section teaches it.';
+    if (!(await confirmAsync('Remove',
+      `Unassign ${sst.teacher?.name} from ${sst.subject?.subjectName}?${warn}`, 'Remove'))) return;
+    try {
+      const res: any = await adminApi.removeSectionSubjectTeacher(id!, sst.subject?._id, sst.teacher?._id);
+      const d = unwrap(res) ?? res;
+      if (d?.unassigned) {
+        Alert.alert('Subject unassigned',
+          `Nobody else taught ${sst.subject?.subjectName} in ${d.className || 'this class'}, so the subject is no longer on the class.`);
+      }
+      load();
+    } catch (err: any) { Alert.alert('Error', err.message); }
   };
 
   const assignRollNumbers = async () => {

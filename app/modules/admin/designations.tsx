@@ -108,7 +108,7 @@ export default function AdminDesignationsScreen() {
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
   // Set when a delete is refused because teachers still hold the designation.
-  const [blocked, setBlocked] = useState<{ name: string; message?: string; teachers: Teacher[] } | null>(null);
+  const [blocked, setBlocked] = useState<{ name: string; message?: string; teachers: Teacher[]; action: 'delete' | 'deactivate' } | null>(null);
   const [renaming, setRenaming] = useState<Row | null>(null);
   const [renameText, setRenameText] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
@@ -190,31 +190,42 @@ export default function AdminDesignationsScreen() {
     finally { setRenameSaving(false); }
   };
 
-  const toggleActive = async (row: Row) => {
-    try { await api.update(row._id, { isActive: !row.isActive }); await load(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
-  };
-
   // Teachers holding the designation block the delete. Show exactly who, rather
   // than an error string — the same list the server refuses the delete with.
-  const showBlockers = async (row: Row, fromError?: any) => {
+  const showBlockers = async (row: Row, fromError?: any, action: 'delete' | 'deactivate' = 'delete') => {
     if (fromError) {
-      setBlocked({ name: fromError.designation || row.name, message: fromError.message, teachers: fromError.teachers || [] });
+      setBlocked({
+        name: fromError.designation || row.name, message: fromError.message,
+        teachers: fromError.teachers || [], action: fromError.action || action,
+      });
       return;
     }
     try {
       const d: any = unwrap(await api.teachers(row._id));
-      setBlocked({ name: d?.designation || row.name, teachers: d?.teachers || [] });
+      setBlocked({ name: d?.designation || row.name, teachers: d?.teachers || [], action });
     } catch (err: any) { Alert.alert('Error', err.message); }
   };
 
+  // Activate is free; deactivate is not. An inactive designation leaves the
+  // dropdown and its holders fall back to the legacy permissions — the same
+  // silent loss of access a delete causes — so it is blocked on the same terms,
+  // and the blockers are named rather than reported as an error string.
+  const toggleActive = async (row: Row) => {
+    if (row.isActive && row.teacherCount) { await showBlockers(row, undefined, 'deactivate'); return; }
+    try { await api.update(row._id, { isActive: !row.isActive }); await load(); }
+    catch (err: any) {
+      if (err?.data?.code === 'DESIGNATION_IN_USE') { await load(); await showBlockers(row, err.data, 'deactivate'); }
+      else Alert.alert('Error', err.message);
+    }
+  };
+
   const remove = async (row: Row) => {
-    if (row.teacherCount) { await showBlockers(row); return; }
+    if (row.teacherCount) { await showBlockers(row, undefined, 'delete'); return; }
     if (!(await confirmAsync('Delete Designation',
       `Delete "${row.name}"? Its module permissions go with it.`, 'Delete'))) return;
     try { await api.remove(row._id); await load(); }
     catch (err: any) {
-      if (err?.data?.code === 'DESIGNATION_IN_USE') { await load(); await showBlockers(row, err.data); }
+      if (err?.data?.code === 'DESIGNATION_IN_USE') { await load(); await showBlockers(row, err.data, 'delete'); }
       else Alert.alert('Error', err.message);
     }
   };
@@ -334,12 +345,15 @@ export default function AdminDesignationsScreen() {
         <Input label="Name" value={newName} onChange={setNewName} placeholder="e.g. Head of Science" />
       </FormModal>
 
-      <FormModal visible={!!blocked} title="Cannot Delete Designation" onClose={() => setBlocked(null)}>
+      <FormModal
+        visible={!!blocked}
+        title={blocked?.action === 'deactivate' ? 'Cannot Deactivate Designation' : 'Cannot Delete Designation'}
+        onClose={() => setBlocked(null)}>
         <View style={s.blockNote}>
           <Ionicons name="alert-circle" size={16} color={Colors.danger} />
           <Text style={s.blockText}>
             {blocked?.message
-              ?? `Cannot delete "${blocked?.name}" — ${blocked?.teachers.length} teacher${blocked?.teachers.length === 1 ? '' : 's'} still ${blocked?.teachers.length === 1 ? 'has' : 'have'} this designation. Reassign ${blocked?.teachers.length === 1 ? 'them' : 'them all'} to another designation first.`}
+              ?? `Cannot ${blocked?.action === 'deactivate' ? 'deactivate' : 'delete'} "${blocked?.name}" — ${blocked?.teachers.length} teacher${blocked?.teachers.length === 1 ? '' : 's'} still ${blocked?.teachers.length === 1 ? 'has' : 'have'} this designation. Reassign ${blocked?.teachers.length === 1 ? 'them' : 'them all'} to another designation first.`}
           </Text>
         </View>
 
@@ -360,8 +374,10 @@ export default function AdminDesignationsScreen() {
 
         {/* No file-save capability in the app, so the spreadsheet lives on the web panel. */}
         <Text style={s.blockHint}>
-          Reassign these teachers on the Teachers screen, then delete the designation.
-          A downloadable Excel list of them is available on the web admin panel.
+          {blocked?.action === 'deactivate'
+            ? `Deactivating takes "${blocked?.name}" off the designation dropdown and these teachers would lose the module access it grants. Reassign them on the Teachers screen first, then deactivate it.`
+            : 'Reassign these teachers on the Teachers screen, then delete the designation.'}
+          {' '}A downloadable Excel list of them is available on the web admin panel.
         </Text>
       </FormModal>
 

@@ -82,6 +82,12 @@ export default function SuperUsersScreen() {
   };
 
   const loginLink = async (u: any) => {
+    // A magic link is a way past the password, not past the account being
+    // switched off — the server refuses it, so say so before the round trip.
+    if (u.isActive === false) {
+      return Alert.alert('Account deactivated',
+        `${u.name} is deactivated. A login link would hand back exactly the access the deactivation withdrew — activate the account first.`);
+    }
     try {
       const res: any = await superApi.generateLoginLink(u._id);
       const link = (res as any)?.link ?? unwrap(res)?.link;
@@ -131,7 +137,7 @@ export default function SuperUsersScreen() {
                   onPress={() => {
                     Alert.alert(u.name, u.email, [
                       { text: 'Close', style: 'cancel' },
-                      { text: 'Copy Login Link', onPress: () => loginLink(u) },
+                      ...(u.isActive === false ? [] : [{ text: 'Copy Login Link', onPress: () => loginLink(u) }]),
                       { text: u.isActive === false ? 'Activate' : 'Deactivate', onPress: () => toggle(u) },
                       { text: 'Delete', style: 'destructive', onPress: () => remove(u) },
                     ]);

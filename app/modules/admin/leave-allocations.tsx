@@ -55,7 +55,9 @@ export default function AdminLeaveAllocationsScreen() {
     try {
       const [aRes, tRes]: [any, any] = await Promise.all([
         adminApi.getLeaveAllocations(),
-        adminApi.getTeachers({ limit: 500, status: 'active' }).catch(() => null),
+        // Not getTeachers(): that endpoint is school-admin-only, so a teacher
+        // holding admin on the leave module would find the picker empty.
+        adminApi.getLeaveEmployees().catch(() => null),
       ]);
       // The allocations payload carries the year list and the policy-merged
       // types, so this screen never needs the general-admin academic-year
@@ -63,7 +65,7 @@ export default function AdminLeaveAllocationsScreen() {
       setBalances((aRes as any)?.data ?? []);
       setTypes(((aRes as any)?.leaveTypes ?? []).filter((t: any) => t.isActive));
       setYears((aRes as any)?.academicYears ?? []);
-      setTeachers(unwrap(tRes)?.data ?? unwrap(tRes) ?? []);
+      setTeachers(unwrap(tRes) ?? []);
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else Alert.alert('Error', err?.data?.message ?? err.message);

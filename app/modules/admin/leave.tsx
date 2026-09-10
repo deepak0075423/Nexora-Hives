@@ -60,11 +60,13 @@ export default function AdminLeaveScreen() {
 
       // Needed by the apply-on-behalf form. The type list carries each type's
       // effective policy, so the date rules come with it.
+      // Not getTeachers(): /admin/teachers is school-admin-only, so a teacher
+      // holding admin on the leave module would find the picker empty.
       const [tRes, tyRes]: [any, any] = await Promise.all([
-        adminApi.getTeachers({ limit: 500, status: 'active' }).catch(() => null),
+        adminApi.getLeaveEmployees().catch(() => null),
         adminApi.getLeaveTypes().catch(() => null),
       ]);
-      setTeachers(unwrap(tRes)?.data ?? unwrap(tRes) ?? []);
+      setTeachers(unwrap(tRes) ?? []);
       setTypes((unwrap(tyRes) ?? []).filter((t: any) => t.isActive));
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);

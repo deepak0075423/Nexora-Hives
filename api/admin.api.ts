@@ -148,6 +148,10 @@ export const updateSubject = (id: string, data: object) => api.put(`/admin/subje
 export const deleteSubject = (id: string)   => api.delete(`/admin/subjects/${id}`);
 
 // ── Leave ────────────────────────────────────────────────────────────────────
+// The staff every leave picker chooses from. Deliberately not getTeachers():
+// /admin/teachers is school-admin-only, and a teacher whose designation grants
+// admin on the leave module reaches these screens too.
+export const getLeaveEmployees      = ()             => api.get('/admin/leave/employees');
 export const getLeaveTypes          = ()             => api.get('/admin/leave/types');
 export const createLeaveType        = (data: object) => api.post('/admin/leave/types', data);
 export const updateLeaveType        = (id: string, data: object) => api.put(`/admin/leave/types/${id}`, data);
