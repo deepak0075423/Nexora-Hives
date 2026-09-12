@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as subApi from '@/api/substitute.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   unwrap, LoaderView, Empty, Card, Badge, SegTabs, Select, Toggle, Input,
   FormModal, ActionBtn, StatTile, StatRow, confirmAsync, MODULE_BLOCKED_CODES,
@@ -217,6 +218,8 @@ function PeriodRow({ p, onPick, onCancel }: any) {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function AdminSubstitutionsScreen() {
+  // The focused cover is scrolled to, so a substitution notification lands on it.
+  const scrollRef = useRef<ScrollView>(null);
   const [tab, setTab]         = useState('board');
   const [date, setDate]       = useState(todayIso());
   const [board, setBoard]     = useState<any>(null);
@@ -329,6 +332,7 @@ export default function AdminSubstitutionsScreen() {
     <>
       <Stack.Screen options={{ title: 'Substitutions' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing}
@@ -390,7 +394,9 @@ export default function AdminSubstitutionsScreen() {
                   </Text>
                 )}
                 {a.periods.map((p: any) => (
-                  <PeriodRow key={p._id} p={p} onPick={setPicking} onCancel={cancelRow} />
+                  <FocusRow key={p._id} id={p._id} scrollRef={scrollRef}>
+                    <PeriodRow p={p} onPick={setPicking} onCancel={cancelRow} />
+                  </FocusRow>
                 ))}
               </Card>
             ))}

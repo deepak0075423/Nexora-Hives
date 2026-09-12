@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   LoaderView, Empty, RowItem, Badge, SegTabs, ActionBtn, confirmAsync, fmtDate,
   FormModal, Input, KV, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
 export default function LibraryReservationsScreen() {
+  // The focused row is scrolled to, so following a library notification
+  // lands on the loan, fine or reservation it names.
+  const scrollRef = useRef<ScrollView>(null);
   const [tab, setTab] = useState('');   // All — matches the web default
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +91,7 @@ export default function LibraryReservationsScreen() {
     <>
       <Stack.Screen options={{ title: 'Reservations' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -99,7 +104,8 @@ export default function LibraryReservationsScreen() {
           <Empty icon="bookmark-outline" text="No reservations" />
         ) : (
           list.map((r: any) => (
-            <View key={r._id} style={{ marginBottom: 4 }}>
+            <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+            <View style={{ marginBottom: 4 }}>
               <RowItem
                 icon="bookmark" iconColor="#059669" iconBg="#D1FAE5"
                 title={r.book?.title ?? '--'}
@@ -129,6 +135,7 @@ export default function LibraryReservationsScreen() {
                 </View>
               )}
             </View>
+            </FocusRow>
           ))
         )}
       </ScrollView>

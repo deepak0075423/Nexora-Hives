@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   unwrap, LoaderView, Empty, RowItem, Badge, SegTabs, FAB, FormModal,
   Input, Select, ActionBtn, KV, confirmAsync, fmtDate,
@@ -11,6 +12,9 @@ import {
 } from '@/components/ui/kit';
 
 export default function LibraryCirculationScreen() {
+  // The focused row is scrolled to, so following a library notification
+  // lands on the loan, fine or reservation it names.
+  const scrollRef = useRef<ScrollView>(null);
   const [tab, setTab] = useState('');   // All — matches the web default
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,6 +193,7 @@ export default function LibraryCirculationScreen() {
       <Stack.Screen options={{ title: 'Circulation' }} />
       <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <ScrollView
+        ref={scrollRef}
           contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
         >
@@ -202,7 +207,8 @@ export default function LibraryCirculationScreen() {
             <Empty icon="swap-horizontal-outline" text="No issuances here" />
           ) : (
             list.map((iss: any) => (
-              <View key={iss._id} style={{ marginBottom: 4 }}>
+              <FocusRow key={iss._id} id={iss._id} scrollRef={scrollRef}>
+            <View style={{ marginBottom: 4 }}>
                 <RowItem
                   icon="book" iconColor="#059669" iconBg="#D1FAE5"
                   title={iss.book?.title ?? '--'}
@@ -231,6 +237,7 @@ export default function LibraryCirculationScreen() {
                   </View>
                 )}
               </View>
+              </FocusRow>
             ))
           )}
         </ScrollView>

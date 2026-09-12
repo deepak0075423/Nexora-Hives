@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as libApi from '@/api/library.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   LoaderView, Empty, RowItem, Badge, SegTabs, ActionBtn, FormModal, Input,
   confirmAsync, fmtMoney, fmtDate, StatRow, StatTile, KV,
@@ -11,6 +12,9 @@ import {
 } from '@/components/ui/kit';
 
 export default function LibraryFinesScreen() {
+  // The focused row is scrolled to, so following a library notification
+  // lands on the loan, fine or reservation it names.
+  const scrollRef = useRef<ScrollView>(null);
   const [tab, setTab] = useState('');   // All — matches the web default
   const [list, setList] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
@@ -91,6 +95,7 @@ export default function LibraryFinesScreen() {
     <>
       <Stack.Screen options={{ title: 'Library Fines' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -114,7 +119,8 @@ export default function LibraryFinesScreen() {
           <Empty icon="cash-outline" text="No fines here" />
         ) : (
           list.map((f: any) => (
-            <View key={f._id} style={{ marginBottom: 4 }}>
+            <FocusRow key={f._id} id={f._id} scrollRef={scrollRef}>
+            <View style={{ marginBottom: 4 }}>
               <RowItem
                 icon="cash" iconColor={Colors.warning} iconBg={Colors.warningLight}
                 title={`${fmtMoney(owedOn(f) || f.amount)} · ${f.user?.name ?? '--'}`}
@@ -145,6 +151,7 @@ export default function LibraryFinesScreen() {
                 </View>
               )}
             </View>
+            </FocusRow>
           ))
         )}
       </ScrollView>

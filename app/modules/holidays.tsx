@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import * as studentApi from '@/api/student.api';
 import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -18,6 +19,8 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 export default function HolidaysScreen() {
+  // The focused holiday is scrolled to, so following a notification lands on it.
+  const scrollRef = useRef<ScrollView>(null);
   const { user } = useAuth();
   const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +58,7 @@ export default function HolidaysScreen() {
     <>
       <Stack.Screen options={{ title: 'Holidays' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
@@ -72,13 +76,21 @@ export default function HolidaysScreen() {
             {upcoming.length > 0 && (
               <>
                 <Text style={s.groupLabel}>Upcoming</Text>
-                {upcoming.map((h: any, i: number) => <HolidayCard key={i} holiday={h} />)}
+                {upcoming.map((h: any, i: number) => (
+                  <FocusRow key={h._id ?? i} id={h._id} scrollRef={scrollRef}>
+                    <HolidayCard holiday={h} />
+                  </FocusRow>
+                ))}
               </>
             )}
             {past.length > 0 && (
               <>
                 <Text style={[s.groupLabel, { marginTop: Spacing.md }]}>Past</Text>
-                {past.map((h: any, i: number) => <HolidayCard key={i} holiday={h} faded />)}
+                {past.map((h: any, i: number) => (
+                  <FocusRow key={h._id ?? i} id={h._id} scrollRef={scrollRef}>
+                    <HolidayCard holiday={h} faded />
+                  </FocusRow>
+                ))}
               </>
             )}
           </>

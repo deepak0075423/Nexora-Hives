@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, StatTile, StatRow, fmtDate, confirmAsync,
@@ -27,6 +28,8 @@ const TABS = [
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 export default function CompOffScreen() {
+  // The focused row is scrolled to, so following a notification lands on it.
+  const scrollRef = useRef<ScrollView>(null);
   // A notification links straight at a tab (?tab=…), so the screen opens on
   // the list the notification was about rather than its default.
   const { tab: wantedTab } = useLocalSearchParams<{ tab?: string }>();
@@ -128,6 +131,7 @@ export default function CompOffScreen() {
     <>
       <Stack.Screen options={{ title: 'Comp Off' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -185,7 +189,8 @@ export default function CompOffScreen() {
               requests.length === 0
                 ? <Empty icon="time-outline" text="No Comp Off requests yet" />
                 : requests.map((r: any) => (
-                  <Card key={r._id}>
+                  <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+                  <Card>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Text style={s.cardTitle}>{fmtDate(r.workDate)}</Text>
                       <Badge label={r.status} />
@@ -206,6 +211,7 @@ export default function CompOffScreen() {
                       </View>
                     )}
                   </Card>
+                  </FocusRow>
                 ))
             )}
 

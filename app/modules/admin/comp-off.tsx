@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { FocusRow } from '@/components/FocusHighlight';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
   FormModal, Input, StatTile, StatRow, fmtDate,
@@ -27,6 +28,8 @@ const TABS = [
 ];
 
 export default function AdminCompOffScreen() {
+  // The focused row is scrolled to, so following a notification lands on it.
+  const scrollRef = useRef<ScrollView>(null);
   const [view, setView] = useState<'requests' | 'balances'>('requests');
   const [status, setStatus] = useState('pending');
   const [list, setList] = useState<any[]>([]);
@@ -102,6 +105,7 @@ export default function AdminCompOffScreen() {
     <>
       <Stack.Screen options={{ title: 'Comp Off' }} />
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
@@ -118,7 +122,8 @@ export default function AdminCompOffScreen() {
             {loading ? <LoaderView /> : list.length === 0 ? (
               <Empty icon="time-outline" text="No Comp Off requests" />
             ) : list.map((r: any) => (
-              <Card key={r._id}>
+              <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
+              <Card>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <Text style={s.cardTitle}>{r.teacher?.name ?? '—'}</Text>
                   <Badge label={r.status === 'draft' ? 'ready to apply' : r.status} />
@@ -153,6 +158,7 @@ export default function AdminCompOffScreen() {
                   <Text style={s.hint}>Waiting for the employee to review and apply. Nothing is credited yet.</Text>
                 )}
               </Card>
+              </FocusRow>
             ))}
           </>
         )}
