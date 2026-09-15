@@ -1,175 +1,191 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
+import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as studentApi from '@/api/student.api';
+import { LoaderView, SegTabs } from '@/components/ui/kit';
+import { TONE_COLOR, toneForPercent, VIZ } from '@/components/ui/viz';
+import { ExamMark, Outcome, QuestionCard, fmtExamDay, fmtSpent, plural } from '@/components/exams/parts';
 
-const GRADE_COLOR: Record<string, string> = {
-  'A+': '#059669', A: '#16A34A', 'B+': '#16A34A', B: '#4ADE80',
-  'C+': '#D97706', C: '#F59E0B', D: '#EF4444', F: '#DC2626',
+/**
+ * Student → one exam's result.
+ *
+ * The score and whether it passed against what pass mark, how the answers
+ * split, then every question with the student's answer and the correct one
+ * marked in words as well as colour — filterable to just the ones they got
+ * wrong or skipped.
+ */
+
+const msg = (e: any) => e?.data?.message ?? e?.message ?? '';
+
+const fmtStamp = (d?: string | null) => {
+  if (!d) return '--';
+  const t = new Date(d);
+  return `${t.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, ${t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
 };
 
 export default function ExamResultScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData]     = useState<any>(null);
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    if (!id) return;
-    (async () => {
-      try {
-        const res: any = await studentApi.getExamResult(id);
-        setData((res as any)?.data ?? res);
-      } catch { /* empty */ }
-      finally { setLoading(false); }
-    })();
-  }, [id]);
+  const load = async () => {
+    try {
+      const res: any = await studentApi.getExamResult(id!);
+      setData(res?.data ?? res); setError(null);
+    } catch (e: any) { setError(msg(e) || 'Results are not published yet.'); }
+    finally { setLoading(false); setRefreshing(false); }
+  };
+  useEffect(() => { if (id) load(); }, [id]);
 
-  const answers: any[] = data?.answers ?? data?.questions ?? [];
-  const grade = data?.grade ?? data?.overallGrade;
-  const correct   = answers.filter((a: any) => a.isCorrect === true).length;
-  const incorrect = answers.filter((a: any) => a.isCorrect === false).length;
-  const unattempted = answers.filter((a: any) => a.isCorrect === undefined || a.isCorrect === null).length;
+  const groups = useMemo(() => {
+    const all = (data?.questions ?? []).map((q: any, i: number) => ({ q, i }));
+    return {
+      all,
+      incorrect: all.filter(({ q }: any) => q.selected?.length && !q.isCorrect),
+      unanswered: all.filter(({ q }: any) => !q.selected?.length),
+      correct: all.filter(({ q }: any) => q.isCorrect),
+    };
+  }, [data]);
+
+  if (loading) return <><Stack.Screen options={{ title: 'Result' }} /><LoaderView /></>;
+
+  if (error || !data?.exam) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Result' }} />
+        <View style={s.center}>
+          <Ionicons name="time-outline" size={44} color={Colors.textLight} />
+          <Text style={s.errTitle}>Result not available yet</Text>
+          <Text style={s.errText}>{error || 'Results are not published yet.'}</Text>
+          <TouchableOpacity style={s.errBtn} onPress={() => router.back()}>
+            <Text style={s.errBtnText}>Back to my exams</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+
+  const exam = data.exam;
+  const color = TONE_COLOR[toneForPercent(data.percentage)];
+  const shown = (groups as any)[filter] ?? groups.all;
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Exam Result', headerBackVisible: false }} />
+      <Stack.Screen options={{ title: 'Result' }} />
       <ScrollView
         style={{ flex: 1, backgroundColor: Colors.background }}
-        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
-        {loading ? (
-          <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
-        ) : !data ? (
-          <View style={s.center}><Text style={s.emptyText}>Result not available</Text></View>
-        ) : (
-          <>
-            {/* Score card */}
-            <View style={s.scoreCard}>
-              <Text style={s.examTitle}>{data.exam?.title ?? data.title ?? 'Exam Result'}</Text>
-              {grade && (
-                <Text style={[s.grade, { color: GRADE_COLOR[grade] ?? '#fff' }]}>{grade}</Text>
-              )}
-              <Text style={s.scoreLine}>
-                {data.obtainedMarks ?? data.score ?? '--'} / {data.totalMarks ?? data.exam?.totalMarks ?? '--'}
-              </Text>
-              {data.percentage != null && (
-                <Text style={s.pct}>{data.percentage}%</Text>
-              )}
+        <View style={s.hero}>
+          <View style={s.heroTop}>
+            <ExamMark exam={{ title: exam.title, subjectName: exam.subjectName }} size={34} />
+            <Text style={s.heroSub} numberOfLines={2}>{exam.subjectName || 'General Aptitude'} · {fmtExamDay(exam)}</Text>
+          </View>
+          <Text style={s.heroTitle}>{exam.title}</Text>
 
-              {/* Stats row */}
-              <View style={s.statsRow}>
-                <StatBox label="Correct" value={correct} color={Colors.success} />
-                <StatBox label="Wrong" value={incorrect} color={Colors.danger} />
-                <StatBox label="Skipped" value={unattempted} color={Colors.textLight} />
-              </View>
+          <View style={s.scoreRow}>
+            <View style={s.ring}>
+              <Text style={s.ringValue}>{data.percentage}%</Text>
+              <Text style={s.ringLabel}>score</Text>
             </View>
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+              <Text style={s.scoreLine}>
+                You scored <Text style={s.b}>{data.score}</Text> out of <Text style={s.b}>{exam.totalMarks}</Text>
+              </Text>
+              <Outcome passed={data.passed} />
+              <Text style={s.meta}>
+                Pass mark {data.passMark} · submitted {fmtStamp(data.submittedAt)} · took {fmtSpent(data.timeTaken)}
+              </Text>
+            </View>
+          </View>
 
-            {/* Done button */}
-            <TouchableOpacity style={s.doneBtn} onPress={() => router.replace('/(tabs)' as any)}>
-              <Text style={s.doneBtnText}>Back to Home</Text>
-            </TouchableOpacity>
+          <View style={s.bar}>
+            <View style={[s.barFill, { width: `${Math.max(0, Math.min(100, data.percentage))}%`, backgroundColor: color }]} />
+          </View>
 
-            {/* Answer review */}
-            {answers.length > 0 && (
-              <>
-                <Text style={s.sectionLabel}>Answer Review</Text>
-                {answers.map((a: any, i: number) => {
-                  const isCorrect = a.isCorrect === true;
-                  const isWrong   = a.isCorrect === false;
-                  return (
-                    <View key={i} style={[s.ansCard, isCorrect && s.ansCorrect, isWrong && s.ansWrong]}>
-                      <View style={s.ansTop}>
-                        <Text style={s.ansNum}>Q{i + 1}</Text>
-                        <View style={[s.ansBadge, { backgroundColor: isCorrect ? Colors.successLight : isWrong ? Colors.dangerLight : Colors.surfaceAlt }]}>
-                          <Ionicons
-                            name={isCorrect ? 'checkmark-circle' : isWrong ? 'close-circle' : 'remove-circle-outline'}
-                            size={14}
-                            color={isCorrect ? Colors.success : isWrong ? Colors.danger : Colors.textLight}
-                          />
-                          <Text style={[s.ansBadgeText, { color: isCorrect ? Colors.success : isWrong ? Colors.danger : Colors.textLight }]}>
-                            {isCorrect ? 'Correct' : isWrong ? 'Incorrect' : 'Skipped'}
-                          </Text>
-                        </View>
-                      </View>
+          {data.status === 'auto_submitted' && (
+            <View style={s.warn}>
+              <Ionicons name="alert-circle" size={15} color={Colors.warning} />
+              <Text style={s.warnText}>
+                This paper was submitted automatically
+                {data.violationCount ? ` after ${plural(data.violationCount, 'violation')}` : ' when time ran out'}.
+              </Text>
+            </View>
+          )}
 
-                      <Text style={s.ansQuestion}>{a.question?.text ?? a.questionText ?? a.question ?? ''}</Text>
+          <View style={s.split}>
+            <Split icon="checkmark-circle" color={Colors.success} value={data.correct} label="Correct" />
+            <Split icon="close-circle" color={Colors.danger} value={data.incorrect} label="Incorrect" />
+            <Split icon="remove-circle" color={Colors.textLight} value={data.unanswered} label="Not answered" />
+          </View>
+        </View>
 
-                      {a.selectedOption && (
-                        <View style={s.ansRow}>
-                          <Text style={s.ansLabel}>Your answer: </Text>
-                          <Text style={[s.ansValue, { color: isCorrect ? Colors.success : Colors.danger }]}>{a.selectedOption}</Text>
-                        </View>
-                      )}
-                      {a.correctOption && !isCorrect && (
-                        <View style={s.ansRow}>
-                          <Text style={s.ansLabel}>Correct answer: </Text>
-                          <Text style={[s.ansValue, { color: Colors.success }]}>{a.correctOption}</Text>
-                        </View>
-                      )}
-                      {a.explanation && (
-                        <Text style={s.explanation}>{a.explanation}</Text>
-                      )}
-                    </View>
-                  );
-                })}
-              </>
-            )}
-          </>
-        )}
+        <Text style={s.section}>Question review</Text>
+        <Text style={s.sectionSub}>Your answer and the correct answer for every question</Text>
+        <SegTabs
+          active={filter}
+          onChange={setFilter}
+          tabs={[
+            { key: 'all', label: `All ${groups.all.length}` },
+            { key: 'incorrect', label: `Wrong ${groups.incorrect.length}` },
+            { key: 'unanswered', label: `Skipped ${groups.unanswered.length}` },
+            { key: 'correct', label: `Right ${groups.correct.length}` },
+          ]}
+        />
+        {shown.length === 0
+          ? <Text style={s.none}>No questions in this group.</Text>
+          : shown.map(({ q, i }: any) => <QuestionCard key={q._id} q={q} index={i} viewer="student" />)}
       </ScrollView>
     </>
   );
 }
 
-function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
+function Split({ icon, color, value, label }: { icon: string; color: string; value: number; label: string }) {
   return (
-    <View style={s.statBox}>
-      <Text style={[s.statValue, { color }]}>{value}</Text>
-      <Text style={s.statLabel}>{label}</Text>
+    <View style={s.splitItem}>
+      <Ionicons name={icon as any} size={18} color={color} />
+      <Text style={s.splitValue}>{value ?? 0}</Text>
+      <Text style={s.splitLabel} numberOfLines={2}>{label}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  center: { alignItems: 'center', paddingTop: 80 },
-  emptyText: { ...Typography.body, color: Colors.textSecondary },
-  scoreCard: {
-    backgroundColor: Colors.primary, borderRadius: Radius.xl,
-    padding: Spacing.lg, marginBottom: Spacing.md, alignItems: 'center',
-  },
-  examTitle: { fontSize: 16, fontWeight: '700', color: '#fff', textAlign: 'center', marginBottom: 8 },
-  grade: { fontSize: 48, fontWeight: '800', marginVertical: 4 },
-  scoreLine: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 2 },
-  pct: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: Spacing.md },
-  statsRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  statBox: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Radius.md, paddingHorizontal: 20, paddingVertical: 10 },
-  statValue: { fontSize: 22, fontWeight: '800' },
-  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  doneBtn: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    paddingVertical: 12, alignItems: 'center', marginBottom: Spacing.lg,
-    borderWidth: 1.5, borderColor: Colors.primary,
-  },
-  doneBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  sectionLabel: { ...Typography.h4, color: Colors.text, marginBottom: 10 },
-  ansCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: Spacing.md, marginBottom: 10,
-    borderWidth: 1.5, borderColor: Colors.border,
-  },
-  ansCorrect: { borderColor: Colors.success },
-  ansWrong: { borderColor: Colors.danger },
-  ansTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  ansNum: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase' },
-  ansBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.full },
-  ansBadgeText: { fontSize: 11, fontWeight: '600' },
-  ansQuestion: { fontSize: 14, fontWeight: '600', color: Colors.text, lineHeight: 20, marginBottom: 8 },
-  ansRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  ansLabel: { fontSize: 12, color: Colors.textSecondary },
-  ansValue: { fontSize: 12, fontWeight: '600' },
-  explanation: { marginTop: 6, fontSize: 12, color: Colors.textSecondary, lineHeight: 18, fontStyle: 'italic' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: Spacing.lg, backgroundColor: Colors.background },
+  errTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  errText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center' },
+  errBtn: { marginTop: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
+  errBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+
+  hero: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: 10, marginBottom: Spacing.md },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroSub: { flex: 1, minWidth: 0, fontSize: 11, color: Colors.textSecondary },
+  heroTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // A plain badge, not a progress arc — the bar below carries the amount.
+  ring: { width: 84, height: 84, borderRadius: 42, borderWidth: 7, borderColor: VIZ.track, alignItems: 'center', justifyContent: 'center' },
+  ringValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  ringLabel: { fontSize: 9, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+  scoreLine: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  b: { fontWeight: '800' },
+  meta: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16 },
+  bar: { height: 7, borderRadius: 8, backgroundColor: VIZ.track, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 8 },
+  warn: { flexDirection: 'row', gap: 7, alignItems: 'flex-start', backgroundColor: Colors.warningLight, borderRadius: Radius.md, padding: 9 },
+  warnText: { flex: 1, minWidth: 0, fontSize: 11, color: Colors.text, lineHeight: 16 },
+  split: { flexDirection: 'row', gap: 8 },
+  splitItem: { flex: 1, minWidth: 0, alignItems: 'center', gap: 2, backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, paddingVertical: 10, paddingHorizontal: 4 },
+  splitValue: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  splitLabel: { fontSize: 10, color: Colors.textSecondary, textAlign: 'center' },
+
+  section: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  sectionSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, marginBottom: 10 },
+  none: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', paddingVertical: 24 },
 });

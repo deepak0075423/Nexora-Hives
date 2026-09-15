@@ -227,6 +227,16 @@ export const deleteHoliday = (id: string)   => api.delete(`/admin/holidays/${id}
 
 // ── Aptitude exams (overview) ────────────────────────────────────────────────
 export const getExams = (params?: object) => api.get('/admin/exams', { params });
+export const getExamOverview       = () => api.get('/admin/exams/overview');
+export const getExamInsights       = (params?: object) => api.get('/admin/exams/insights', { params });
+export const getAptitudeExam       = (id: string) => api.get(`/admin/exams/${id}`);
+export const getExamAnalytics      = (params?: object) => api.get('/admin/exams/analytics', { params });
+export const getExamReport         = (id: string) => api.get(`/admin/exams/${id}/report`);
+export const getAptitudeQuestions  = (id: string) => api.get(`/admin/exams/${id}/questions`);
+export const publishAptitudeExam   = (id: string) => api.post(`/admin/exams/${id}/publish`);
+export const unpublishAptitudeExam = (id: string) => api.post(`/admin/exams/${id}/unpublish`);
+export const cancelAptitudeExam    = (id: string) => api.post(`/admin/exams/${id}/cancel`);
+export const decideAptitudeResults = (id: string, data: object) => api.post(`/admin/exams/${id}/results`, data);
 
 // ── Results (formal exams) ───────────────────────────────────────────────────
 export const getFormalExams   = (params?: object) => api.get('/admin/results/exams', { params });

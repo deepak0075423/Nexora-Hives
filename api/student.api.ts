@@ -9,6 +9,7 @@ export const getExams         = () => api.get('/student/exams');
 export const getAttempt       = (id: string) => api.get(`/student/exams/${id}/attempt`);
 export const saveAnswer       = (id: string, data: object) => api.post(`/student/exams/${id}/save-answer`, data);
 export const submitExam       = (id: string) => api.post(`/student/exams/${id}/submit`);
+export const logViolation     = (id: string) => api.post(`/student/exams/${id}/violation`);
 export const getExamResult    = (id: string) => api.get(`/student/exams/${id}/result`);
 export const getDocuments     = () => api.get('/student/documents');
 export const getDocument      = (id: string) => api.get(`/student/documents/${id}`);

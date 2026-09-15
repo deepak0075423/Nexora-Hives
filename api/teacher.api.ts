@@ -24,6 +24,18 @@ export const getQuestions        = (id: string) => api.get(`/teacher/exams/${id}
 export const addQuestion         = (id: string, data: object) => api.post(`/teacher/exams/${id}/questions`, data);
 export const getSubmissions      = (id: string) => api.get(`/teacher/exams/${id}/submissions`);
 export const getAnalytics        = (id: string) => api.get(`/teacher/exams/${id}/analytics`);
+export const getExamBoard        = (params?: object) => api.get('/teacher/exams/board', { params });
+export const getExamMeta         = () => api.get('/teacher/exams/meta');
+export const updateExam          = (id: string, data: object) => api.put(`/teacher/exams/${id}`, data);
+export const deleteExam          = (id: string) => api.delete(`/teacher/exams/${id}`);
+export const updateQuestion      = (id: string, qid: string, data: object) => api.put(`/teacher/exams/${id}/questions/${qid}`, data);
+export const deleteQuestion      = (id: string, qid: string) => api.delete(`/teacher/exams/${id}/questions/${qid}`);
+export const getStudentResponse  = (id: string, studentId: string) => api.get(`/teacher/exams/${id}/submissions/${studentId}`);
+export const getResultApproval   = (id: string) => api.get(`/teacher/exams/${id}/result-approval`);
+export const subjectApproveResults = (id: string) => api.post(`/teacher/exams/${id}/subject-approve`);
+export const approveResults      = (id: string, data: object) => api.post(`/teacher/exams/${id}/result-approval`, data);
+export const getExamAnalytics    = (params?: object) => api.get('/teacher/exams/analytics', { params });
+export const getExamReport       = (id: string) => api.get(`/teacher/exams/${id}/report`);
 export const getMarksEntry       = () => api.get('/teacher/results/marks-entry');
 export const getMarksForm        = (examId: string, subjectId: string) => api.get(`/teacher/results/marks-entry/${examId}/${subjectId}`);
 export const saveMarks           = (examId: string, subjectId: string, data: object) => api.post(`/teacher/results/marks-entry/${examId}/${subjectId}/save`, data);
