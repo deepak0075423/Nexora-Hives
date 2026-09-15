@@ -77,7 +77,7 @@ export default function SuperSchoolsScreen() {
                   key={sc._id}
                   icon="business" iconColor={Colors.primary} iconBg={Colors.surfaceAlt}
                   title={sc.name}
-                  sub={`${sc.code ?? ''}${sc.board ? ` · ${sc.board}` : ''}${sc.city ? ` · ${sc.city}` : ''}${sc.email ? `\n${sc.email}` : ''}`}
+                  sub={`${sc.code ?? ''}${sc.boardName ? ` · ${sc.boardName}` : sc.board ? ` · ${sc.board}` : ''}${sc.city ? ` · ${sc.city}` : ''}${sc.email ? `\n${sc.email}` : ''}`}
                   right={<Badge label={sc.isActive === false ? 'inactive' : 'active'} />}
                   onPress={() => {
                     Alert.alert(sc.name, undefined, [
