@@ -1,97 +1,141 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+/**
+ * Student → re-read what I sent.
+ *
+ * Read-only and forever: locked feedback stays visible to its own author, it
+ * just cannot be changed. This is the only screen anywhere that pairs a student
+ * with their answers, and it is theirs alone — the server scopes it to them.
+ */
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as fb from '@/api/feedback.api';
-import { Colors, Spacing, Typography } from '@/constants/theme';
-import { unwrap, LoaderView, Card, Badge, Empty, fmtDate } from '@/components/ui/kit';
+import { Colors } from '@/constants/theme';
+import {
+  Avatar, Blank, Btn, Loading, NoteBar, Page, Stars, Tag, EMOJI, RATING_LABELS, categoryIcon, fmtDay, useLoad,
+} from '@/components/feedback/parts';
 
-const LABELS: Record<number, string> = { 1: 'Poor', 2: 'Needs Improvement', 3: 'Average', 4: 'Good', 5: 'Excellent' };
-const Stars = ({ v }: { v: number }) => (
-  <Text style={{ color: '#F59E0B', letterSpacing: 1 }}>
-    {[1, 2, 3, 4, 5].map((n) => (n <= v ? '★' : '☆')).join('')}
-  </Text>
-);
-
-// Read-only replay of a submitted feedback. Locked, but always readable by the
-// student who wrote it.
 export default function FeedbackViewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [data, setData] = useState<any>(undefined);
+  const router = useRouter();
+  const q = useLoad<any>(() => fb.getMySubmission(String(id)), [id], { skip: !id });
 
-  useEffect(() => {
-    if (!id) return;
-    fb.getMySubmission(String(id)).then((r) => setData(unwrap(r))).catch(() => setData(null));
-  }, [id]);
-
-  if (data === undefined) return <><Stack.Screen options={{ title: 'My Feedback' }} /><LoaderView /></>;
-  if (!data) {
+  if (q.loading) return <><Stack.Screen options={{ title: 'My feedback' }} /><Loading /></>;
+  if (q.error || !q.data) {
     return (
       <>
-        <Stack.Screen options={{ title: 'My Feedback' }} />
-        <View style={s.root}><Empty icon="alert-circle-outline" text="This feedback is not available." /></View>
+        <Stack.Screen options={{ title: 'My feedback' }} />
+        <Page>
+          <View style={st.card}>
+            <Blank icon="lock-closed-outline" title="This feedback cannot be shown" body={q.error || 'It is not available.'}
+              action={<Btn kind="primary" label="Back to my feedback" onPress={() => router.back()} />} />
+          </View>
+        </Page>
       </>
     );
   }
 
-  const a = data.assignment;
-  const answered = (data.answers || []).filter(
-    (q: any) => q.ratingValue != null || q.textResponse || q.selectedOptions?.length,
-  );
+  const a = q.data.assignment;
+  const answered = (q.data.answers || []).filter((x: any) => x.ratingValue != null || x.textResponse || x.selectedOptions?.length);
+  const groups = new Map<string, any[]>();
+  for (const x of answered) {
+    const k = x.categoryName || (['text', 'multiple_choice', 'checkbox'].includes(x.questionType) ? 'A little more' : 'General');
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(x);
+  }
+  const place = [a.className, a.sectionName].filter(Boolean).join(' ');
 
   return (
     <>
-      <Stack.Screen options={{ title: 'My Feedback' }} />
-      <ScrollView style={s.root} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}>
-        <Card>
-          <Text style={s.teacher}>{a.teacher?.name}</Text>
-          <Text style={s.meta}>{[a.subject, a.className, a.sectionName].filter(Boolean).join(' · ')}</Text>
-          <View style={s.badges}>
-            <Badge label="Completed" tone="success" />
-            {data.campaign?.isAnonymous && <Badge label="Anonymous" tone="info" />}
+      <Stack.Screen options={{ title: a.teacher?.name || 'My feedback' }} />
+      <Page>
+        <View style={st.head}>
+          <Avatar name={a.teacher?.name} src={a.teacher?.photo} size={54} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={st.headLabel}>YOUR FEEDBACK TO</Text>
+            <Text style={st.headName}>{a.teacher?.name}</Text>
+            <Text style={st.headSub}>{[a.subject, place].filter(Boolean).join(' · ')}</Text>
           </View>
-          <Text style={s.meta}>Submitted {fmtDate(a.submittedAt)}</Text>
-          {a.overallRating != null && (
-            <View style={s.overall}>
-              <Text style={s.overallValue}>{Number(a.overallRating).toFixed(1)}</Text>
-              <Text style={s.overallUnit}>/ 5.0</Text>
-              <View style={{ marginLeft: 8 }}><Stars v={Math.round(a.overallRating)} /></View>
+          {a.overallRating != null ? (
+            <View style={st.score}>
+              <Text style={st.scoreV}>{Number(a.overallRating).toFixed(1)}</Text>
+              <Stars value={Math.round(a.overallRating)} size={11} />
+              <Text style={st.scoreL}>your average</Text>
             </View>
-          )}
-        </Card>
+          ) : null}
+        </View>
+        <View style={st.tags}>
+          <Tag label={`Sent ${fmtDay(a.submittedAt)}`} tone="green" icon="checkmark-circle-outline" />
+          {q.data.campaign?.name ? <Tag label={q.data.campaign.name} tone="slate" icon="megaphone-outline" /> : null}
+          {q.data.campaign?.isAnonymous ? <Tag label="Anonymous" tone="purple" icon="key-outline" /> : null}
+        </View>
 
-        {answered.map((q: any) => (
-          <Card key={q._id}>
-            <Text style={s.question}>{q.questionText}</Text>
-            {q.ratingValue != null && (
-              <View style={s.answerRow}>
-                <Stars v={q.ratingValue} />
-                <Text style={s.answerText}>{q.ratingValue} — {LABELS[q.ratingValue]}</Text>
+        {[...groups.entries()].map(([name, qs]) => (
+          <View key={name} style={st.qcard}>
+            <View style={st.qcardHead}>
+              <View style={st.qcardIcon}><Ionicons name={categoryIcon(name)} size={15} color="#7C3AED" /></View>
+              <Text style={st.qcardTitle}>{name}</Text>
+              <Text style={st.qcardCount}>{qs.length} answer{qs.length === 1 ? '' : 's'}</Text>
+            </View>
+            {qs.map((x, i) => (
+              <View key={x._id} style={[st.ans, i > 0 && st.ansSep]}>
+                <Text style={st.ansQ}>{x.questionText}</Text>
+                {x.ratingValue != null && x.questionType !== 'yes_no' ? (
+                  <View style={st.rateRow}>
+                    <View style={st.dots} accessibilityLabel={`${x.ratingValue} out of 5`}>
+                      {[1, 2, 3, 4, 5].map((n) => <View key={n} style={[st.dotI, n <= x.ratingValue && st.dotOn]} />)}
+                    </View>
+                    <Text style={st.rateText}>{EMOJI[x.ratingValue]} {x.ratingValue} · {RATING_LABELS[x.ratingValue]}</Text>
+                  </View>
+                ) : null}
+                {x.questionType === 'yes_no' ? <Tag label={x.textResponse === 'yes' ? 'Yes' : 'No'} tone={x.textResponse === 'yes' ? 'green' : 'slate'} /> : null}
+                {x.selectedOptions?.length ? (
+                  <View style={st.tags}>{x.selectedOptions.map((o: string) => <Tag key={o} label={o} tone="indigo" />)}</View>
+                ) : null}
+                {x.textResponse && x.questionType !== 'yes_no' ? (
+                  <View style={st.quote}>
+                    <Text style={st.quoteText}>
+                      {x.questionType !== 'text' ? <Text style={{ color: Colors.textSecondary, fontWeight: '700' }}>Other: </Text> : null}
+                      {x.textResponse}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            )}
-            {!!q.selectedOptions?.length && (
-              <View style={s.chips}>
-                {q.selectedOptions.map((o: string) => <Badge key={o} label={o} tone="info" />)}
-              </View>
-            )}
-            {!!q.textResponse && q.ratingValue == null && <Text style={s.comment}>{q.textResponse}</Text>}
-          </Card>
+            ))}
+          </View>
         ))}
-      </ScrollView>
+
+        <NoteBar tone="purple" icon="key-outline" title="Only you can see this page.">
+          Your feedback is locked and cannot be edited. Your teacher sees your answers only as part of results combined across many students, never on their own.
+        </NoteBar>
+      </Page>
     </>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  teacher: { ...Typography.h4, color: Colors.text },
-  meta: { fontSize: 12, color: Colors.textSecondary, marginTop: 3 },
-  badges: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
-  overall: { flexDirection: 'row', alignItems: 'baseline', marginTop: 12 },
-  overallValue: { fontSize: 30, fontWeight: '700', color: Colors.success },
-  overallUnit: { fontSize: 13, color: Colors.textSecondary, marginLeft: 4 },
-  question: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  answerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  answerText: { fontSize: 12, color: Colors.textSecondary },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  comment: { fontSize: 13, color: Colors.text, marginTop: 8, lineHeight: 19 },
+const st = StyleSheet.create({
+  card: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: '#F5F3FF', borderRadius: 18, borderWidth: 1, borderColor: '#E0E7FF', padding: 14 },
+  headLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, color: '#4F46E5' },
+  headName: { fontSize: 19, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+  headSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  score: { alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: '#E0E7FF', paddingHorizontal: 10, paddingVertical: 7 },
+  scoreV: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  scoreL: { fontSize: 9.5, color: Colors.textSecondary },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  qcard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  qcardHead: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 11, backgroundColor: '#FCFCFF', borderBottomWidth: 1, borderBottomColor: Colors.border },
+  qcardIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' },
+  qcardTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: Colors.text },
+  qcardCount: { fontSize: 11, color: Colors.textSecondary },
+  ans: { padding: 14, gap: 8 },
+  ansSep: { borderTopWidth: 1, borderTopColor: Colors.divider },
+  ansQ: { fontSize: 13.5, fontWeight: '600', color: Colors.text, lineHeight: 19 },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  dots: { flexDirection: 'row', gap: 4 },
+  dotI: { width: 22, height: 7, borderRadius: 99, backgroundColor: '#EEF2F7' },
+  dotOn: { backgroundColor: '#8B5CF6' },
+  rateText: { fontSize: 12.5, fontWeight: '600', color: Colors.textSecondary },
+  quote: { borderLeftWidth: 3, borderLeftColor: '#C4B5FD', backgroundColor: '#FAF9FF', borderTopRightRadius: 10, borderBottomRightRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  quoteText: { fontSize: 13.5, color: Colors.text, lineHeight: 20 },
 });

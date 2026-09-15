@@ -1,318 +1,484 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator,
-} from 'react-native';
+/**
+ * Student → give feedback to one teacher.
+ *
+ * The same question-bank-driven form as the web: ratings and yes/no first, then
+ * the pick-lists and the written answer. Answers are kept on the device as the
+ * student goes, restored if they come back, and cleared once sent. Sending asks
+ * once, with a summary; afterwards the student is offered the next teacher
+ * waiting in the same campaign.
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as fb from '@/api/feedback.api';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { unwrap, LoaderView, Card, Badge, confirmAsync, fmtDate } from '@/components/ui/kit';
+import { Colors } from '@/constants/theme';
+import {
+  Avatar, Blank, Btn, Countdown, Dialog, Loading, NoteBar, Tag, BRAND, EMOJI, RATING_LABELS,
+  categoryIcon, errText, useLoad,
+} from '@/components/feedback/parts';
+import { clearDraft, readDraft, writeDraft } from '@/components/feedback/drafts';
 
-// The 2-step student form on mobile — the same question-bank-driven flow as the
-// web, with rating targets sized for a thumb.
 const RATING_TYPES = ['rating_5', 'emoji_5'];
-const STEP2_TYPES  = ['checkbox', 'multiple_choice', 'text'];
-const LABELS: Record<number, string> = { 1: 'Poor', 2: 'Needs Work', 3: 'Average', 4: 'Good', 5: 'Excellent' };
-const EMOJI: Record<number, string>  = { 1: '😞', 2: '🙁', 3: '😐', 4: '🙂', 5: '😄' };
-const toneFor = (v: number) => (v >= 4 ? Colors.success : v >= 3 ? Colors.warning : Colors.danger);
+const STEP1_TYPES = [...RATING_TYPES, 'yes_no'];
+
+const isAnswered = (q: any, a: any = {}) => {
+  if (RATING_TYPES.includes(q.questionType)) return a.ratingValue != null;
+  if (q.questionType === 'yes_no') return !!a.textResponse;
+  if (q.questionType === 'text') return !!String(a.textResponse || '').trim();
+  return (a.optionIds || []).length > 0;
+};
+
+// Category headings come from the question snapshot, so a school that renames a
+// category sees the new name here without an app update.
+const byCategory = (qs: any[]) => {
+  const m = new Map<string, any[]>();
+  for (const q of qs) {
+    const k = q.categoryName || 'General';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k)!.push(q);
+  }
+  return [...m.entries()];
+};
 
 export default function FeedbackFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [data, setData] = useState<any>(undefined);
-  const [error, setError] = useState('');
+  const insets = useSafeAreaInsets();
+  const scroll = useRef<ScrollView>(null);
+  const q = useLoad<any>(() => fb.getForm(String(id)), [id], { skip: !id });
+
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [restored, setRestored] = useState(false);
+  const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendErr, setSendErr] = useState('');
+  const [sent, setSent] = useState<{ next: any } | null>(null);
+  const ready = useRef(false);
+
+  const questions: any[] = useMemo(() => q.data?.questions ?? [], [q.data]);
+  const step1 = useMemo(() => questions.filter((x) => STEP1_TYPES.includes(x.questionType)), [questions]);
+  const step2 = useMemo(() => questions.filter((x) => !STEP1_TYPES.includes(x.questionType)), [questions]);
+  const steps = [step1.length ? 'ratings' : null, step2.length ? 'more' : null].filter(Boolean) as string[];
+  const current = steps[step - 1] === 'more' ? step2 : step1;
+  const last = step >= steps.length;
+
+  // Bring back anything started earlier, once the questions are known — a draft
+  // answer to a question the campaign no longer has is simply dropped.
+  useEffect(() => {
+    if (!q.data?.questions || !id) return;
+    let alive = true;
+    ready.current = false;
+    readDraft(String(id)).then((draft) => {
+      if (!alive) return;
+      const ids = new Set(q.data.questions.map((x: any) => x._id));
+      const kept = Object.fromEntries(Object.entries(draft ?? {}).filter(([k]) => ids.has(k)));
+      // The read is async: anything tapped before it finished wins over the draft.
+      setAnswers((now) => ({ ...kept, ...now }));
+      setRestored(Object.keys(kept).length > 0);
+      ready.current = true;
+    });
+    return () => { alive = false; };
+  }, [q.data, id]);
 
   useEffect(() => {
-    if (!id) return;
-    fb.getForm(String(id))
-      .then((r) => setData(unwrap(r)))
-      .catch((e: any) => { setError(e?.message || 'Could not open this feedback'); setData(null); });
-  }, [id]);
-
-  const questions = data?.questions || [];
-  const step1 = useMemo(() => questions.filter((q: any) => RATING_TYPES.includes(q.questionType) || q.questionType === 'yes_no'), [questions]);
-  const step2 = useMemo(() => questions.filter((q: any) => STEP2_TYPES.includes(q.questionType)), [questions]);
-  const hasStep2 = step2.length > 0;
-  const totalSteps = hasStep2 ? 2 : 1;
+    if (!ready.current || sent || !id) return;
+    if (Object.keys(answers).length) writeDraft(String(id), answers);
+  }, [answers, sent, id]);
 
   const set = (qid: string, patch: any) => {
     setAnswers((a) => ({ ...a, [qid]: { ...(a[qid] || {}), ...patch } }));
-    setErrors((e) => { const { [qid]: _drop, ...rest } = e; return rest; });
+    setErrors((e) => (e[qid] ? { ...e, [qid]: '' } : e));
   };
-
   const toggleOption = (qid: string, optId: string, single: boolean) => {
     setAnswers((a) => {
       const cur: string[] = a[qid]?.optionIds || [];
-      const next = single
-        ? (cur[0] === optId ? [] : [optId])
-        : (cur.includes(optId) ? cur.filter((x) => x !== optId) : [...cur, optId]);
+      const next = single ? (cur[0] === optId ? [] : [optId]) : (cur.includes(optId) ? cur.filter((x) => x !== optId) : [...cur, optId]);
       return { ...a, [qid]: { ...(a[qid] || {}), optionIds: next } };
     });
-    setErrors((e) => { const { [qid]: _drop, ...rest } = e; return rest; });
+    setErrors((e) => (e[qid] ? { ...e, [qid]: '' } : e));
   };
 
-  // Same rules the server enforces, checked here so the student is told what is
-  // missing without a round trip.
+  // The server's own rules, checked here so the student hears what is missing first.
   const validate = (list: any[]) => {
     const next: Record<string, string> = {};
-    for (const q of list) {
-      if (!q.isRequired) continue;
-      const a = answers[q._id] || {};
-      if (RATING_TYPES.includes(q.questionType) && a.ratingValue == null) next[q._id] = 'Please choose a rating';
-      else if (q.questionType === 'yes_no' && !a.textResponse) next[q._id] = 'Please answer';
-      else if (q.questionType === 'text' && !String(a.textResponse || '').trim()) next[q._id] = 'Please answer';
-      else if (['checkbox', 'multiple_choice'].includes(q.questionType) && !(a.optionIds || []).length) next[q._id] = 'Please choose at least one';
+    for (const x of list) {
+      if (x.isRequired && !isAnswered(x, answers[x._id])) {
+        next[x._id] = RATING_TYPES.includes(x.questionType) ? 'Please choose a rating'
+          : ['checkbox', 'multiple_choice'].includes(x.questionType) ? 'Please choose at least one' : 'Please answer';
+      }
     }
     setErrors(next);
-    if (Object.keys(next).length) Alert.alert('Almost there', 'Please answer the highlighted questions.');
     return !Object.keys(next).length;
   };
 
-  const submit = async () => {
-    const okToGo = await confirmAsync(
-      'Submit feedback?',
-      'You will not be able to edit it after submission.',
-      'Submit',
-    );
-    if (!okToGo) return;
+  const forward = () => {
+    if (!validate(current)) { scroll.current?.scrollTo({ y: 0, animated: true }); return; }
+    if (last) { setSendErr(''); setConfirm(true); return; }
+    setStep((n) => n + 1);
+    scroll.current?.scrollTo({ y: 0, animated: true });
+  };
 
-    setSaving(true);
+  const send = async () => {
+    setSaving(true); setSendErr('');
     try {
       await fb.submitFeedback(String(id), {
-        answers: questions.map((q: any) => {
-          const a = answers[q._id] || {};
+        answers: questions.map((x) => {
+          const a = answers[x._id] || {};
           return {
-            campaignQuestion: q._id,
-            ratingValue: a.ratingValue ?? null,
-            textResponse: a.textResponse ?? '',
-            optionIds: a.optionIds || [],
-            otherText: a.otherText || '',
+            campaignQuestion: x._id, ratingValue: a.ratingValue ?? null, textResponse: a.textResponse ?? '',
+            optionIds: a.optionIds || [], otherText: a.otherText || '',
           };
         }),
       });
-      Alert.alert('Thank you', 'Your feedback has been submitted.');
-      router.back();
-    } catch (e: any) {
-      Alert.alert('Could not submit', e?.message || 'Please try again.');
+      clearDraft(String(id));
+      let next = null;
+      try {
+        const list: any[] = ((await fb.getPending()) as any)?.data ?? [];
+        next = list.find((r) => r._id !== id && r.campaign?._id === q.data.campaign?._id) || list.find((r) => r._id !== id) || null;
+      } catch { /* the thank-you screen works without it */ }
+      setConfirm(false);
+      setSent({ next });
+      scroll.current?.scrollTo({ y: 0, animated: false });
+    } catch (e) {
+      setSendErr(errText(e));
     } finally { setSaving(false); }
   };
 
-  if (data === undefined) return <><Stack.Screen options={{ title: 'Feedback' }} /><LoaderView /></>;
-  if (!data) {
+  if (q.loading) return <><Stack.Screen options={{ title: 'Give feedback' }} /><Loading /></>;
+  if (q.error || !q.data) {
     return (
       <>
-        <Stack.Screen options={{ title: 'Feedback' }} />
-        <View style={s.center}>
-          <Ionicons name="alert-circle-outline" size={44} color={Colors.textLight} />
-          <Text style={s.errText}>{error || 'This feedback is no longer available.'}</Text>
-          <TouchableOpacity style={s.btnGhost} onPress={() => router.back()}>
-            <Text style={s.btnGhostText}>Back</Text>
-          </TouchableOpacity>
+        <Stack.Screen options={{ title: 'Give feedback' }} />
+        <View style={st.root}>
+          <View style={st.card}>
+            <Blank icon="lock-closed-outline" title="This feedback cannot be opened" body={q.error || 'It may have closed or already been sent.'}
+              action={<Btn kind="primary" label="Back to my feedback" onPress={() => router.back()} />} />
+          </View>
         </View>
       </>
     );
   }
 
-  const a = data.assignment;
-  const list = step === 1 ? step1 : step2;
+  const a = q.data.assignment;
+  const c = q.data.campaign;
+  const answeredAll = questions.filter((x) => isAnswered(x, answers[x._id])).length;
+  const pct = questions.length ? Math.round((answeredAll / questions.length) * 100) : 0;
+  const place = [a.className, a.sectionName].filter(Boolean).join(' ');
+
+  if (sent) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Sent' }} />
+        <ScrollView ref={scroll} style={st.root} contentContainerStyle={{ padding: 14, gap: 12 }}>
+          <View style={st.thanks}>
+            <View style={st.thanksIcon}><Ionicons name="checkmark-circle" size={44} color="#16A34A" /></View>
+            <Text style={st.thanksTitle}>Thank you!</Text>
+            <Text style={st.thanksText}>
+              Your feedback for <Text style={{ fontWeight: '800', color: Colors.text }}>{a.teacher?.name}</Text>{a.subject ? ` (${a.subject})` : ''} has
+              been sent. It is locked now and cannot be changed — and it stays anonymous.
+            </Text>
+            {sent.next ? (
+              <View style={st.next}>
+                <Text style={st.nextLabel}>UP NEXT</Text>
+                <View style={st.nextWho}>
+                  <Avatar name={sent.next.teacher?.name} src={sent.next.teacher?.photo} size={42} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={st.nextName} numberOfLines={1}>{sent.next.teacher?.name}</Text>
+                    <Text style={st.nextSub} numberOfLines={1}>{sent.next.subject || 'General'}</Text>
+                  </View>
+                </View>
+                <Btn kind="primary" label="Give feedback" icon="arrow-forward"
+                  onPress={() => router.replace({ pathname: '/modules/feedback-form', params: { id: sent.next._id } } as any)} />
+              </View>
+            ) : (
+              <Text style={st.allDone}>✨ That was the last one — you are all caught up.</Text>
+            )}
+            <Btn label="Back to my feedback" onPress={() => router.back()} />
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
 
   return (
     <>
-      <Stack.Screen options={{ title: `Step ${step} of ${totalSteps}` }} />
-      <ScrollView style={s.root} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 120 }}>
-
-        <View style={s.steps}>
-          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
-            <View key={n} style={[s.stepBar, { backgroundColor: n <= step ? Colors.accent : Colors.border }]} />
-          ))}
-        </View>
-        <Text style={s.stepLabel}>{step === 1 ? 'Teacher Rating' : 'Additional Feedback'}</Text>
-
-        <Card>
-          <Text style={s.teacher}>{a.teacher?.name}</Text>
-          <Text style={s.meta}>
-            {[a.subject, a.className && `Class ${a.className}`, a.sectionName && `Section ${a.sectionName}`].filter(Boolean).join(' · ')}
-          </Text>
-          <View style={s.badges}>
-            {data.campaign?.isAnonymous && <Badge label="Anonymous" tone="info" />}
-            <Badge label={`Closes ${fmtDate(data.campaign?.endDate)}`} tone="neutral" />
+      <Stack.Screen options={{ title: a.teacher?.name || 'Give feedback' }} />
+      <View style={st.root}>
+        <ScrollView ref={scroll} contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+          <View style={st.head}>
+            <Avatar name={a.teacher?.name} src={a.teacher?.photo} size={56} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={st.headLabel}>GIVING FEEDBACK TO</Text>
+              <Text style={st.headName}>{a.teacher?.name}</Text>
+              <Text style={st.headSub}>{[a.subject, place].filter(Boolean).join(' · ')}</Text>
+            </View>
           </View>
-          {!!data.campaign?.instructions && <Text style={s.instructions}>{data.campaign.instructions}</Text>}
-        </Card>
+          <View style={st.tags}>
+            <Tag label={c.name} tone="slate" icon="megaphone-outline" />
+            <Countdown endDate={c.endDate} />
+            {c.isAnonymous ? <Tag label="Anonymous" tone="purple" icon="key-outline" /> : null}
+          </View>
 
-        {step === 1 && (
-          <Text style={s.scaleHint}>1 = {LABELS[1]}   ·   5 = {LABELS[5]}</Text>
-        )}
+          {c.instructions ? <NoteBar tone="blue">{c.instructions}</NoteBar> : null}
+          {restored ? (
+            <NoteBar tone="green" icon="refresh"
+              action={<Btn small label="Start over" onPress={() => { setAnswers({}); clearDraft(String(id)); setRestored(false); }} />}>
+              We kept the answers you started earlier — carry on where you left off.
+            </NoteBar>
+          ) : null}
+          {Object.values(errors).some(Boolean) ? (
+            <NoteBar tone="red" icon="alert-circle">Please answer the highlighted questions.</NoteBar>
+          ) : null}
 
-        {list.map((q: any) => (
-          <Card key={q._id}>
-            <Text style={s.question}>
-              {q.questionText}
-              {q.isRequired ? <Text style={{ color: Colors.danger }}> *</Text> : null}
-            </Text>
-            {!!q.categoryName && step === 1 && <Text style={s.category}>{q.categoryName}</Text>}
-            {!!q.helpText && <Text style={s.help}>{q.helpText}</Text>}
-
-            {RATING_TYPES.includes(q.questionType) && (
-              <View style={s.ratingRow}>
-                {[1, 2, 3, 4, 5].map((n) => {
-                  const active = answers[q._id]?.ratingValue === n;
-                  return (
-                    <TouchableOpacity
-                      key={n}
-                      style={[s.ratingBtn, active && { borderColor: toneFor(n), backgroundColor: `${toneFor(n)}18` }]}
-                      onPress={() => set(q._id, { ratingValue: active ? null : n })}
-                    >
-                      <Text style={s.ratingEmoji}>{EMOJI[n]}</Text>
-                      <Text style={[s.ratingNum, active && { color: toneFor(n) }]}>{n}</Text>
-                      <Text style={[s.ratingLabel, active && { color: toneFor(n) }]} numberOfLines={2}>{LABELS[n]}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {q.questionType === 'yes_no' && (
-              <View style={s.chipRow}>
-                {['yes', 'no'].map((v) => {
-                  const active = answers[q._id]?.textResponse === v;
-                  return (
-                    <TouchableOpacity key={v} style={[s.chip, active && s.chipActive]}
-                      onPress={() => set(q._id, { textResponse: active ? '' : v })}>
-                      <Text style={[s.chipText, active && s.chipTextActive]}>{v === 'yes' ? 'Yes' : 'No'}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {['checkbox', 'multiple_choice'].includes(q.questionType) && (
-              <>
-                <View style={s.chipRow}>
-                  {(q.options || []).map((o: any) => {
-                    const active = (answers[q._id]?.optionIds || []).includes(o._id);
-                    return (
-                      <TouchableOpacity key={o._id} style={[s.chip, active && s.chipActive]}
-                        onPress={() => toggleOption(q._id, o._id, q.questionType === 'multiple_choice')}>
-                        <Text style={[s.chipText, active && s.chipTextActive]}>
-                          {active ? '✓ ' : ''}{o.optionText}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+          <View style={st.progress}>
+            <View style={st.progressTop}>
+              <Text style={st.progressText}>{answeredAll} of {questions.length} answered</Text>
+              {steps.length > 1 ? (
+                <View style={{ flexDirection: 'row', gap: 5 }}>
+                  {steps.map((sk, i) => (
+                    <View key={sk} style={[st.stepPill, i + 1 === step && st.stepPillOn, i + 1 < step && st.stepPillDone]}>
+                      <Text style={[st.stepPillText, i + 1 === step && { color: BRAND }, i + 1 < step && { color: '#15803D' }]}>
+                        {i + 1 < step ? '✓ ' : `${i + 1} `}{sk === 'ratings' ? 'Ratings' : 'A little more'}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-                {(q.options || []).some((o: any) => o.allowsFreeText && (answers[q._id]?.optionIds || []).includes(o._id)) && (
-                  <TextInput
-                    style={s.input}
-                    placeholder="Tell us more (optional)"
-                    placeholderTextColor={Colors.textLight}
-                    maxLength={200}
-                    value={answers[q._id]?.otherText || ''}
-                    onChangeText={(t) => set(q._id, { otherText: t })}
-                  />
-                )}
-              </>
+              ) : null}
+            </View>
+            <View style={st.track}><View style={[st.fill, { width: `${pct}%` }]} /></View>
+            {steps[step - 1] === 'ratings' ? (
+              <Text style={st.scale}>1 = {RATING_LABELS[1]} · 3 = {RATING_LABELS[3]} · 5 = {RATING_LABELS[5]}</Text>
+            ) : null}
+          </View>
+
+          {steps[step - 1] === 'ratings'
+            ? byCategory(step1).map(([cat, qs]) => (
+              <View key={cat} style={st.qcard}>
+                <View style={st.qcardHead}>
+                  <View style={st.qcardIcon}><Ionicons name={categoryIcon(cat)} size={15} color="#7C3AED" /></View>
+                  <Text style={st.qcardTitle}>{cat}</Text>
+                  <Text style={st.qcardCount}>{qs.filter((x) => isAnswered(x, answers[x._id])).length} / {qs.length}</Text>
+                </View>
+                {qs.map((x) => (
+                  <Question key={x._id} q={x} n={questions.indexOf(x) + 1} value={answers[x._id]} error={errors[x._id]}
+                    set={set} toggleOption={toggleOption} />
+                ))}
+              </View>
+            ))
+            : (
+              <View style={st.qcard}>
+                <View style={st.qcardHead}>
+                  <View style={[st.qcardIcon, { backgroundColor: '#DBEAFE' }]}><Ionicons name="chatbubble-ellipses-outline" size={15} color="#2563EB" /></View>
+                  <Text style={st.qcardTitle}>A little more</Text>
+                  <Text style={st.qcardCount}>Optional ones can be skipped</Text>
+                </View>
+                {step2.map((x) => (
+                  <Question key={x._id} q={x} n={questions.indexOf(x) + 1} value={answers[x._id]} error={errors[x._id]}
+                    set={set} toggleOption={toggleOption} />
+                ))}
+              </View>
             )}
+        </ScrollView>
 
-            {q.questionType === 'text' && (
-              <>
-                <TextInput
-                  style={[s.input, { height: 100, textAlignVertical: 'top' }]}
-                  multiline
-                  maxLength={q.maxLength || 1000}
-                  placeholder="Optional — anything else you'd like your teacher to know"
-                  placeholderTextColor={Colors.textLight}
-                  value={answers[q._id]?.textResponse || ''}
-                  onChangeText={(t) => set(q._id, { textResponse: t })}
-                />
-                <Text style={s.counter}>
-                  {(answers[q._id]?.textResponse || '').length} / {q.maxLength || 1000}
-                </Text>
-              </>
-            )}
-
-            {!!errors[q._id] && <Text style={s.fieldError}>{errors[q._id]}</Text>}
-          </Card>
-        ))}
-
-        <View style={s.actions}>
-          {step === 2 && (
-            <TouchableOpacity style={s.btnGhost} onPress={() => setStep(1)}>
-              <Text style={s.btnGhostText}>← Back &amp; edit</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[s.btn, saving && { opacity: 0.6 }]}
-            disabled={saving}
-            onPress={() => {
-              if (step === 1 && hasStep2) { if (validate(step1)) setStep(2); }
-              else if (validate(step === 1 ? step1 : step2)) submit();
-            }}
-          >
-            {saving
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnText}>{step === 1 && hasStep2 ? 'Continue →' : 'Submit Feedback'}</Text>}
-          </TouchableOpacity>
+        <View style={[st.bar, { paddingBottom: 10 + insets.bottom }]}>
+          <Text style={st.barNote} numberOfLines={2}>Answers are kept as you go</Text>
+          {step > 1
+            ? <Btn label="Back" icon="chevron-back" onPress={() => { setStep((n) => n - 1); scroll.current?.scrollTo({ y: 0, animated: true }); }} />
+            : <Btn label="Later" onPress={() => router.back()} />}
+          <Btn kind="primary" label={last ? 'Review & send' : 'Continue'} icon={last ? 'eye-outline' : 'arrow-forward'} onPress={forward} />
         </View>
-      </ScrollView>
+      </View>
+
+      <Dialog visible={confirm} icon="checkmark-circle-outline" tone="green" title="Send your feedback?"
+        message={`To ${a.teacher?.name}${a.subject ? ` for ${a.subject}` : ''}. Once sent it cannot be changed.`}
+        confirmLabel={saving ? 'Sending…' : 'Yes, send it'} busy={saving}
+        onClose={() => setConfirm(false)} onConfirm={send}>
+        <Review questions={questions} answers={answers} />
+        {sendErr ? <NoteBar tone="red" icon="alert-circle">{sendErr}</NoteBar> : null}
+        <NoteBar tone="purple" icon="key-outline">
+          {c.isAnonymous
+            ? 'Your name is never shown with your answers. Your teacher only sees results combined across many students.'
+            : 'Your teacher sees results combined across many students, once enough have answered.'}
+        </NoteBar>
+      </Dialog>
     </>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: Spacing.lg, backgroundColor: Colors.background },
-  errText: { ...Typography.body, color: Colors.textSecondary, textAlign: 'center' },
+function Question({ q, n, value = {}, error, set, toggleOption }: {
+  q: any; n: number; value?: any; error?: string; set: (id: string, p: any) => void; toggleOption: (id: string, o: string, single: boolean) => void;
+}) {
+  const done = isAnswered(q, value);
+  const single = q.questionType === 'multiple_choice';
+  return (
+    <View style={[st.q, !!error && st.qErr]}>
+      <View style={st.qHead}>
+        <Text style={[st.qN, done && st.qNDone]}>{n}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={st.qText}>
+            {q.questionText}
+            {q.isRequired ? <Text style={{ color: '#DC2626' }}> *</Text> : <Text style={st.qOpt}> (optional)</Text>}
+          </Text>
+          {q.helpText ? <Text style={st.qHelp}>{q.helpText}</Text> : null}
+        </View>
+      </View>
 
-  steps: { flexDirection: 'row', gap: 6, marginBottom: 6 },
-  stepBar: { flex: 1, height: 4, borderRadius: 2 },
-  stepLabel: { ...Typography.h4, color: Colors.text, marginBottom: Spacing.md },
+      {RATING_TYPES.includes(q.questionType) ? (
+        <View style={st.rates} accessibilityRole="radiogroup" accessibilityLabel={q.questionText}>
+          {[1, 2, 3, 4, 5].map((v) => {
+            const on = value.ratingValue === v;
+            const col = v >= 4 ? '#16A34A' : v === 3 ? '#D97706' : '#DC2626';
+            return (
+              <TouchableOpacity key={v} style={[st.rate, on && { borderColor: col, backgroundColor: `${col}14` }]}
+                onPress={() => set(q._id, { ratingValue: on ? null : v })}
+                accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${v} ${RATING_LABELS[v]}`}>
+                <Text style={st.rateEmoji}>{EMOJI[v]}</Text>
+                <Text style={[st.rateN, on && { color: col }]}>{v}</Text>
+                <Text style={[st.rateL, on && { color: col }]} numberOfLines={2}>{v === 2 ? 'Needs work' : RATING_LABELS[v]}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
 
-  teacher: { ...Typography.h4, color: Colors.text },
-  meta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  badges: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
-  instructions: { fontSize: 12, color: Colors.textSecondary, marginTop: 10, lineHeight: 17 },
-  scaleHint: { fontSize: 11, color: Colors.textSecondary, marginBottom: 8, marginTop: 4 },
+      {q.questionType === 'yes_no' ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {['yes', 'no'].map((v) => {
+            const on = value.textResponse === v;
+            return (
+              <TouchableOpacity key={v} style={[st.yn, on && st.ynOn]} onPress={() => set(q._id, { textResponse: on ? '' : v })}
+                accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={v === 'yes' ? 'Yes' : 'No'}>
+                <Text style={[st.ynText, on && { color: BRAND, fontWeight: '800' }]}>{v === 'yes' ? 'Yes' : 'No'}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
 
-  question: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  category: { fontSize: 10, color: Colors.textLight, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  help: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
+      {['checkbox', 'multiple_choice'].includes(q.questionType) ? (
+        <>
+          <Text style={st.qHint}>{single ? 'Choose one' : 'Choose any that apply'}</Text>
+          <View style={st.opts}>
+            {(q.options || []).map((o: any) => {
+              const on = (value.optionIds || []).includes(o._id);
+              return (
+                <TouchableOpacity key={o._id} style={[st.opt, on && st.optOn]} onPress={() => toggleOption(q._id, o._id, single)}
+                  accessibilityRole={single ? 'radio' : 'checkbox'} accessibilityState={{ checked: on }} accessibilityLabel={o.optionText}>
+                  <Text style={[st.optText, on && { color: BRAND, fontWeight: '700' }]}>{on ? '✓ ' : ''}{o.optionText}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {(q.options || []).some((o: any) => o.allowsFreeText && (value.optionIds || []).includes(o._id)) ? (
+            <TextInput style={st.input} placeholder="Tell us more (optional)" placeholderTextColor={Colors.textLight} maxLength={200}
+              value={value.otherText || ''} onChangeText={(t) => set(q._id, { otherText: t })} />
+          ) : null}
+        </>
+      ) : null}
 
-  ratingRow: { flexDirection: 'row', gap: 6, marginTop: 12 },
-  ratingBtn: {
-    flex: 1, minHeight: 64, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, gap: 1,
+      {q.questionType === 'text' ? (
+        <>
+          <TextInput style={[st.input, { minHeight: 96, textAlignVertical: 'top' }]} multiline maxLength={q.maxLength || 1000}
+            placeholder="Share anything you would like your teacher to know — kind and honest helps most."
+            placeholderTextColor={Colors.textLight} value={value.textResponse || ''} onChangeText={(t) => set(q._id, { textResponse: t })} />
+          <Text style={st.count}>{(value.textResponse || '').length} / {q.maxLength || 1000}</Text>
+        </>
+      ) : null}
+
+      {error ? <Text style={st.err}>{error}</Text> : null}
+    </View>
+  );
+}
+
+/** What is about to be sent, in one glance. */
+function Review({ questions, answers }: { questions: any[]; answers: Record<string, any> }) {
+  const missing = questions.filter((x) => x.isRequired && !isAnswered(x, answers[x._id])).length;
+  const ratings = questions.filter((x) => RATING_TYPES.includes(x.questionType) && answers[x._id]?.ratingValue != null)
+    .map((x) => answers[x._id].ratingValue as number);
+  const avg = ratings.length ? ratings.reduce((n, v) => n + v, 0) / ratings.length : null;
+  const answered = questions.filter((x) => isAnswered(x, answers[x._id])).length;
+  const wrote = questions.some((x) => x.questionType === 'text' && String(answers[x._id]?.textResponse || '').trim());
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={st.review}>
+        <View style={st.reviewCell}><Text style={st.reviewV}>{answered}</Text><Text style={st.reviewL}>of {questions.length} answered</Text></View>
+        <View style={st.reviewCell}><Text style={st.reviewV}>{avg == null ? '—' : `★ ${avg.toFixed(1)}`}</Text><Text style={st.reviewL}>your average</Text></View>
+        <View style={st.reviewCell}><Text style={st.reviewV}>{wrote ? 'Yes' : 'No'}</Text><Text style={st.reviewL}>comment</Text></View>
+      </View>
+      {missing ? <NoteBar tone="amber" icon="alert-circle">{missing} required question{missing === 1 ? ' is' : 's are'} still empty.</NoteBar> : null}
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F6F5FB' },
+  card: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, margin: 14 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F5F3FF', borderRadius: 18, borderWidth: 1, borderColor: '#E0E7FF', padding: 14 },
+  headLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, color: BRAND },
+  headName: { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+  headSub: { fontSize: 12.5, color: Colors.textSecondary, marginTop: 1 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -4 },
+  progress: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: 12, gap: 8 },
+  progressTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
+  progressText: { fontSize: 13.5, fontWeight: '800', color: Colors.text },
+  stepPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#F1F5F9' },
+  stepPillOn: { backgroundColor: '#EEF2FF' },
+  stepPillDone: { backgroundColor: '#F0FDF4' },
+  stepPillText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  track: { height: 7, borderRadius: 99, backgroundColor: '#EEF2F7', overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 99, backgroundColor: BRAND },
+  scale: { fontSize: 11, color: Colors.textSecondary },
+  qcard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  qcardHead: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 11, backgroundColor: '#FCFCFF', borderBottomWidth: 1, borderBottomColor: Colors.border },
+  qcardIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' },
+  qcardTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: Colors.text },
+  qcardCount: { fontSize: 11, color: Colors.textSecondary },
+  q: { padding: 14, gap: 10, borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  qErr: { backgroundColor: '#FFFAFA', borderLeftWidth: 3, borderLeftColor: '#F87171' },
+  qHead: { flexDirection: 'row', gap: 9 },
+  qN: { width: 22, height: 22, borderRadius: 11, textAlign: 'center', lineHeight: 22, fontSize: 11, fontWeight: '800', color: Colors.textSecondary, backgroundColor: '#F1F5F9', overflow: 'hidden' },
+  qNDone: { backgroundColor: '#DCFCE7', color: '#15803D' },
+  qText: { fontSize: 14, fontWeight: '600', color: Colors.text, lineHeight: 20 },
+  qOpt: { fontSize: 12, fontWeight: '400', color: Colors.textSecondary },
+  qHelp: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 2 },
+  qHint: { fontSize: 11.5, color: Colors.textSecondary, marginBottom: -4 },
+  rates: { flexDirection: 'row', gap: 5 },
+  rate: { flex: 1, minHeight: 64, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', paddingVertical: 5, paddingHorizontal: 2 },
+  rateEmoji: { fontSize: 17 },
+  rateN: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  rateL: { fontSize: 9, color: Colors.textSecondary, textAlign: 'center' },
+  yn: { width: 110, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  ynOn: { borderColor: BRAND, backgroundColor: '#EEF2FF' },
+  ynText: { fontSize: 14, color: Colors.text },
+  opts: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  opt: { minHeight: 40, paddingHorizontal: 13, justifyContent: 'center', borderRadius: 999, borderWidth: 1.5, borderColor: Colors.border },
+  optOn: { borderColor: BRAND, backgroundColor: '#EEF2FF' },
+  optText: { fontSize: 13, color: Colors.text },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 10, fontSize: 14, color: Colors.text, backgroundColor: Colors.surface },
+  count: { fontSize: 10.5, color: Colors.textSecondary, textAlign: 'right', marginTop: -6 },
+  err: { fontSize: 12, fontWeight: '700', color: '#B91C1C' },
+  bar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 10,
+    backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border,
+    ...(Platform.OS === 'web' ? {} : { elevation: 8 }),
   },
-  ratingEmoji: { fontSize: 17 },
-  ratingNum: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  ratingLabel: { fontSize: 8, color: Colors.textSecondary, textAlign: 'center', lineHeight: 10 },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.full,
-    borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt,
-  },
-  chipActive: { borderColor: Colors.accent, backgroundColor: Colors.accentLight },
-  chipText: { fontSize: 12, color: Colors.text },
-  chipTextActive: { color: Colors.primary, fontWeight: '600' },
-
-  input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.text, marginTop: 12,
-  },
-  counter: { fontSize: 10, color: Colors.textLight, textAlign: 'right', marginTop: 4 },
-  fieldError: { fontSize: 11, color: Colors.danger, marginTop: 8 },
-
-  actions: { flexDirection: 'row', gap: 10, marginTop: Spacing.md },
-  btn: { flex: 1, backgroundColor: Colors.accent, borderRadius: Radius.md, paddingVertical: 15, alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  btnGhost: {
-    paddingHorizontal: 18, paddingVertical: 15, borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
-  },
-  btnGhostText: { color: Colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  barNote: { flex: 1, fontSize: 11, color: Colors.textSecondary },
+  review: { flexDirection: 'row', gap: 6 },
+  reviewCell: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 9, alignItems: 'center' },
+  reviewV: { fontSize: 16, fontWeight: '800', color: Colors.text },
+  reviewL: { fontSize: 10.5, color: Colors.textSecondary, textAlign: 'center' },
+  thanks: { backgroundColor: Colors.surface, borderRadius: 18, borderWidth: 1, borderColor: Colors.border, padding: 22, alignItems: 'center', gap: 10 },
+  thanksIcon: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' },
+  thanksTitle: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  thanksText: { fontSize: 13.5, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  next: { alignSelf: 'stretch', borderWidth: 1, borderColor: '#E0E7FF', backgroundColor: '#F8F9FF', borderRadius: 14, padding: 12, gap: 10, marginVertical: 4 },
+  nextLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, color: BRAND },
+  nextWho: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  nextName: { fontSize: 14.5, fontWeight: '800', color: Colors.text },
+  nextSub: { fontSize: 12, color: Colors.textSecondary },
+  allDone: { fontSize: 13, fontWeight: '700', color: '#15803D' },
 });

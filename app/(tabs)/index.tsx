@@ -121,6 +121,7 @@ const PARENT_MODULES = [
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library-parent',   moduleFlag: 'library' },
   { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/transport-parent', moduleFlag: 'transport' },
   { key: 'hostel',     label: 'Hostel',     icon: 'business',         route: '/modules/hostel-parent',    moduleFlag: 'hostel' },
+  { key: 'feedback',   label: 'Feedback',   icon: 'star',             route: '/modules/feedback',    moduleFlag: 'feedback' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts',      moduleFlag: 'notification' },
   { key: 'profile',    label: 'Profile',    icon: 'person-circle',    route: '/modules/profile' },
 ];

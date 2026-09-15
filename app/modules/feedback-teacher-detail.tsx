@@ -1,166 +1,133 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+/**
+ * One teacher's feedback, in full — for an admin or a principal.
+ *
+ * Everything obeys the same privacy floor as the teacher's own screen. Comments
+ * arrive unordered and unattributed, and below the floor the screen shows
+ * nothing at all rather than a rounded number that would let a small section
+ * be worked out.
+ */
+import React, { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as fb from '@/api/feedback.api';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { unwrap, LoaderView, Empty, Badge, Card, StatRow, StatTile, RowItem } from '@/components/ui/kit';
-
-// Drill-down on one teacher, opened from the admin console or the principal
-// overview. Obeys the same privacy floor as everywhere else: below the
-// threshold the server sends a locked summary and this screen shows it.
-const toneFor = (v?: number | null) => (v == null ? Colors.textSecondary : v >= 4 ? Colors.success : v >= 3 ? Colors.warning : Colors.danger);
+import { Colors } from '@/constants/theme';
+import {
+  Bars, Blank, Card, Columns, Hero, Loading, Meter, Muted, NoteBar, Page, Panel, Pick, Rating, Stars, Tile, Tiles,
+  plural, ratingWord, useLoad,
+} from '@/components/feedback/parts';
 
 export default function FeedbackTeacherDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [data, setData] = useState<any>(undefined);
+  const [campaignId, setCampaignId] = useState('');
+  const q = useLoad<any>(() => fb.getTeacherAnalytics(String(id), campaignId ? { campaignId } : {}), [id, campaignId], { skip: !id });
+  const d = q.data;
 
-  useEffect(() => {
-    if (!id) return;
-    fb.getTeacherAnalytics(String(id)).then((r) => setData(unwrap(r))).catch(() => setData(null));
-  }, [id]);
-
-  if (data === undefined) return <><Stack.Screen options={{ title: 'Teacher' }} /><LoaderView /></>;
-  if (!data) {
-    return (
-      <>
-        <Stack.Screen options={{ title: 'Teacher' }} />
-        <View style={s.root}><Empty icon="alert-circle-outline" text="Could not load this teacher's feedback." /></View>
-      </>
-    );
+  if (q.loading && !d) return <><Stack.Screen options={{ title: 'Teacher' }} /><Loading /></>;
+  if (q.error && !d) {
+    return <><Stack.Screen options={{ title: 'Teacher' }} /><Page><NoteBar tone="red" icon="alert-circle">{q.error}</NoteBar></Page></>;
   }
 
-  const sum = data.summary;
+  const s = d.summary;
+  const t = d.teacher;
+  const p = d.profile || {};
+  const trend = (d.trend || []).filter((x: any) => x.rating != null);
 
   return (
     <>
-      <Stack.Screen options={{ title: data.teacher?.name || 'Teacher' }} />
-      <ScrollView style={s.root} contentContainerStyle={{ padding: Spacing.md, paddingBottom: 60 }}>
-        <Card>
-          <Text style={s.name}>{data.teacher?.name}</Text>
-          <Text style={s.meta}>
-            {[data.profile?.designation || 'Teacher', data.profile?.department, data.profile?.employeeId].filter(Boolean).join(' · ')}
-          </Text>
-          {!!data.campaign && <Text style={s.meta}>{data.campaign.name}{data.campaign.term ? ` · ${data.campaign.term}` : ''}</Text>}
-        </Card>
+      <Stack.Screen options={{ title: t?.name || 'Teacher' }} />
+      <Page refreshing={q.refreshing} onRefresh={q.reload}>
+        <Hero icon="person-outline" title={t.name} subtitle={[p.designation || 'Teacher', p.department, p.employeeId, t.email].filter(Boolean).join(' · ')}>
+          {d.campaigns?.length ? (
+            <Pick label="Campaign" value={campaignId || d.campaign?._id || ''} onChange={setCampaignId}
+              options={d.campaigns.map((c: any) => ({ value: c._id, label: `${c.name}${c.term ? ` · ${c.term}` : ''}` }))} />
+          ) : null}
+        </Hero>
 
-        {!sum ? (
-          <Empty icon="megaphone-outline" text="No feedback campaigns have run yet." />
-        ) : sum.locked ? (
-          <Card>
-            <View style={s.lockBox}>
-              <Ionicons name="lock-closed" size={30} color={Colors.textLight} />
-              <Text style={s.lockTitle}>Results are hidden</Text>
-              <Text style={s.lockText}>
-                {sum.responses === 0
-                  ? 'No responses submitted yet.'
-                  : `Only ${sum.responses} of ${sum.minimumResponses} responses so far.`}
-                {'\n'}Aggregated results appear once the minimum-response threshold is met.
-              </Text>
-            </View>
-          </Card>
+        {!s ? (
+          <Card><Blank icon="megaphone-outline" title="No campaign has covered this teacher yet"
+            body="Their results appear here once a feedback campaign has included them and students have answered." /></Card>
+        ) : s.locked ? (
+          <>
+            <Tiles>
+              <Tile icon="chatbubbles-outline" tone="blue" value={s.responses} label="Responses So Far" caption={`${s.minimumResponses} needed before anything is shown`} />
+              <Tile icon="school-outline" tone="purple" value={s.assigned} label="Students Asked" caption="In this campaign" />
+              <Tile icon="trending-up-outline" tone="green" value={`${s.responseRate}%`} label="Response Rate"
+                caption={s.responses < s.minimumResponses ? `${s.minimumResponses - s.responses} more to unlock` : ''} />
+              <Tile icon="key-outline" tone="pink" value={s.minimumResponses} label="Privacy Floor" caption="Set on the campaign" />
+            </Tiles>
+            <Card><Blank icon="lock-closed-outline" title="Results are withheld"
+              body={s.responses === 0
+                ? 'Nobody has answered about this teacher yet. Nothing is hidden — there is nothing there.'
+                : `${s.responses} of ${s.minimumResponses} responses. An average built from so few students would let any one of them be worked out, so no figure, no category and no comment is shown until the floor is reached. This applies to the teacher, the principal and the admin alike.`} /></Card>
+            <NoteBar tone="purple" icon="key-outline">The floor is set per campaign. Raising it protects students in small sections; lowering it can make a single student’s answer identifiable.</NoteBar>
+          </>
         ) : (
           <>
-            <Card>
-              <View style={s.heroRow}>
-                <Text style={[s.heroValue, { color: toneFor(sum.averageRating) }]}>
-                  {sum.averageRating == null ? '—' : sum.averageRating.toFixed(1)}
-                </Text>
-                <Text style={s.heroUnit}>/ 5.0</Text>
+            <Tiles>
+              <Tile icon="star-outline" tone="amber" value={s.averageRating == null ? '—' : s.averageRating.toFixed(1)} unit={s.averageRating == null ? '' : '/ 5'} label="Average Rating" caption={ratingWord(s.averageRating)} />
+              <Tile icon="chatbubbles-outline" tone="blue" value={s.responses} label="Responses" caption={`of ${plural(s.assigned, 'student')} asked`} />
+              <Tile icon="trending-up-outline" tone="green" value={`${s.responseRate}%`} label="Response Rate" caption={s.responseRate >= 60 ? 'A solid sample' : 'A thin sample — read carefully'} />
+              <Tile icon="layers-outline" tone="purple" value={d.categories?.length || 0} label="Categories Scored" caption="Themes this campaign asked about" />
+            </Tiles>
+
+            <Panel icon="star-outline" tone="amber" title="Overall" subtitle={`Across ${plural(s.responses, 'response')}`}>
+              <View style={{ gap: 9 }}>
+                <Rating value={s.averageRating} big />
+                <Stars value={Math.round(s.averageRating || 0)} size={22} />
+                <Meter value={s.responseRate} />
+                <Muted>Read this beside the response rate. A rating is a conversation starter about one campaign, not a verdict on a teacher.</Muted>
               </View>
-              <Text style={s.heroLabel}>Average rating</Text>
-            </Card>
+            </Panel>
 
-            <StatRow>
-              <StatTile label="Responses" value={sum.responses} icon="chatbubbles" tone="info" />
-              <StatTile label="Rate" value={`${sum.responseRate}%`} icon="trending-up" tone="success" />
-              <StatTile label="Assigned" value={sum.assigned} icon="people" tone="warning" />
-            </StatRow>
+            <Panel icon="trending-up-outline" tone="purple" title="Rating Trend" subtitle="This teacher’s own average, campaign by campaign">
+              {trend.length > 1
+                ? <Columns min={1} max={5} data={trend.map((x: any) => ({ label: x.label, value: x.rating }))} />
+                : <Muted>A trend compares this teacher against themselves, never against a colleague — and needs at least two campaigns where they cleared the response floor. So far there {trend.length === 1 ? 'is one.' : 'are none.'}</Muted>}
+            </Panel>
 
-            <Card>
-              <Text style={s.h}>Category performance</Text>
-              {(data.categories || []).map((c: any) => (
-                <View key={c._id} style={{ marginBottom: 12 }}>
-                  <View style={s.barHead}>
-                    <Text style={s.barLabel}>{c.name}</Text>
-                    <Text style={[s.barValue, { color: toneFor(c.average) }]}>{c.average?.toFixed(1) ?? '—'}</Text>
-                  </View>
-                  <View style={s.barTrack}>
-                    <View style={[s.barFill, { width: `${((c.average || 0) / 5) * 100}%`, backgroundColor: toneFor(c.average) }]} />
-                  </View>
-                </View>
-              ))}
-            </Card>
+            <Panel icon="layers-outline" tone="indigo" title="Category Performance" subtitle="Average out of 5 for each theme the campaign asked about">
+              {d.categories?.length
+                ? <Bars colored data={d.categories.map((c: any) => ({ label: c.name, value: c.average == null ? null : Number(c.average.toFixed(1)) }))} />
+                : <Muted>No scored answers in this campaign.</Muted>}
+            </Panel>
 
-            {(data.trend || []).filter((p: any) => p.rating != null).length > 1 && (
-              <Card>
-                <Text style={s.h}>Trend</Text>
-                {data.trend.filter((p: any) => p.rating != null).map((p: any, i: number) => (
-                  <RowItem key={i} icon="trending-up" title={p.label} sub={`${p.responses} responses`}
-                    right={<Badge label={p.rating.toFixed(1)} tone={p.rating >= 4 ? 'success' : p.rating >= 3 ? 'warning' : 'danger'} />} />
-                ))}
-              </Card>
-            )}
+            <Panel icon="trophy-outline" tone="green" title="Strengths" subtitle="Categories at 4.0 and above">
+              {d.strengths?.length
+                ? <Bars color="#22C55E" data={d.strengths.map((c: any) => ({ label: c.name, value: Number(c.average.toFixed(1)) }))} />
+                : <Muted>No category reached 4.0 in this campaign.</Muted>}
+            </Panel>
+            <Panel icon="flag-outline" tone="amber" title="Improvement Areas" subtitle="The lowest-scoring categories">
+              {d.improvements?.length
+                ? <Bars color="#F59E0B" data={d.improvements.map((c: any) => ({ label: c.name, value: Number(c.average.toFixed(1)) }))} />
+                : <Muted>Every category is at 4.0 or above.</Muted>}
+            </Panel>
 
-            <Card>
-              <Text style={s.h}>Strengths</Text>
-              {(data.strengths || []).length
-                ? data.strengths.map((c: any) => (
-                  <RowItem key={c._id} icon="thumbs-up" iconBg={Colors.successLight} iconColor={Colors.success}
-                    title={c.name} right={<Badge label={c.average.toFixed(1)} tone="success" />} />
-                ))
-                : <Text style={s.muted}>No category is above 4.0.</Text>}
-              <Text style={[s.h, { marginTop: 12 }]}>Improvement areas</Text>
-              {(data.improvements || []).length
-                ? data.improvements.map((c: any) => (
-                  <RowItem key={c._id} icon="construct" iconBg={Colors.warningLight} iconColor={Colors.warning}
-                    title={c.name} right={<Badge label={c.average.toFixed(1)} tone="warning" />} />
-                ))
-                : <Text style={s.muted}>Every category is at 4.0 or above.</Text>}
-            </Card>
+            {(d.options || []).map((block: any) => (
+              <Panel key={block.question} icon="list-outline" tone="teal" title={block.question} subtitle="What students picked, and how often">
+                <Bars max={100} unit="%" color="#4F46E5" data={block.options.map((o: any) => ({ label: `${o.label} (${o.count})`, value: o.percent }))} />
+              </Panel>
+            ))}
 
-            {(data.comments || []).length > 0 && (
-              <Card>
-                <Text style={s.h}>Student comments</Text>
-                {data.comments.map((c: any, i: number) => (
-                  <View key={i} style={s.comment}><Text style={s.commentText}>{c.text}</Text></View>
-                ))}
-                <Text style={s.note}>Anonymous and unordered — never linked back to a student.</Text>
-              </Card>
-            )}
+            <Panel icon="chatbubble-ellipses-outline" tone="blue" title="Student Comments" subtitle="Anonymous, unordered and never linked back to anybody">
+              {d.comments?.length
+                ? <View style={{ gap: 8 }}>{d.comments.map((c: any, i: number) => (
+                  // Comments arrive deliberately unattributed — there is no id to key on.
+                  <View key={i} style={st.quote}><Text style={st.quoteText}>{c.text}</Text></View>
+                ))}</View>
+                : <Muted>No written comments in this campaign.</Muted>}
+            </Panel>
+
+            <NoteBar tone="purple" icon="key-outline">
+              {`These figures are shown because ${s.responses} students answered, which clears this campaign’s floor of ${s.minimumResponses}. The comments above arrive in no particular order and carry nothing that identifies who wrote them — no admin screen anywhere joins a student to the content of their feedback.`}
+            </NoteBar>
           </>
         )}
-      </ScrollView>
+      </Page>
     </>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background, padding: Spacing.md },
-  h: { fontSize: 13, fontWeight: '700', color: Colors.text, marginBottom: 8 },
-  muted: { fontSize: 12, color: Colors.textSecondary },
-  note: { fontSize: 10, color: Colors.textLight, marginTop: 6 },
-  name: { ...Typography.h4, color: Colors.text },
-  meta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-
-  heroRow: { flexDirection: 'row', alignItems: 'baseline' },
-  heroValue: { fontSize: 36, fontWeight: '700' },
-  heroUnit: { fontSize: 14, color: Colors.textSecondary, marginLeft: 6 },
-  heroLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-
-  barHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4, gap: 10 },
-  barLabel: { fontSize: 12, color: Colors.text, flex: 1 },
-  barValue: { fontSize: 12, fontWeight: '700' },
-  barTrack: { height: 7, borderRadius: 99, backgroundColor: Colors.divider, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 99 },
-
-  lockBox: { alignItems: 'center', paddingVertical: 20, gap: 8 },
-  lockTitle: { ...Typography.h4, color: Colors.textSecondary },
-  lockText: { fontSize: 12, color: Colors.textLight, textAlign: 'center', lineHeight: 18 },
-
-  comment: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, padding: 12,
-    marginBottom: 8, borderLeftWidth: 3, borderLeftColor: Colors.primary,
-  },
-  commentText: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+const st = StyleSheet.create({
+  quote: { borderLeftWidth: 3, borderLeftColor: '#818CF8', backgroundColor: '#F8FAFC', borderTopRightRadius: 10, borderBottomRightRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  quoteText: { fontSize: 13, color: Colors.text, lineHeight: 19 },
 });

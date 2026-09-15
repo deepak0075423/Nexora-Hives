@@ -18,3 +18,6 @@ export const getHolidays        = () => api.get('/parent/holidays');
 // Fees
 export const getParentFees      = () => api.get('/fees/parent/fees');
 export const getChildFees       = (childId: string) => api.get(`/fees/parent/child/${childId}/fees`);
+
+// Teacher feedback — whether each child has given it, never what they said.
+export const getChildrenFeedback = () => api.get('/parent/feedback');
