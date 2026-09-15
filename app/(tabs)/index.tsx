@@ -555,7 +555,14 @@ function ParentContent({ data, schoolModules, holidays, childId, onPickChild }: 
   const delta   = (att?.percentage != null && prev?.percentage != null)
     ? att.percentage - prev.percentage : null;
 
-  const events = upcomingFrom(holidays);
+  // The holiday endpoint answers for every child and tags each day with
+  // `forChildren`; the events here belong to the child on screen, so a
+  // sibling's class holiday stays off. Untagged rows (older backend) are kept.
+  const selected = child?._id ? String(child._id) : '';
+  const events = upcomingFrom(selected
+    ? (holidays || []).filter((h: any) =>
+        !Array.isArray(h.forChildren) || h.forChildren.map(String).includes(selected))
+    : holidays);
 
   return (
     <>
