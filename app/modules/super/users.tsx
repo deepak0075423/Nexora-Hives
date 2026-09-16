@@ -104,11 +104,12 @@ export default function SuperUsersScreen() {
     if (form.role !== 'super_admin' && !form.school) return Alert.alert('Required', 'Pick a school for this role');
     setSaving(true);
     try {
-      await superApi.createUser({ ...form, name: form.name.trim(), email: form.email.trim() });
+      const res: any = await superApi.createUser({ ...form, name: form.name.trim(), email: form.email.trim() });
       setShowForm(false);
       setForm({ name: '', email: '', role: 'school_admin', school: '' });
       load(1, search, role);
-      Alert.alert('Created', 'User created. Login OTP has been emailed.');
+      if (res?.inactive) Alert.alert('Added as inactive', res.notice);
+      else Alert.alert('Created', 'User created. Login OTP has been emailed.');
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };

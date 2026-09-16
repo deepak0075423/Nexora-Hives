@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import storage from '@/utils/storage';
-import { getMe } from '@/api/auth.api';
+import { getMe, switchAccount as switchAccountApi } from '@/api/auth.api';
 
 export type UserRole = 'student' | 'teacher' | 'parent' | 'admin' | 'super-admin';
 
@@ -11,6 +11,11 @@ export interface User {
   role: UserRole;
   isFirstLogin?: boolean;
   avatar?: string;
+  /** The other schools / roles this same sign-in opens (server-supplied). */
+  accounts?: {
+    id: string; name: string; email: string; role: string; current?: boolean;
+    school?: { _id: string; name: string; logo?: string; code?: string } | null;
+  }[];
   school?: {
     name: string;
     _id: string;
@@ -67,6 +72,23 @@ async function writeAccounts(list: SavedAccount[]) {
   await storage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
 }
 
+/**
+ * The saved list without posts of THIS person that the server no longer offers.
+ *
+ * A post switched off at its school — a teacher who has moved to another school,
+ * say — must not linger on the device's "Switch Account" sheet. The server's
+ * `accounts` on the signed-in user is the list of posts that are still live, so
+ * any saved entry for the same email that is not on it is dropped. Entries for
+ * other people's logins on this device are left alone. An older server that
+ * sends no `accounts` gives nothing to compare with, so nothing is removed.
+ */
+function withoutStalePosts(list: SavedAccount[], current: User | null): SavedAccount[] {
+  if (!current?.accounts) return list;
+  const live  = new Set([String(current._id), ...current.accounts.map(a => String(a.id))]);
+  const email = String(current.email || '').toLowerCase();
+  return list.filter(a => String(a.email || '').toLowerCase() !== email || live.has(String(a._id)));
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -75,6 +97,8 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   reload: () => Promise<void>;
   switchAccount: (accountId: string) => Promise<boolean>;
+  /** Change school / role inside this sign-in (server-side), not between saved logins. */
+  switchPost: (accountId: string) => Promise<void>;
   addAccount: () => Promise<void>;
   removeAccount: (accountId: string) => Promise<void>;
 }
@@ -95,7 +119,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) { setLoading(false); return; }
     try {
       const data: any = await getMe();
-      setUser(normalizeUser(data.user));
+      const fresh = normalizeUser(data.user);
+      setUser(fresh);
+      const saved = await readAccounts();
+      const kept  = withoutStalePosts(saved, fresh);
+      if (kept.length !== saved.length) { await writeAccounts(kept); setAccounts(kept); }
     } catch {
       await storage.deleteItem('token');
       await storage.deleteItem('refreshToken');
@@ -116,8 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     const idx = list.findIndex(a => a._id === u._id);
     if (idx >= 0) list[idx] = entry; else list.push(entry);
-    await writeAccounts(list);
-    setAccounts(list);
+    const kept = withoutStalePosts(list, u);
+    await writeAccounts(kept);
+    setAccounts(kept);
   };
 
   /** Save the ACTIVE tokens back into the registry (they rotate via refresh) */
@@ -182,6 +211,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Move to another school or role held by THIS sign-in.
+   *
+   * Not the same thing as switchAccount above: that flips between separate
+   * logins saved on this device, each with its own password. This asks the
+   * server for a session on another post behind the one password already
+   * proved — the person never signs out, and the device registry is updated so
+   * the new post is the one saved under these tokens.
+   */
+  const switchPost = async (accountId: string) => {
+    const res: any = await switchAccountApi(accountId);
+    if (!res?.token || !res?.user) throw new Error('Could not switch account');
+    const fresh = normalizeUser(res.user);
+    await storage.setItem('token', res.token);
+    await storage.setItem('refreshToken', res.refreshToken);
+    setUser(fresh);
+    // Same person, same sign-in: the device keeps ONE entry for it, now pointing
+    // at the post just switched to. Keeping the outgoing post as a second entry
+    // would put every school they had ever visited on the "Switch Account"
+    // sheet — including ones that have since been switched off.
+    const outgoing = user?._id;
+    if (outgoing && outgoing !== fresh._id) {
+      await writeAccounts((await readAccounts()).filter(a => a._id !== outgoing));
+    }
+    await upsertAccount(fresh, res.token, res.refreshToken);
+  };
+
   const removeAccount = async (accountId: string) => {
     const list = (await readAccounts()).filter(a => a._id !== accountId);
     await writeAccounts(list);
@@ -192,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user, loading, accounts,
       signIn, signOut, reload: loadUser,
-      switchAccount, addAccount, removeAccount,
+      switchAccount, switchPost, addAccount, removeAccount,
     }}>
       {children}
     </AuthContext.Provider>

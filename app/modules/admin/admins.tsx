@@ -43,11 +43,14 @@ export default function AdminAdminsScreen() {
     if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
     setSaving(true);
     try {
-      await adminApi.createAdmin({ ...form, name: form.name.trim(), email: form.email.trim() });
+      const res: any = await adminApi.createAdmin({ ...form, name: form.name.trim(), email: form.email.trim() });
       setShowForm(false);
       setForm({ name: '', email: '', phone: '' });
       load();
-      Alert.alert('Success', 'Admin created. Login OTP has been emailed.');
+      const created = res?.data ?? res;
+      // Still active staff at another school: added, but switched off.
+      if (created?.inactive) Alert.alert('Added as inactive', created.notice);
+      else Alert.alert('Success', 'Admin created. Login OTP has been emailed.');
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };

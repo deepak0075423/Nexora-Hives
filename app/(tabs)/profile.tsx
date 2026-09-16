@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, router as appRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,7 +110,7 @@ function RoleInfoBlock({ role, p }: { role: string; p: Record<string, any> }) {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut, accounts, switchAccount, addAccount } = useAuth();
+  const { user, signOut, accounts, switchAccount, switchPost, addAccount, reload } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -118,6 +118,15 @@ export default function ProfileScreen() {
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showSwitch, setShowSwitch] = useState(false);
+  // The schools / roles THIS sign-in holds — a different thing from the
+  // separate logins saved on the device above.
+  const posts = user?.accounts || [];
+  // Every post in the same role — a parent with children at two schools — is a
+  // choice of school only, and is named that way. A mix of roles is both.
+  const oneRole     = new Set(posts.map(p => p.role)).size === 1;
+  const switchLabel = oneRole ? 'Switch School' : 'Switch School or Role';
+  const [showPosts, setShowPosts] = useState(false);
+  const [switchingPost, setSwitchingPost] = useState('');
   const [switching, setSwitching] = useState('');
 
   const fetchData = useCallback(async (quiet = false) => {
@@ -132,8 +141,10 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  // Re-fetch every time this tab comes into focus (catches edits from edit-profile)
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  // Re-fetch every time this tab comes into focus (catches edits from edit-profile).
+  // The session is refreshed too: it carries the schools this sign-in can switch
+  // to, and a post switched off since sign-in must drop out of that list.
+  useFocusEffect(useCallback(() => { fetchData(); reload().catch(() => {}); }, [fetchData]));
 
   const onRefresh = () => { setRefreshing(true); fetchData(true); };
 
@@ -188,15 +199,39 @@ export default function ProfileScreen() {
               {ROLE_LABELS[role] ?? role}
             </Text>
           </View>
-          {user?.school?.name && (
+          {user?.school?.name && (posts.length > 1 ? (
+            // More than one school behind this sign-in: the school line is
+            // itself the way to change it.
+            <TouchableOpacity style={s.schoolSwitch} onPress={() => setShowPosts(true)} activeOpacity={0.8}>
+              <Ionicons name="business-outline" size={13} color="#fff" />
+              <Text style={s.schoolSwitchText} numberOfLines={1}>{user.school.name}</Text>
+              <View style={s.schoolSwitchChip}>
+                <Ionicons name="swap-horizontal" size={12} color={Colors.primary} />
+                <Text style={s.schoolSwitchChipText}>Switch</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
             <View style={s.schoolRow}>
               <Ionicons name="business-outline" size={13} color="rgba(255,255,255,0.7)" />
               <Text style={s.schoolName}>{user.school.name}</Text>
             </View>
-          )}
+          ))}
         </View>
 
         <View style={s.body}>
+
+          {/* ── School Block ───────────────────────────────────────── */}
+          {/* Only for a sign-in that really holds more than one school or role. */}
+          {posts.length > 1 && (
+            <Block title={oneRole ? 'School' : 'School & Role'}>
+              <InfoItem
+                icon="business-outline"
+                label={role === 'parent' ? 'Viewing information from' : 'Working in'}
+                value={user?.school?.name}
+              />
+              <MenuItem icon="swap-horizontal-outline" label={switchLabel} onPress={() => setShowPosts(true)} last />
+            </Block>
+          )}
 
           {/* ── Contact Block ──────────────────────────────────────── */}
           <Block title="Contact">
@@ -245,6 +280,51 @@ export default function ProfileScreen() {
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
+
+      {/* ── Switch school / role sheet ───────────────────────────── */}
+      {/* One password, several posts: a teacher at two schools, a parent with
+          children at two, a teacher who is also a parent. Switching here keeps
+          the session — it asks the server for one on the other post. */}
+      <FormModal visible={showPosts} title={switchLabel} onClose={() => setShowPosts(false)}>
+        {posts.map(post => (
+          <TouchableOpacity
+            key={post.id}
+            style={sw.row}
+            disabled={!!post.current || !!switchingPost}
+            onPress={async () => {
+              setSwitchingPost(post.id);
+              try {
+                await switchPost(post.id);
+                // The whole signed-in tree has just been remounted for the new
+                // school (SessionScope in app/_layout), so this screen is gone —
+                // land on the new school's Home, where its data is.
+                appRouter.replace('/(tabs)' as any);
+              } catch (err: any) {
+                Alert.alert('Could not switch', err?.message || 'Please try again.');
+                setSwitchingPost('');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[sw.avatar, post.current && { backgroundColor: Colors.success }]}>
+              <Ionicons name={post.school ? 'business' : 'person'} size={17} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={sw.name} numberOfLines={2}>{post.school?.name || 'Platform'}</Text>
+              <Text style={sw.meta} numberOfLines={1}>
+                {post.current
+                  ? (oneRole ? 'Viewing now' : `${String(post.role).replace('_', ' ')} · viewing now`)
+                  : (oneRole ? 'Switch to this school' : String(post.role).replace('_', ' '))}
+              </Text>
+            </View>
+            {switchingPost === post.id
+              ? <ActivityIndicator size="small" color={Colors.primary} />
+              : post.current
+                ? <Ionicons name="checkmark" size={17} color={Colors.success} />
+                : <Ionicons name="chevron-forward" size={17} color={Colors.textLight} />}
+          </TouchableOpacity>
+        ))}
+      </FormModal>
 
       {/* ── Switch Account sheet ─────────────────────────────────── */}
       <FormModal visible={showSwitch} title="Switch Account" onClose={() => setShowSwitch(false)}>
@@ -357,6 +437,17 @@ const s = StyleSheet.create({
   rolePillText: { ...Typography.label, fontWeight: '600' },
   schoolRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
   schoolName:   { ...Typography.bodySmall, color: 'rgba(255,255,255,0.7)' },
+  schoolSwitch: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '90%',
+    paddingVertical: 6, paddingLeft: 12, paddingRight: 6, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  schoolSwitchText: { ...Typography.bodySmall, color: '#fff', flexShrink: 1 },
+  schoolSwitchChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, backgroundColor: '#fff',
+  },
+  schoolSwitchChipText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
 
   body:         { padding: Spacing.md, marginTop: -Spacing.lg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, backgroundColor: Colors.background },
 

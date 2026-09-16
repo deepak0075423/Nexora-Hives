@@ -86,7 +86,9 @@ export const pincodeLookup = (pin: string)      => api.get(`/admin/pincode/${pin
 // ── Shared user ops ──────────────────────────────────────────────────────────
 export const toggleUser  = (id: string, force = false) => api.patch(`/admin/users/${id}/toggle`, force ? { force: true } : {});
 export const deleteUser  = (id: string)    => api.delete(`/admin/users/${id}`);
-export const checkEmail  = (email: string) => api.get('/admin/users/check-email', { params: { email } });
+// Answered for the role being added: an address in use elsewhere may still be
+// addable here (a teacher from another school, a parent's second child).
+export const checkEmail  = (email: string, role?: string) => api.get('/admin/users/check-email', { params: { email, role } });
 
 // ── Admins ───────────────────────────────────────────────────────────────────
 export const getAdmins   = (params?: object) => api.get('/admin/admins', { params });

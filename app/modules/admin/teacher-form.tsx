@@ -247,10 +247,19 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
     const problem = stepError(step);
     if (problem) return Alert.alert('Required', problem);
     // Catch a duplicate email before the remaining five steps are filled in
-    if (step === 2) {
+    const typedEmail = form.email.trim();
+    const emailChanged = typedEmail.toLowerCase() !== String((teacher as any)?.email || '').toLowerCase();
+    if (step === 2 && (!editing || emailChanged)) {
       try {
-        const res: any = await adminApi.checkEmail(form.email.trim());
-        if (res?.exists) return Alert.alert('Already registered', 'This email is already registered');
+        const res: any = await adminApi.checkEmail(typedEmail, 'teacher');
+        // A new teacher may already have an account at another school, or be a
+        // parent here — only an address that cannot become a teacher HERE stops
+        // the form. An edit can only move to an address nobody uses.
+        if (editing ? res?.exists : res?.blocked) {
+          return Alert.alert('Already registered', (!editing && res?.message) || 'This email is already registered');
+        }
+        // Still employed at another school: added, but inactive.
+        if (!editing && res?.activeElsewhere) Alert.alert('Active at another school', res.message);
       } catch { /* the server re-checks on submit */ }
     }
     setStep(s => s + 1);
@@ -273,11 +282,16 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
         Alert.alert('Saved', 'Teacher record updated.');
       } else {
         const res: any = await adminApi.createTeacherForm(fd);
-        const employeeId = ((res as any)?.data ?? res)?.employeeId;
+        const created = (res as any)?.data ?? res;
+        const employeeId = created?.employeeId;
         reset();
         onCreated();
         onClose();
-        Alert.alert('Success', `Teacher created${employeeId ? ` — Employee ID ${employeeId}` : ''}. Login OTP has been emailed.`);
+        if (created?.inactive) {
+          Alert.alert('Added as inactive', `${created.notice}${employeeId ? `\n\nEmployee ID ${employeeId}` : ''}`);
+        } else {
+          Alert.alert('Success', `Teacher created${employeeId ? ` — Employee ID ${employeeId}` : ''}. Login OTP has been emailed.`);
+        }
       }
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }

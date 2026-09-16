@@ -49,6 +49,22 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const data: any = await login({ email: email.trim().toLowerCase(), password });
+      // Several posts behind one address — a teacher at two schools, a parent
+      // with children at two, a teacher who is also a parent. Nothing is signed
+      // in until they pick one, so the ticket and the list travel to the
+      // chooser rather than being stored.
+      if (data?.requiresSelection) {
+        router.push({
+          pathname: '/(auth)/choose-account' as any,
+          params: { payload: JSON.stringify({
+            selectionToken: data.selectionToken,
+            accounts: data.accounts,
+            name: data.name,
+            email: data.email,
+          }) },
+        });
+        return;
+      }
       await signIn(data.token, data.refreshToken, data.user);
     } catch (err: any) {
       const isNetwork = err?.status === 0 || !err?.status;

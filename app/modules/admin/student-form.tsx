@@ -341,8 +341,9 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
     // Catch a duplicate email before the remaining six steps are filled in
     if (step === 1 && !isEdit) {
       try {
-        const res: any = await adminApi.checkEmail(form.email.trim());
-        if (res?.exists) return Alert.alert('Already registered', 'This email is already registered');
+        // A student's address is theirs alone, so any existing use of it blocks.
+        const res: any = await adminApi.checkEmail(form.email.trim(), 'student');
+        if (res?.blocked) return Alert.alert('Already registered', res?.message || 'This email is already registered');
       } catch { /* the server re-checks on submit */ }
     }
     setStep(s => s + 1);

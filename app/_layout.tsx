@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -92,6 +92,34 @@ function DeepLinkBridge() {
   return null;
 }
 
+/**
+ * Everything below this belongs to ONE membership — one school, one role.
+ *
+ * Screens here fetch on mount and keep what they fetched in component state;
+ * most only refetch when the ROLE changes. That is right for one session and
+ * wrong across a switch: a parent moving from one school to the other keeps the
+ * same role, so the Home tab would go on showing the first school's children,
+ * notices and holidays under the second school's name.
+ *
+ * So when one signed-in membership is replaced directly by another — switching
+ * school or role, or flipping to a saved account — the whole tree is mounted
+ * afresh, the in-app equivalent of the full page reload the web app does.
+ * Signing out and in again is not counted: navigating through the sign-in
+ * screens already unmounts the tabs, and remounting at cold start (no user →
+ * user) would only mount everything twice.
+ */
+function SessionScope({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const id = user?._id ?? null;
+  const generation = useRef(0);
+  const lastId = useRef<string | null>(null);
+  if (id !== lastId.current) {
+    if (id && lastId.current) generation.current += 1;
+    lastId.current = id;
+  }
+  return <React.Fragment key={generation.current}>{children}</React.Fragment>;
+}
+
 const RELOCK_AFTER_MS = 30_000;
 
 /** Shows the PIN screen at cold start, on account switch, and after 30s in background */
@@ -143,6 +171,7 @@ function LockGate({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <SessionScope>
       <NotificationProvider>
         <DeepLinkBridge />
         <LockGate>
@@ -159,6 +188,7 @@ export default function RootLayout() {
           <StatusBar style="auto" />
         </LockGate>
       </NotificationProvider>
+      </SessionScope>
     </AuthProvider>
   );
 }
