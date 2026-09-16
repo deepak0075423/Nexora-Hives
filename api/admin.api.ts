@@ -258,6 +258,3 @@ export const sendNotification = (data: object)  => api.post('/admin/notification
 // ── Attendance (staff) ───────────────────────────────────────────────────────
 export const getRegularizationRequests = (params?: object) => api.get('/admin/regularization-requests', { params });
 export const reviewRegularization      = (data: object)     => api.post('/admin/regularization-requests/review', data);
-export const getMyAttendance           = (params?: object)  => api.get('/admin/my-attendance', { params });
-export const clockIn                   = ()                 => api.post('/admin/my-attendance/clock-in');
-export const clockOut                  = ()                 => api.post('/admin/my-attendance/clock-out');

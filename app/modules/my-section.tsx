@@ -10,7 +10,7 @@
  * and next year's section must not read as today's work.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -44,14 +44,24 @@ export default function MySectionScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
+  const [denied, setDenied] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setData(unwrap(await teacherApi.getMySection()));
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
+      // Class teachers and vice class teachers only. The dashboard hides the
+      // tile from everyone else, but a notification or a stale module map can
+      // still open this screen — the server's answer decides, and the teacher
+      // is sent back to their dashboard.
+      if (err?.data?.code === 'MY_SECTION_NOT_ASSIGNED') {
+        setDenied(true);
+        Alert.alert('My Section', err?.message || 'My Section is available to class teachers and vice class teachers only');
+        router.replace('/(tabs)' as any);
+      }
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [router]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -139,10 +149,12 @@ export default function MySectionScreen() {
           blurb={`Your class section, responsibilities and related information${data?.currentYear ? ` for ${data.currentYear}` : ''}.`}
           quote="“Teachers plant seeds that grow forever.”" />
 
-        {loading ? <LoaderView /> : nothing ? (
-          <Blank icon="people-outline"
-            title={`You are not attached to any section${data?.currentYear ? ` in ${data.currentYear}` : ' yet'}`}
-            body="No class teacher, vice class teacher or subject teacher assignment this academic year. Your school office sets these up on the class." />
+        {loading || denied ? <LoaderView /> : nothing ? (
+          // The server refuses a teacher with no class of their own, so an
+          // empty screen here means the load itself failed.
+          <Blank icon="cloud-offline-outline"
+            title="My Section could not be loaded"
+            body="Pull down to try again." />
         ) : (
           <>
             <Figures items={[

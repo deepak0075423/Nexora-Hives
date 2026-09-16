@@ -35,6 +35,8 @@ export interface ModuleFlags {
   designation?: string;
   isLibrarian?: boolean; // = moduleAdmin.library (kept for existing screens)
   isPrincipal?: boolean; // = moduleAdmin.feedback
+  /** Teachers: class teacher or vice class teacher this year — opens My Section. */
+  hasMySection?: boolean;
   [key: string]: any;
 }
 

@@ -44,7 +44,8 @@ const STUDENT_MODULES = [
 ];
 
 const TEACHER_MODULES = [
-  { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section' },
+  // Class teachers and vice class teachers only (hasMySection on the module payload).
+  { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section', requires: 'hasMySection' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
