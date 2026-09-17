@@ -15,6 +15,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; icon: string }> 
   present: { bg: Colors.successLight, color: Colors.success, icon: 'checkmark-circle' },
   absent:  { bg: Colors.dangerLight,  color: Colors.danger,  icon: 'close-circle' },
   late:    { bg: Colors.warningLight, color: Colors.warning, icon: 'time' },
+  'half-day': { bg: '#E0E7FF', color: '#4F46E5', icon: 'contrast' },
 };
 
 export default function AttendanceScreen() {
@@ -56,7 +57,12 @@ export default function AttendanceScreen() {
   const summary = data?.summary ?? (records.length ? (() => {
     const count = (st: string) => records.filter((r: any) => String(r.status).toLowerCase() === st).length;
     const present = count('present'), absent = count('absent'), late = count('late');
-    return { present, absent, late, percentage: Math.round((present / records.length) * 100) };
+    // Every mark counts — a subject-wise day carries its registers — late as
+    // attended and a half day as half, the rule every attendance figure uses.
+    const marks: string[] = records.flatMap((r: any) => (r.registers ? r.registers.map((g: any) => g.status) : [r.status]))
+      .filter(Boolean).map((x: any) => String(x).toLowerCase());
+    const credit = marks.reduce((n, x) => n + (x === 'present' || x === 'late' ? 1 : x === 'half-day' ? 0.5 : 0), 0);
+    return { present, absent, late, percentage: marks.length ? Math.round((credit / marks.length) * 100) : 0 };
   })() : null);
 
   if (disabled) return (
@@ -123,11 +129,15 @@ export default function AttendanceScreen() {
                         <Text style={s.cardDate}>
                           {rec.date ? new Date(rec.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : 'â€”'}
                         </Text>
-                        {rec.subject && <Text style={s.cardSub}>{rec.subject}</Text>}
+                        {rec.registers ? (
+                          <Text style={s.cardSub}>
+                            {rec.registers.map((g: any) => `${g.subjectName}: ${g.status ?? 'not marked'}`).join(' · ')}
+                          </Text>
+                        ) : null}
                       </View>
                       <View style={[s.badge, { backgroundColor: cfg.bg }]}>
                         <Text style={[s.badgeText, { color: cfg.color }]}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                          {status === 'half-day' ? 'Half-Day' : status.charAt(0).toUpperCase() + status.slice(1)}
                         </Text>
                       </View>
                     </View>

@@ -44,16 +44,24 @@ export default function TeacherAttendanceScreen() {
   // cover as vice. The server used to pick one and never say which.
   const [sectionId, setSectionId] = useState<string>(wantedSection ? String(wantedSection) : '');
   const [sections, setSections] = useState<any[]>([]);
+  // A subject-wise school keeps one register per subject a day; the server says
+  // which mode the school uses and the subjects this teacher may take.
+  const [mode, setMode] = useState<'day' | 'subject'>('day');
+  const [subjectId, setSubjectId] = useState<string>('');
+  const [subjects, setSubjects] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [records, setRecords] = useState<Record<string, string>>({});
   const [markLoading, setMarkLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const loadMark = async (d = date, id = sectionId) => {
+  const loadMark = async (d = date, id = sectionId, subj = subjectId) => {
     setMarkLoading(true);
     try {
-      const res = unwrap(await teacherApi.getAttendance({ date: d, section: id || undefined }));
+      const res = unwrap(await teacherApi.getAttendance({ date: d, section: id || undefined, subject: subj || undefined }));
       setSections(res?.sections ?? []);
+      setMode(res?.mode === 'subject' ? 'subject' : 'day');
+      setSubjects(res?.subjects ?? []);
+      setSubjectId(res?.subject?._id ? String(res.subject._id) : '');
       // The server answers with the section it actually used, so the picker
       // shows the register on screen rather than the one that was asked for.
       if (res?.section?._id) setSectionId(String(res.section._id));
@@ -67,7 +75,8 @@ export default function TeacherAttendanceScreen() {
     } finally { setMarkLoading(false); setRefreshing(false); }
   };
 
-  const pickSection = (id: string) => { setSectionId(id); loadMark(date, id); };
+  const pickSection = (id: string) => { setSectionId(id); setSubjectId(''); loadMark(date, id, ''); };
+  const pickSubject = (id: string) => { setSubjectId(id); loadMark(date, sectionId, id); };
 
   const idOf = (s: any) => String(s.user?._id ?? s._id);
   const setStatus = (s: any, status: string) => setRecords(r => ({ ...r, [idOf(s)]: status }));
@@ -83,6 +92,7 @@ export default function TeacherAttendanceScreen() {
       await teacherApi.markAttendance({
         date,
         section: sectionId || undefined,
+        subject: subjectId || undefined,
         records: students.map(s => ({ studentId: idOf(s), status: records[idOf(s)] || 'absent' })),
       });
       Alert.alert('Saved', 'Attendance saved for ' + fmtDate(date));
@@ -98,7 +108,7 @@ export default function TeacherAttendanceScreen() {
     const nd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (nd > todayStr()) return;
     setDate(nd);
-    loadMark(nd, sectionId);
+    loadMark(nd, sectionId, subjectId);
   };
 
   // ── My attendance ───────────────────────────────────────────────────────────
@@ -229,6 +239,18 @@ export default function TeacherAttendanceScreen() {
                 </View>
               )}
 
+              {mode === 'subject' && subjects.length > 0 && (
+                <View style={ta.secRow}>
+                  {subjects.map((sub: any) => (
+                    <TouchableOpacity key={sub._id}
+                      style={[ta.secChip, String(sub._id) === subjectId && ta.secChipOn]}
+                      onPress={() => pickSubject(String(sub._id))}>
+                      <Text style={[ta.secChipText, String(sub._id) === subjectId && { color: '#fff' }]}>{sub.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               <View style={ta.dateRow}>
                 <TouchableOpacity onPress={() => shiftDate(-1)} style={ta.dateBtn}>
                   <Ionicons name="chevron-back" size={18} color={Colors.text} />
@@ -241,8 +263,10 @@ export default function TeacherAttendanceScreen() {
 
               {students.length === 0 ? (
                 <Empty icon="people-outline" text={sections.length
-                  ? 'No students enrolled in this section.'
-                  : 'You are not the class teacher or vice class teacher of any section, so there is no register to mark.'} />
+                  ? (mode === 'subject' && !subjectId ? 'No subject is linked to this section yet.' : 'No students enrolled in this section.')
+                  : mode === 'subject'
+                    ? 'You are not the class teacher, vice class teacher or a subject teacher of any section this year.'
+                    : 'You are not the class teacher or vice class teacher of any section, so there is no register to mark.'} />
               ) : (
                 <>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.sm }}>
@@ -262,14 +286,15 @@ export default function TeacherAttendanceScreen() {
                           <Text style={ta.studentName}>{s.user?.name ?? s.name}</Text>
                           {s.rollNumber ? <Text style={ta.roll}>Roll {s.rollNumber}</Text> : null}
                         </View>
-                        {['present', 'absent', 'late'].map(opt => (
+                        {['present', 'absent', 'late', 'half-day'].map(opt => (
                           <TouchableOpacity
                             key={opt}
-                            style={[ta.statusBtn, st === opt && ta[`statusBtn_${opt}` as keyof typeof ta] as any]}
+                            accessibilityLabel={opt}
+                            style={[ta.statusBtn, st === opt && ta[`statusBtn_${opt.replace('-', '_')}` as keyof typeof ta] as any]}
                             onPress={() => setStatus(s, opt)}
                           >
                             <Text style={[ta.statusBtnText, st === opt && { color: '#fff' }]}>
-                              {opt === 'present' ? 'P' : opt === 'absent' ? 'A' : 'L'}
+                              {opt === 'present' ? 'P' : opt === 'absent' ? 'A' : opt === 'late' ? 'L' : 'H'}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -388,7 +413,9 @@ export default function TeacherAttendanceScreen() {
               <Card>
                 <KV label="Student" value={r.student?.name ?? '--'} />
                 <KV label="Date" value={fmtDate(r.date)} />
-                <KV label="Requested" value={r.requestedStatus ?? '--'} />
+                {r.subject?.name ? <KV label="Subject" value={r.subject.name} /> : null}
+                <KV label="Change" value={`${r.currentStatus ?? 'not marked'} → ${r.requestedStatus ?? '--'}`} />
+                {r.attachments?.length ? <KV label="Attachments" value={`${r.attachments.length} file${r.attachments.length === 1 ? '' : 's'}`} /> : null}
                 {r.reason ? <KV label="Reason" value={r.reason} /> : null}
                 <KV label="Status" value={<Badge label={String(r.status ?? 'pending').toLowerCase()} />} />
                 {String(r.status).toLowerCase() === 'pending' && (
@@ -449,6 +476,7 @@ const ta = StyleSheet.create({
   statusBtn_present: { backgroundColor: Colors.success, borderColor: Colors.success },
   statusBtn_absent: { backgroundColor: Colors.danger, borderColor: Colors.danger },
   statusBtn_late: { backgroundColor: Colors.warning, borderColor: Colors.warning },
+  statusBtn_half_day: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   statusBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
   summaryItem: { alignItems: 'center' },
