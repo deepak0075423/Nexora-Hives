@@ -11,11 +11,18 @@ export const markAttendance      = (data: object) => api.post('/teacher/attendan
 export const getMyAttendance     = (params?: object) => api.get('/teacher/my-attendance', { params });
 export const clockIn             = () => api.post('/teacher/my-attendance/clock-in');
 export const clockOut            = () => api.post('/teacher/my-attendance/clock-out');
-export const getClassRanking     = () => api.get('/teacher/attendance-ranking');
 export const submitRegularization = (data: object) => api.post('/teacher/regularization', data);
 export const getMyRegularizations = () => api.get('/teacher/regularization');
-export const getCorrectionRequests = () => api.get('/teacher/correction-requests');
 export const reviewCorrection    = (data: object) => api.post('/teacher/correction-requests/review', data);
+// Attendance workspace (school-backend controllers/teacherAttendance.controller.js) — registers are
+// day-wise or subject-wise per the school's setting.
+export const getAttendanceCalendar  = (params?: object) => api.get('/teacher/attendance/calendar', { params });
+export const getRecentRegisters     = (params?: object) => api.get('/teacher/attendance/recent', { params });
+export const getAttendanceRanking   = (params?: object) => api.get('/teacher/attendance/ranking', { params });
+// { data, total, page, pages, counts, sections, mode } — read with the envelope, not unwrap()
+export const getStudentCorrections  = (params?: object) => api.get('/teacher/attendance/corrections', { params });
+export const createStudentCorrection = (data: object) => api.post('/teacher/attendance/corrections', data);
+export const requestCorrectionInfo  = (id: string, data: object) => api.post(`/teacher/attendance/corrections/${id}/request-info`, data);
 export const getExams            = () => api.get('/teacher/exams');
 export const getExamDetail       = (id: string) => api.get(`/teacher/exams/${id}`);
 export const createExam          = (data: object) => api.post('/teacher/exams', data);

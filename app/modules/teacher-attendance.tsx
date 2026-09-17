@@ -1,501 +1,76 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { FocusRow } from '@/components/FocusHighlight';
+/**
+ * Teacher → Attendance, on the phone — four tabs, as on the web
+ * (school-frontend pages/teacher/Attendance.jsx):
+ *   Mark Students · Class Ranking · My Attendance · Student Corrections
+ *
+ * Each tab lives in components/attendance/teacher/. The tab keys are a link
+ * contract: notifications open ?tab=mine, ?tab=corrections&focus=<request>,
+ * ?tab=ranking&section=<id>&focus=<student>; My Section opens ?section=<id>.
+ * The older ?tab=correct still opens Corrections.
+ */
+import React, { useRef, useState } from 'react';
+import { View, ScrollView, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
-import {
-  unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs,
-  FormModal, Input, fmtDate,
-  MODULE_BLOCKED_CODES,
-} from '@/components/ui/kit';
+import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { BRAND, Head, TabBar, useFlash } from '@/components/attendance/parts';
+import MarkTab from '@/components/attendance/teacher/MarkTab';
+import RankingTab from '@/components/attendance/teacher/RankingTab';
+import MineTab from '@/components/attendance/teacher/MineTab';
+import CorrectionsTab from '@/components/attendance/teacher/CorrectionsTab';
 
 const TABS = [
-  { key: 'mark', label: 'Mark Class' },
-  { key: 'mine', label: 'My Attendance' },
-  { key: 'ranking', label: 'Ranking' },
-  { key: 'corrections', label: 'Corrections' },
+  { value: 'mark', label: 'Mark Students', icon: 'calendar-outline' },
+  { value: 'ranking', label: 'Class Ranking', icon: 'trophy-outline' },
+  { value: 'mine', label: 'My Attendance', icon: 'stats-chart-outline' },
+  { value: 'corrections', label: 'Student Corrections', icon: 'time-outline' },
 ];
-
-// Local date — toISOString() is UTC and shows yesterday during early-morning hours in IST
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const ALIASES: Record<string, string> = { correct: 'corrections' };
+const SUBTITLE: Record<string, string> = {
+  mark: 'Take attendance, track student presence and manage corrections.',
+  ranking: 'How regularly each student attends, and the class as a whole.',
+  mine: 'Manage your attendance, view history and request regularization.',
+  corrections: 'Review what students ask to have corrected, or correct a mark yourself.',
 };
 
 export default function TeacherAttendanceScreen() {
   // First hook on purpose — an early module-disabled return sits below.
-  // Held so a notification can scroll its request into view.
   const scrollRef = useRef<ScrollView>(null);
-  // A notification links straight at a tab (?tab=…), so the screen opens on
-  // the list the notification was about rather than its default.
-  // My Section links here with the section it wants the register for.
-  const { tab: wantedTab, section: wantedSection } = useLocalSearchParams<{ tab?: string; section?: string }>();
-  const [tab, setTab] = useState(
-    ['mark', 'ranking', 'mine', 'corrections'].includes(String(wantedTab)) ? String(wantedTab) : 'mark');
-  const [disabled, setDisabled] = useState(false);
+  const params = useLocalSearchParams<{ tab?: string; section?: string }>();
+  const wanted = ALIASES[String(params.tab)] || String(params.tab);
+  const [tab, setTab] = useState(TABS.some((t) => t.value === wanted) ? wanted : 'mark');
+  const [section] = useState(params.section ? String(params.section) : '');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [disabled, setDisabled] = useState(false);
+  const flash = useFlash();
 
-  // ── Mark class ──────────────────────────────────────────────────────────────
-  const [date, setDate] = useState(todayStr());
-  // A teacher can own more than one register: their own class, plus any they
-  // cover as vice. The server used to pick one and never say which.
-  const [sectionId, setSectionId] = useState<string>(wantedSection ? String(wantedSection) : '');
-  const [sections, setSections] = useState<any[]>([]);
-  // A subject-wise school keeps one register per subject a day; the server says
-  // which mode the school uses and the subjects this teacher may take.
-  const [mode, setMode] = useState<'day' | 'subject'>('day');
-  const [subjectId, setSubjectId] = useState<string>('');
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [records, setRecords] = useState<Record<string, string>>({});
-  const [markLoading, setMarkLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const loadMark = async (d = date, id = sectionId, subj = subjectId) => {
-    setMarkLoading(true);
-    try {
-      const res = unwrap(await teacherApi.getAttendance({ date: d, section: id || undefined, subject: subj || undefined }));
-      setSections(res?.sections ?? []);
-      setMode(res?.mode === 'subject' ? 'subject' : 'day');
-      setSubjects(res?.subjects ?? []);
-      setSubjectId(res?.subject?._id ? String(res.subject._id) : '');
-      // The server answers with the section it actually used, so the picker
-      // shows the register on screen rather than the one that was asked for.
-      if (res?.section?._id) setSectionId(String(res.section._id));
-      if (res?.refused) Alert.alert('Not your section', res.refused);
-      setStudents(res?.students ?? []);
-      const map: Record<string, string> = {};
-      (res?.records ?? []).forEach((r: any) => { map[String(r.student)] = String(r.status).toLowerCase(); });
-      setRecords(map);
-    } catch (err: any) {
-      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    } finally { setMarkLoading(false); setRefreshing(false); }
+  const onBlocked = (e: any) => {
+    if (MODULE_BLOCKED_CODES.includes(e?.data?.code)) { setDisabled(true); return true; }
+    return false;
   };
-
-  const pickSection = (id: string) => { setSectionId(id); setSubjectId(''); loadMark(date, id, ''); };
-  const pickSubject = (id: string) => { setSubjectId(id); loadMark(date, sectionId, id); };
-
-  const idOf = (s: any) => String(s.user?._id ?? s._id);
-  const setStatus = (s: any, status: string) => setRecords(r => ({ ...r, [idOf(s)]: status }));
-  const markAll = (status: string) => {
-    const map: Record<string, string> = {};
-    students.forEach(s => { map[idOf(s)] = status; });
-    setRecords(map);
-  };
-
-  const saveMark = async () => {
-    setSaving(true);
-    try {
-      await teacherApi.markAttendance({
-        date,
-        section: sectionId || undefined,
-        subject: subjectId || undefined,
-        records: students.map(s => ({ studentId: idOf(s), status: records[idOf(s)] || 'absent' })),
-      });
-      Alert.alert('Saved', 'Attendance saved for ' + fmtDate(date));
-      loadMark();
-    } catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setSaving(false); }
-  };
-
-  const shiftDate = (days: number) => {
-    const d = new Date(date + 'T00:00:00');
-    d.setDate(d.getDate() + days);
-    // Format from local parts — toISOString() is UTC and shifts the day in TZ>0
-    const nd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (nd > todayStr()) return;
-    setDate(nd);
-    loadMark(nd, sectionId, subjectId);
-  };
-
-  // ── My attendance ───────────────────────────────────────────────────────────
-  const [mine, setMine] = useState<any>(null);
-  const [mineLoading, setMineLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [showReg, setShowReg] = useState(false);
-  const [regForm, setRegForm] = useState({ date: '', checkIn: '', checkOut: '', reason: '' });
-  const [myRegs, setMyRegs] = useState<any[]>([]);
-
-  const loadMine = async () => {
-    setMineLoading(true);
-    try {
-      const [att, regs]: any[] = await Promise.all([
-        teacherApi.getMyAttendance(),
-        teacherApi.getMyRegularizations().catch(() => null),
-      ]);
-      setMine(unwrap(att));
-      const r = unwrap(regs);
-      setMyRegs(Array.isArray(r) ? r : r?.requests ?? []);
-    } catch (err: any) {
-      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    } finally { setMineLoading(false); setRefreshing(false); }
-  };
-
-  const punch = async (dir: 'in' | 'out') => {
-    setBusy(true);
-    try {
-      if (dir === 'in') await teacherApi.clockIn(); else await teacherApi.clockOut();
-      loadMine();
-    } catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setBusy(false); }
-  };
-
-  const submitReg = async () => {
-    if (!regForm.date || !/^\d{4}-\d{2}-\d{2}$/.test(regForm.date))
-      return Alert.alert('Required', 'Date is required (YYYY-MM-DD)');
-    if (!regForm.checkIn && !regForm.checkOut)
-      return Alert.alert('Required', 'Provide at least a check-in or check-out time (HH:MM)');
-    setSaving(true);
-    try {
-      await teacherApi.submitRegularization(regForm);
-      setShowReg(false);
-      setRegForm({ date: '', checkIn: '', checkOut: '', reason: '' });
-      loadMine();
-      Alert.alert('Submitted', 'Your regularization request is pending admin approval.');
-    } catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setSaving(false); }
-  };
-
-  // ── Ranking ─────────────────────────────────────────────────────────────────
-  const [ranking, setRanking] = useState<any>(null);
-  const loadRanking = async () => {
-    try { setRanking(unwrap(await teacherApi.getClassRanking())); }
-    catch {} finally { setRefreshing(false); }
-  };
-
-  // ── Corrections ─────────────────────────────────────────────────────────────
-  const [corrections, setCorrections] = useState<any[]>([]);
-  const [corrLoading, setCorrLoading] = useState(true);
-  const loadCorrections = async () => {
-    setCorrLoading(true);
-    try {
-      const d = unwrap(await teacherApi.getCorrectionRequests());
-      setCorrections(Array.isArray(d) ? d : []);
-    } catch {} finally { setCorrLoading(false); setRefreshing(false); }
-  };
-
-  const review = async (r: any, status: 'approved' | 'rejected') => {
-    try { await teacherApi.reviewCorrection({ id: r._id, status }); loadCorrections(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
-  };
-
-  useEffect(() => { loadMark(); }, []);
-  useEffect(() => {
-    if (tab === 'mine') loadMine();
-    if (tab === 'ranking') loadRanking();
-    if (tab === 'corrections') loadCorrections();
-  }, [tab]);
-
   const onRefresh = () => {
     setRefreshing(true);
-    if (tab === 'mark') loadMark();
-    else if (tab === 'mine') loadMine();
-    else if (tab === 'ranking') loadRanking();
-    else loadCorrections();
+    setRefreshKey((k) => k + 1);
+    setTimeout(() => setRefreshing(false), 700);
   };
 
-  if (disabled) return (
-    <>
-      <Stack.Screen options={{ title: 'Attendance' }} />
-      <ModuleDisabled />
-    </>
-  );
+  if (disabled) return (<><Stack.Screen options={{ title: 'Attendance' }} /><ModuleDisabled /></>);
 
-  const today = mine?.today;
-  const summary = mine?.summary;
-  const days: any[] = mine?.days ?? [];
-
+  const common = { refreshKey, onBlocked, flash, scrollRef };
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: '#F6F7FB' }}>
       <Stack.Screen options={{ title: 'Attendance' }} />
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1, backgroundColor: Colors.background }}
-        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-      >
-        <SegTabs tabs={TABS} active={tab} onChange={setTab} />
-
-        {/* ── Mark class ── */}
-        {tab === 'mark' && (
-          markLoading ? <LoaderView /> : (
-            <>
-              {/* More than one register to keep: the class of their own plus
-                  any they cover as vice. */}
-              {sections.length > 1 && (
-                <View style={ta.secRow}>
-                  {sections.map((sec: any) => (
-                    <TouchableOpacity key={sec._id}
-                      style={[ta.secChip, String(sec._id) === sectionId && ta.secChipOn]}
-                      onPress={() => pickSection(String(sec._id))}>
-                      <Text style={[ta.secChipText, String(sec._id) === sectionId && { color: '#fff' }]}>
-                        {sec.className || 'Class'} {sec.sectionName}{sec.role === 'vice' ? ' · vice' : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {mode === 'subject' && subjects.length > 0 && (
-                <View style={ta.secRow}>
-                  {subjects.map((sub: any) => (
-                    <TouchableOpacity key={sub._id}
-                      style={[ta.secChip, String(sub._id) === subjectId && ta.secChipOn]}
-                      onPress={() => pickSubject(String(sub._id))}>
-                      <Text style={[ta.secChipText, String(sub._id) === subjectId && { color: '#fff' }]}>{sub.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              <View style={ta.dateRow}>
-                <TouchableOpacity onPress={() => shiftDate(-1)} style={ta.dateBtn}>
-                  <Ionicons name="chevron-back" size={18} color={Colors.text} />
-                </TouchableOpacity>
-                <Text style={ta.dateText}>{fmtDate(date)}{date === todayStr() ? ' · Today' : ''}</Text>
-                <TouchableOpacity onPress={() => shiftDate(1)} style={[ta.dateBtn, date === todayStr() && { opacity: 0.3 }]}>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.text} />
-                </TouchableOpacity>
-              </View>
-
-              {students.length === 0 ? (
-                <Empty icon="people-outline" text={sections.length
-                  ? (mode === 'subject' && !subjectId ? 'No subject is linked to this section yet.' : 'No students enrolled in this section.')
-                  : mode === 'subject'
-                    ? 'You are not the class teacher, vice class teacher or a subject teacher of any section this year.'
-                    : 'You are not the class teacher or vice class teacher of any section, so there is no register to mark.'} />
-              ) : (
-                <>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: Spacing.sm }}>
-                    <View style={{ flex: 1 }}>
-                      <ActionBtn label="All Present" tone="success" small onPress={() => markAll('present')} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ActionBtn label="All Absent" tone="danger" small onPress={() => markAll('absent')} />
-                    </View>
-                  </View>
-
-                  {students.map((s: any, i: number) => {
-                    const st = records[idOf(s)];
-                    return (
-                      <View key={i} style={ta.studentRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={ta.studentName}>{s.user?.name ?? s.name}</Text>
-                          {s.rollNumber ? <Text style={ta.roll}>Roll {s.rollNumber}</Text> : null}
-                        </View>
-                        {['present', 'absent', 'late', 'half-day'].map(opt => (
-                          <TouchableOpacity
-                            key={opt}
-                            accessibilityLabel={opt}
-                            style={[ta.statusBtn, st === opt && ta[`statusBtn_${opt.replace('-', '_')}` as keyof typeof ta] as any]}
-                            onPress={() => setStatus(s, opt)}
-                          >
-                            <Text style={[ta.statusBtnText, st === opt && { color: '#fff' }]}>
-                              {opt === 'present' ? 'P' : opt === 'absent' ? 'A' : opt === 'late' ? 'L' : 'H'}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
-                  <ActionBtn label={saving ? 'Saving…' : 'Save Attendance'} tone="success" onPress={saveMark} />
-                </>
-              )}
-            </>
-          )
-        )}
-
-        {/* ── My attendance ── */}
-        {tab === 'mine' && (
-          mineLoading ? <LoaderView /> : (
-            <>
-              <Card>
-                {today?.onLeave ? (
-                  <KV label="Today" value={<Badge label={today.leaveLabel || 'On Leave'} tone="info" />} />
-                ) : (
-                  <>
-                    <KV label="Check-in" value={today?.checkIn || 'Not yet'} />
-                    <KV label="Check-out" value={today?.checkOut || 'Not yet'} />
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <View style={{ flex: 1 }}>
-                        <ActionBtn label={busy ? '…' : today?.clockedIn ? 'Clocked In ✓' : 'Clock In'} tone="success"
-                          onPress={() => !today?.clockedIn && punch('in')} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <ActionBtn label={busy ? '…' : today?.clockedOut ? 'Clocked Out ✓' : 'Clock Out'} tone="warning"
-                          onPress={() => !today?.clockedOut && punch('out')} />
-                      </View>
-                    </View>
-                  </>
-                )}
-              </Card>
-
-              {summary && (
-                <Card>
-                  <View style={ta.summaryRow}>
-                    {Object.entries(summary).map(([k, v]: [string, any]) => (
-                      <View key={k} style={ta.summaryItem}>
-                        <Text style={ta.summaryVal}>{v}</Text>
-                        <Text style={ta.summaryLabel}>{k.replace('-', ' ')}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </Card>
-              )}
-
-              <View style={{ marginBottom: Spacing.sm }}>
-                <ActionBtn label="Request Regularization" tone="info" onPress={() => setShowReg(true)} />
-              </View>
-
-              {myRegs.length > 0 && (
-                <>
-                  <Text style={ta.groupLabel}>My Requests</Text>
-                  {myRegs.map((r: any, i: number) => (
-                    // The "regularization approved" notification names this
-                    // request — this is what scrolls to it and flags it.
-                    <FocusRow key={r._id ?? i} id={r._id} scrollRef={scrollRef}>
-                      <Card>
-                        <KV label="Date" value={fmtDate(r.date)} />
-                        <KV label="Times" value={`${r.checkIn ?? '--'} → ${r.checkOut ?? '--'}`} />
-                        {r.reason ? <KV label="Reason" value={r.reason} /> : null}
-                        <KV label="Status" value={<Badge label={String(r.status ?? 'pending').toLowerCase()} />} />
-                      </Card>
-                    </FocusRow>
-                  ))}
-                </>
-              )}
-
-              <Text style={ta.groupLabel}>This Month</Text>
-              {days.filter((d: any) => d.status && !['weekend', 'pending'].includes(d.status)).length === 0 ? (
-                <Empty icon="calendar-outline" text="No attendance recorded this month" />
-              ) : (
-                days.filter((d: any) => d.status && !['weekend', 'pending'].includes(d.status)).map((d: any, i: number) => (
-                  <View key={i} style={ta.dayRow}>
-                    <Text style={ta.dayNum}>{d.day ?? d.date ?? i + 1}</Text>
-                    <Text style={ta.dayTimes}>{d.checkIn ? `${d.checkIn}${d.checkOut ? ` – ${d.checkOut}` : ''}` : ''}</Text>
-                    <Badge label={String(d.status ?? '--')} />
-                  </View>
-                ))
-              )}
-            </>
-          )
-        )}
-
-        {/* ── Ranking ── */}
-        {tab === 'ranking' && (
-          !ranking ? <LoaderView /> : (ranking.ranking ?? []).length === 0 ? (
-            <Empty icon="trophy-outline" text="No ranking data yet" />
-          ) : (
-            (ranking.ranking as any[]).map((row: any, i: number) => (
-              <View key={row.student?._id ?? i} style={ta.rankRow}>
-                <Text style={ta.rankPos}>#{row.rank ?? i + 1}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={ta.studentName}>{row.student?.name ?? '--'}</Text>
-                  {row.student?.rollNumber ? <Text style={ta.roll}>Roll {row.student.rollNumber}</Text> : null}
-                  <Text style={ta.roll}>{row.present ?? 0}/{row.total ?? 0} present</Text>
-                </View>
-                <Text style={ta.rankPct}>{row.percentage != null ? `${row.percentage}%` : '--'}</Text>
-              </View>
-            ))
-          )
-        )}
-
-        {/* ── Corrections ── */}
-        {tab === 'corrections' && (
-          corrLoading ? <LoaderView /> : corrections.length === 0 ? (
-            <Empty icon="checkmark-done-outline" text="No correction requests from students" />
-          ) : (
-            corrections.map((r: any) => (
-              <FocusRow key={r._id} id={r._id} scrollRef={scrollRef}>
-              <Card>
-                <KV label="Student" value={r.student?.name ?? '--'} />
-                <KV label="Date" value={fmtDate(r.date)} />
-                {r.subject?.name ? <KV label="Subject" value={r.subject.name} /> : null}
-                <KV label="Change" value={`${r.currentStatus ?? 'not marked'} → ${r.requestedStatus ?? '--'}`} />
-                {r.attachments?.length ? <KV label="Attachments" value={`${r.attachments.length} file${r.attachments.length === 1 ? '' : 's'}`} /> : null}
-                {r.reason ? <KV label="Reason" value={r.reason} /> : null}
-                <KV label="Status" value={<Badge label={String(r.status ?? 'pending').toLowerCase()} />} />
-                {String(r.status).toLowerCase() === 'pending' && (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      <ActionBtn label="Approve" tone="success" onPress={() => review(r, 'approved')} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ActionBtn label="Reject" tone="danger" onPress={() => review(r, 'rejected')} />
-                    </View>
-                  </View>
-                )}
-              </Card>
-              </FocusRow>
-            ))
-          )
-        )}
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}>
+        <Head title="Attendance" subtitle={SUBTITLE[tab]} />
+        <TabBar tabs={TABS} value={tab} onChange={setTab} />
+        {flash.node}
+        {tab === 'mark' ? <MarkTab {...common} initialSection={section} />
+          : tab === 'ranking' ? <RankingTab {...common} initialSection={section} />
+          : tab === 'mine' ? <MineTab {...common} />
+          : <CorrectionsTab {...common} />}
       </ScrollView>
-
-      {/* Regularization form */}
-      <FormModal visible={showReg} title="Regularization Request" onClose={() => setShowReg(false)} onSubmit={submitReg} submitting={saving} submitLabel="Submit Request">
-        <Input label="Date * (YYYY-MM-DD)" value={regForm.date} onChange={v => setRegForm(f => ({ ...f, date: v }))} placeholder={todayStr()} />
-        <Input label="Check-in time (HH:MM)" value={regForm.checkIn} onChange={v => setRegForm(f => ({ ...f, checkIn: v }))} placeholder="08:05" />
-        <Input label="Check-out time (HH:MM)" value={regForm.checkOut} onChange={v => setRegForm(f => ({ ...f, checkOut: v }))} placeholder="15:30" />
-        <Input label="Reason" value={regForm.reason} onChange={v => setRegForm(f => ({ ...f, reason: v }))} placeholder="Why was the punch missed?" multiline />
-      </FormModal>
-    </>
+    </View>
   );
 }
-
-const ta = StyleSheet.create({
-  // Which register is being marked — only shown when there is more than one.
-  secRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Spacing.sm },
-  secChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
-  },
-  secChipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  secChipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-  dateRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 8,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
-  },
-  dateBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  dateText: { ...Typography.label, color: Colors.text },
-  studentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: 10,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 6,
-  },
-  studentName: { ...Typography.label, color: Colors.text },
-  roll: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  statusBtn: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border,
-  },
-  statusBtn_present: { backgroundColor: Colors.success, borderColor: Colors.success },
-  statusBtn_absent: { backgroundColor: Colors.danger, borderColor: Colors.danger },
-  statusBtn_late: { backgroundColor: Colors.warning, borderColor: Colors.warning },
-  statusBtn_half_day: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
-  statusBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  summaryItem: { alignItems: 'center' },
-  summaryVal: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  summaryLabel: { fontSize: 10, color: Colors.textSecondary, textTransform: 'capitalize', marginTop: 2 },
-  groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8, marginTop: 4 },
-  dayRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: 10,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 6,
-  },
-  dayNum: { width: 30, fontSize: 13, fontWeight: '700', color: Colors.text },
-  dayTimes: { flex: 1, fontSize: 12, color: Colors.textSecondary },
-  rankRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 8,
-  },
-  rankRowMine: { borderColor: Colors.accent, backgroundColor: Colors.accentLight },
-  rankPos: { fontSize: 16, fontWeight: '800', color: Colors.primary, width: 40 },
-  rankPct: { fontSize: 15, fontWeight: '700', color: Colors.success },
-});

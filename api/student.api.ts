@@ -5,6 +5,15 @@ export const getModules       = () => api.get('/student/modules');
 export const getMyClass       = () => api.get('/student/my-class');
 export const getTimetable     = () => api.get('/student/timetable');
 export const getMyAttendance  = (params?: object) => api.get('/student/my-attendance', { params });
+// Attendance — one answer for the month, the year and requests (school-backend services/studentAttendanceView.js)
+export const getAttendanceOverview = (params?: object) => api.get('/student/attendance/overview', { params });
+// The registers of one day and my mark on each — what a correction can be about.
+export const getAttendanceDay   = (params: object) => api.get('/student/attendance/day', { params });
+export const getClassRanking    = () => api.get('/student/attendance-ranking');
+export const getMyCorrections   = () => api.get('/student/correction');
+// Multipart: date, attendance, requestedStatus, reason, attachments[] (≤3, 5 MB each)
+export const submitCorrection   = (data: FormData) => api.post('/student/correction/submit', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const replyCorrection    = (id: string, data: FormData) => api.post(`/student/correction/${id}/reply`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const getExams         = () => api.get('/student/exams');
 export const getAttempt       = (id: string) => api.get(`/student/exams/${id}/attempt`);
 export const saveAnswer       = (id: string, data: object) => api.post(`/student/exams/${id}/save-answer`, data);
