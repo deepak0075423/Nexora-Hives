@@ -1,400 +1,279 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as chatApi from '@/api/chat.api';
-import { getSocket } from '@/utils/socket';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { unwrap } from '@/components/ui/kit';
+import { chatStore, useChatStore } from '@/components/chat/store';
 import {
-  unwrap, LoaderView, Empty, FAB, FormModal, SearchBar, Input, Select,
-  Toggle, SegTabs, ActionBtn,
-  MODULE_BLOCKED_CODES,
-} from '@/components/ui/kit';
+  Avatar, ChatRow, SearchField, Tabs, Btn, Sheet, SheetItem, ConnectionStrip,
+} from '@/components/chat/parts';
+import { NewChatSheet, CreateGroupSheet } from '@/components/chat/dialogs';
+import { C, chatName, isGroup, listTime, shortName, backendRole, errText } from '@/components/chat/format';
 
-const ONLINE_WINDOW = 60_000;
-const isOnline = (lastSeenAt?: string) =>
-  !!lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < ONLINE_WINDOW;
+const TABS_STAFF = [['all', 'All'], ['unread', 'Unread'], ['teacher', 'Teachers'], ['student', 'Students'], ['group', 'Groups']];
+const TABS_FAMILY = [['all', 'All'], ['unread', 'Unread'], ['teacher', 'Teachers'], ['group', 'Groups']];
 
-function timeLabel(d?: string) {
-  if (!d) return '';
-  const date = new Date(d);
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-  }
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+const VIEWS: Record<string, { label: string; icon: any; test: (c: any) => boolean }> = {
+  parent:       { label: 'Parents', icon: 'people-outline', test: (c) => c.peerRole === 'parent' },
+  school_admin: { label: 'Admins', icon: 'shield-checkmark-outline', test: (c) => c.peerRole === 'school_admin' },
+  muted:        { label: 'Muted', icon: 'notifications-off-outline', test: (c) => c.isMuted },
+  archived:     { label: 'Archived', icon: 'archive-outline', test: (c) => c.isArchived },
+};
+
+function filterChats(chats: any[], tab: string, view: string, q: string) {
+  let list = view === 'archived' ? chats.filter((c) => c.isArchived) : chats.filter((c) => !c.isArchived);
+  if (view && view !== 'archived' && VIEWS[view]) list = list.filter(VIEWS[view].test);
+  if (tab === 'unread') list = list.filter((c) => c.unreadCount > 0);
+  else if (tab === 'group') list = list.filter(isGroup);
+  else if (tab !== 'all') list = list.filter((c) => c.peerRole === tab);
+  const term = q.trim().toLowerCase();
+  if (term) list = list.filter((c) => chatName(c).toLowerCase().includes(term) || (c.lastMessage?.content || '').toLowerCase().includes(term));
+  return list;
 }
 
+/**
+ * Chat — every role's conversations, live over the WebSocket gateway. The web
+ * redesign at phone width: search and filter, All / Unread / Teachers /
+ * Students / Groups, New Chat and Create Group, and for a school admin the
+ * View All Chats browser. `?user=<id>` opens (or starts) that conversation.
+ */
 export default function ChatListScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const canCreateGroup = ['teacher', 'admin', 'super-admin'].includes(user?.role ?? '');
+  const params = useLocalSearchParams<{ user?: string }>();
+  const role = backendRole(user?.role);
+  const staff = role === 'school_admin' || role === 'teacher';
+  const myId = String(user?._id || '');
 
-  const [chats, setChats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  useEffect(() => { if (user?._id) chatStore.init(user); }, [user?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chats = useChatStore((s) => s.chats);
+  const loading = useChatStore((s) => s.chatsLoading);
+  const disabled = useChatStore((s) => s.disabled);
+  const typing = useChatStore((s) => s.typing);
+  const threads = useChatStore((s) => s.threads);
+  const conn = useChatStore((s) => s.conn);
+
+  const [tab, setTab] = useState('all');
+  const [view, setView] = useState('');
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [disabled, setDisabled] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [optionsFor, setOptionsFor] = useState<any>(null);
+  const [dlg, setDlg] = useState<{ newChat?: boolean; createGroup?: boolean }>({});
 
-  // Message search
-  const [search, setSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  // Back on the list: nothing is on screen, so nothing is being read.
+  useFocusEffect(useCallback(() => { chatStore.setActive(null); }, []));
 
-  // New chat / group modal
-  const [showNew, setShowNew] = useState(false);
-  const [newTab, setNewTab] = useState('direct');
-  const [contactQ, setContactQ] = useState('');
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [contactsLoading, setContactsLoading] = useState(false);
-  const [groupForm, setGroupForm] = useState({ name: '', description: '', type: 'group', isReadOnly: false });
-  const [groupMembers, setGroupMembers] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  const openThread = useCallback((chatId: string, extra: Record<string, string> = {}) => {
+    router.push({ pathname: '/modules/chat-thread', params: { id: chatId, ...extra } } as any);
+  }, [router]);
 
-  const load = async () => {
+  const startDirect = useCallback(async (userId: string) => {
     try {
-      const d = unwrap(await chatApi.getChats());
-      setChats(Array.isArray(d) ? d : []);
-    } catch (err: any) {
-      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    } finally { setLoading(false); setRefreshing(false); }
-  };
+      const row = unwrap(await chatApi.startDirectChat(userId));
+      if (!row?._id) throw new Error('Could not open chat');
+      chatStore.upsertChat(row);
+      openThread(row._id);
+    } catch (e) { Alert.alert('Chat', errText(e)); }
+  }, [openThread]);
 
-  // Reload on focus, then stay live over the WebSocket gateway — no polling.
-  // Presence (lastSeenAt) is maintained by the gateway over the socket lifecycle.
-  useFocusEffect(useCallback(() => {
-    load();
+  // Deep link from another screen (employee directory, a profile): open that person's chat.
+  const deepLinked = useRef('');
+  useEffect(() => {
+    const target = params.user;
+    if (!target || !user?._id || deepLinked.current === target) return;
+    deepLinked.current = target;
+    startDirect(String(target));
+  }, [params.user, user?._id, startDirect]);
 
-    const sock = getSocket();
-    if (!sock) return;
-
-    // A new message or membership change → refresh the list (debounced).
-    let t: ReturnType<typeof setTimeout>;
-    const refresh = () => { clearTimeout(t); t = setTimeout(load, 400); };
-
-    sock.on('chat:message',        refresh);
-    sock.on('chat:group_created',  refresh);
-    sock.on('chat:member_added',   refresh);
-    sock.on('chat:member_removed', refresh);
-    sock.on('chat:group_updated',  refresh);
-
-    return () => {
-      clearTimeout(t);
-      sock.off('chat:message',        refresh);
-      sock.off('chat:group_created',  refresh);
-      sock.off('chat:member_added',   refresh);
-      sock.off('chat:member_removed', refresh);
-      sock.off('chat:group_updated',  refresh);
-    };
-  }, []));
-
-  // Debounced message search
-  useFocusEffect(useCallback(() => {
-    if (search.trim().length < 2) { setSearchResults(null); return; }
+  // Message search (server), debounced.
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setHits([]); setSearching(false); return undefined; }
+    setSearching(true);
     const t = setTimeout(async () => {
-      try {
-        const d = unwrap(await chatApi.searchMessages({ q: search.trim() }));
-        setSearchResults(Array.isArray(d) ? d : d?.results ?? []);
-      } catch { setSearchResults([]); }
-    }, 400);
+      try { const d = unwrap(await chatApi.searchMessages({ q: term })); setHits(Array.isArray(d) ? d : []); }
+      catch { setHits([]); }
+      finally { setSearching(false); }
+    }, 300);
     return () => clearTimeout(t);
-  }, [search]));
+  }, [q]);
 
-  const openThread = (c: any) => {
-    router.push({
-      pathname: '/modules/chat-thread',
-      params: {
-        id: c._id,
-        name: c.displayName ?? c.name ?? 'Chat',
-        type: c.type ?? 'direct',
-        ro: c.isReadOnly ? '1' : '',
-      },
-    } as any);
+  const visible = useMemo(() => filterChats(chats, tab, view, q), [chats, tab, view, q]);
+  const unreadChats = chats.filter((c) => !c.isArchived && c.unreadCount > 0).length;
+  const tabs = (staff ? TABS_STAFF : TABS_FAMILY).map(([key, label]) => ({ key, label, count: key === 'unread' ? unreadChats : undefined }));
+  const viewKeys = staff ? ['parent', 'school_admin', 'muted', 'archived'] : ['school_admin', 'muted', 'archived'];
+  const countFor = (k: string) => (k === 'archived' ? chats.filter((c) => c.isArchived).length : chats.filter((c) => !c.isArchived && VIEWS[k].test(c)).length);
+
+  const nameIn = (chatId: string, userId: string) => {
+    const m = threads[chatId]?.items.find((x: any) => String(x.sender?._id) === String(userId));
+    return m?.sender?.name || '';
+  };
+  const typingLabelFor = (c: any) => {
+    const ids = Object.keys(typing[c._id] || {});
+    if (!ids.length) return '';
+    if (!isGroup(c)) return 'typing…';
+    if (ids.length > 1) return `${ids.length} people are typing…`;
+    const n = nameIn(c._id, ids[0]);
+    return `${n ? shortName(n) : 'Someone'} is typing…`;
   };
 
-  // Long-press options — custom sheet (RN Alert menus don't render on web)
-  const [optionsChat, setOptionsChat] = useState<any>(null);
-
-  const doMute = async () => {
-    const c = optionsChat; setOptionsChat(null);
-    try { await chatApi.toggleMute(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); }
+  const toggleMute = async (c: any) => {
+    setOptionsFor(null);
+    try { const d = unwrap(await chatApi.toggleMute(c._id)); chatStore.patchChat(c._id, { isMuted: !!d?.isMuted }); }
+    catch (e) { Alert.alert('Chat', errText(e)); }
   };
-  const doArchive = async () => {
-    const c = optionsChat; setOptionsChat(null);
-    try { await chatApi.toggleArchive(c._id); load(); } catch (e: any) { Alert.alert('Error', e.message); }
+  const toggleArchive = async (c: any) => {
+    setOptionsFor(null);
+    try { const d = unwrap(await chatApi.toggleArchive(c._id)); chatStore.patchChat(c._id, { isArchived: !!d?.isArchived }); }
+    catch (e) { Alert.alert('Chat', errText(e)); }
   };
-
-  const openNew = async () => {
-    setShowNew(true);
-    setNewTab('direct');
-    setGroupForm({ name: '', description: '', type: 'group', isReadOnly: false });
-    setGroupMembers([]);
-    setContactsLoading(true);
-    try { setContacts(unwrap(await chatApi.getContacts()) ?? []); }
-    catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setContactsLoading(false); }
+  const markAllRead = () => {
+    setFilterOpen(false);
+    chats.filter((c) => c.unreadCount > 0 && !c.isArchived).forEach((c) => chatStore.markRead(c._id));
   };
 
-  const startChat = async (contact: any) => {
-    try {
-      const d = unwrap(await chatApi.startDirectChat(contact._id));
-      const chatId = d?._id ?? d?.chat?._id;
-      if (!chatId) throw { message: 'Could not open chat' };
-      setShowNew(false);
-      router.push({ pathname: '/modules/chat-thread', params: { id: chatId, name: contact.name, type: 'direct', ro: '' } } as any);
-    } catch (err: any) { Alert.alert('Error', err.message); }
-  };
+  if (disabled) return (<><Stack.Screen options={{ title: 'Chat' }} /><ModuleDisabled /></>);
 
-  const toggleMember = (id: string) =>
-    setGroupMembers(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
-
-  const submitGroup = async () => {
-    if (!groupForm.name.trim()) return Alert.alert('Required', 'Group name is required');
-    if (groupMembers.length === 0) return Alert.alert('Required', 'Pick at least one member');
-    setCreating(true);
-    try {
-      const d = unwrap(await chatApi.createGroup({ ...groupForm, memberIds: groupMembers }));
-      setShowNew(false);
-      load();
-      if (d?._id) {
-        router.push({ pathname: '/modules/chat-thread', params: { id: d._id, name: d.name, type: d.type ?? 'group', ro: d.isReadOnly ? '1' : '' } } as any);
-      }
-    } catch (err: any) { Alert.alert('Error', err.message); }
-    finally { setCreating(false); }
-  };
-
-  const filteredContacts = contacts.filter(c =>
-    !contactQ || c.name?.toLowerCase().includes(contactQ.toLowerCase()) || c.role?.toLowerCase().includes(contactQ.toLowerCase()));
-
-  const visibleChats = chats.filter(c => showArchived ? c.isArchived : !c.isArchived);
-  const archivedCount = chats.filter(c => c.isArchived).length;
-
-  if (disabled) return (
-    <>
-      <Stack.Screen options={{ title: 'Chat' }} />
-      <ModuleDisabled />
-    </>
-  );
-
+  const term = q.trim();
   return (
     <>
       <Stack.Screen options={{ title: 'Chat' }} />
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <ConnectionStrip conn={conn} />
         <ScrollView
-          contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} tintColor={C.brand}
+            onRefresh={async () => { setRefreshing(true); await chatStore.loadChats(); setRefreshing(false); }} />}
         >
-          <SearchBar value={search} onChange={setSearch} placeholder="Search messages…" />
+          <View style={s.topRow}>
+            <SearchField value={q} onChange={setQ} placeholder="Search chats..." style={{ flex: 1 }} />
+            <TouchableOpacity style={[s.filterBtn, !!view && s.filterOn]} onPress={() => setFilterOpen(true)} accessibilityLabel="Filter conversations">
+              <Ionicons name="options-outline" size={21} color={view ? C.brand : '#374151'} />
+            </TouchableOpacity>
+          </View>
 
-          {/* Message search results */}
-          {searchResults !== null ? (
-            searchResults.length === 0 ? <Empty icon="search-outline" text="No messages found" /> : (
-              <>
-                <Text style={cs.sectionLabel}>Messages</Text>
-                {searchResults.slice(0, 25).map((m: any, i: number) => (
-                  <TouchableOpacity key={m._id ?? i} style={cs.row} activeOpacity={0.7}
-                    onPress={() => {
-                      const chat = m.chat && typeof m.chat === 'object' ? m.chat : chats.find(c => c._id === (m.chat ?? m.chatId));
-                      openThread(chat ?? { _id: m.chat ?? m.chatId, displayName: m.chatName ?? 'Chat', type: m.chatType ?? 'direct' });
-                    }}>
-                    <View style={cs.avatarSm}>
-                      <Ionicons name="search" size={14} color="#fff" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={cs.name} numberOfLines={1}>{m.sender?.name ?? 'Message'}</Text>
-                      <Text style={cs.preview} numberOfLines={2}>{m.content}</Text>
-                    </View>
-                    <Text style={cs.time}>{timeLabel(m.createdAt)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )
-          ) : (
-            <>
-              {/* Archived toggle */}
-              {archivedCount > 0 && (
-                <TouchableOpacity style={cs.archiveRow} onPress={() => setShowArchived(v => !v)}>
-                  <Ionicons name="archive-outline" size={15} color={Colors.textSecondary} />
-                  <Text style={cs.archiveText}>
-                    {showArchived ? '← Back to chats' : `Archived (${archivedCount})`}
-                  </Text>
-                </TouchableOpacity>
-              )}
+          <Tabs tabs={tabs} value={tab} onChange={setTab} style={{ marginTop: 10 }} />
 
-              {loading ? <LoaderView /> : visibleChats.length === 0 ? (
-                <Empty icon="chatbubbles-outline"
-                  text={showArchived ? 'No archived chats' : 'No conversations yet. Tap the button below to start one.'} />
-              ) : (
-                visibleChats.map((c: any) => {
-                  const last = c.lastMessage;
-                  const lastText = last?.isDeleted ? 'Message deleted'
-                    : last?.type && last.type !== 'text' ? `📎 ${last.type}`
-                    : last?.content ?? 'No messages yet';
-                  const online = c.type === 'direct' && isOnline(c.otherUser?.lastSeenAt);
-                  return (
-                    <TouchableOpacity
-                      key={c._id} style={cs.row} activeOpacity={0.7}
-                      onPress={() => openThread(c)}
-                      onLongPress={() => setOptionsChat(c)}
-                    >
-                      <View>
-                        <View style={[cs.avatar, c.type !== 'direct' && { backgroundColor: Colors.accent }]}>
-                          {c.type === 'broadcast' ? <Ionicons name="megaphone" size={17} color="#fff" />
-                            : c.type === 'group' ? <Ionicons name="people" size={18} color="#fff" />
-                            : <Text style={cs.avatarText}>{(c.displayName ?? c.name ?? '?')[0]?.toUpperCase()}</Text>}
-                        </View>
-                        {online && <View style={cs.onlineDot} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={cs.topRow}>
-                          <Text style={cs.name} numberOfLines={1}>{c.displayName ?? c.name ?? 'Chat'}</Text>
-                          <Text style={cs.time}>{timeLabel(c.lastActivity ?? last?.createdAt)}</Text>
-                        </View>
-                        <View style={cs.topRow}>
-                          <Text style={cs.preview} numberOfLines={1}>
-                            {last?.sender?.name && c.type !== 'direct' ? `${last.sender.name}: ` : ''}{lastText}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            {c.isMuted && <Ionicons name="volume-mute" size={12} color={Colors.textLight} />}
-                            {c.unreadCount > 0 && (
-                              <View style={cs.unread}>
-                                <Text style={cs.unreadText}>{c.unreadCount > 99 ? '99+' : c.unreadCount}</Text>
-                              </View>
-                            )}
-                            <TouchableOpacity onPress={() => setOptionsChat(c)} hitSlop={8}>
-                              <Ionicons name="ellipsis-vertical" size={14} color={Colors.textLight} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </>
+          <View style={s.actions}>
+            <Btn icon="add" label="New Chat" onPress={() => setDlg({ newChat: true })} style={{ flex: staff ? 0.93 : 1 }} />
+            {staff && <Btn kind="ghost" icon="people-outline" label="Create Group" onPress={() => setDlg({ createGroup: true })} style={{ flex: 1 }} />}
+          </View>
+
+          {role === 'school_admin' && (
+            <TouchableOpacity style={s.allCard} onPress={() => router.push('/modules/chat-all' as any)} accessibilityLabel="View All Chats">
+              <View style={s.allIcon}><Ionicons name="people-outline" size={22} color={C.brand} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.allTitle}>View All Chats</Text>
+                <Text style={s.allSub}>Browse and search all conversations</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.muted} />
+            </TouchableOpacity>
           )}
+
+          {!!view && (
+            <TouchableOpacity style={s.viewChip} onPress={() => setView('')} accessibilityLabel="Clear filter">
+              <Text style={s.viewChipText}>Showing: {VIEWS[view]?.label}</Text>
+              <Ionicons name="close" size={14} color={C.brand} />
+            </TouchableOpacity>
+          )}
+
+          <View style={{ marginTop: 10 }}>
+            {loading ? (
+              <Text style={s.empty}>Loading conversations…</Text>
+            ) : (
+              <>
+                {!!term && visible.length > 0 && <Text style={s.label}>CHATS</Text>}
+                {visible.map((c) => (
+                  <ChatRow key={c._id} chat={c} myId={myId} typingLabel={typingLabelFor(c)}
+                    onPress={() => openThread(c._id)} onLongPress={() => setOptionsFor(c)} />
+                ))}
+                {!visible.length && !term && (
+                  <View style={s.emptyBox}>
+                    <Text style={s.emptyTitle}>{chats.length === 0 ? 'No conversations yet' : 'Nothing here'}</Text>
+                    <Text style={s.empty}>{chats.length === 0 ? 'Start one with New Chat.' : tab === 'unread' ? 'You are all caught up.' : 'No conversations match this view.'}</Text>
+                  </View>
+                )}
+                {term.length >= 2 && (
+                  <>
+                    <Text style={[s.label, { marginTop: 14 }]}>MESSAGES</Text>
+                    {searching ? <Text style={s.empty}>Searching…</Text>
+                      : !hits.length ? (!visible.length ? <Text style={s.empty}>Nothing matches “{term}”.</Text> : null)
+                        : hits.map((m) => (
+                          <TouchableOpacity key={m._id} style={s.hit} onPress={() => openThread(m.chat._id, { jump: m._id })}>
+                            <Avatar name={m.chat?.name || m.sender?.name} size={42} group={m.chat?.type !== 'direct'} />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <View style={s.hitTop}>
+                                <Text style={s.hitName} numberOfLines={1}>{m.chat?.name || m.sender?.name}</Text>
+                                <Text style={s.hitTime}>{listTime(m.createdAt)}</Text>
+                              </View>
+                              <Text style={s.hitText} numberOfLines={2}>
+                                {String(m.sender?._id) === myId ? 'You' : shortName(m.sender?.name || '')}: {m.content}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                  </>
+                )}
+              </>
+            )}
+          </View>
         </ScrollView>
-        <FAB icon="chatbubble-ellipses" onPress={openNew} />
       </View>
 
-      {/* Chat options sheet (mute / archive) */}
-      <FormModal
-        visible={!!optionsChat}
-        title={optionsChat?.displayName ?? optionsChat?.name ?? 'Chat'}
-        onClose={() => setOptionsChat(null)}
-      >
-        <TouchableOpacity style={cs.optionRow} onPress={doMute}>
-          <Ionicons name={optionsChat?.isMuted ? 'volume-high-outline' : 'volume-mute-outline'} size={19} color={Colors.text} />
-          <Text style={cs.optionText}>{optionsChat?.isMuted ? 'Unmute notifications' : 'Mute notifications'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={cs.optionRow} onPress={doArchive}>
-          <Ionicons name={optionsChat?.isArchived ? 'arrow-up-circle-outline' : 'archive-outline'} size={19} color={Colors.text} />
-          <Text style={cs.optionText}>{optionsChat?.isArchived ? 'Unarchive chat' : 'Archive chat'}</Text>
-        </TouchableOpacity>
-      </FormModal>
+      <Sheet visible={filterOpen} onClose={() => setFilterOpen(false)} title="Show">
+        <SheetItem icon="chatbubbles-outline" label="All conversations" on={!view} onPress={() => { setView(''); setFilterOpen(false); }} />
+        {viewKeys.map((k) => (
+          <SheetItem key={k} icon={VIEWS[k].icon} label={VIEWS[k].label} on={view === k} hint={countFor(k)}
+            onPress={() => { setView(view === k ? '' : k); setFilterOpen(false); }} />
+        ))}
+        {unreadChats > 0 && <SheetItem icon="checkmark-done-outline" label="Mark all as read" onPress={markAllRead} />}
+      </Sheet>
 
-      {/* New chat / group modal */}
-      <FormModal
-        visible={showNew}
-        title={newTab === 'group' ? 'New Group' : 'New Chat'}
-        onClose={() => setShowNew(false)}
-        onSubmit={newTab === 'group' ? submitGroup : undefined}
-        submitting={creating}
-        submitLabel="Create Group"
-      >
-        {canCreateGroup && (
-          <SegTabs
-            tabs={[{ key: 'direct', label: 'Direct' }, { key: 'group', label: 'New Group' }]}
-            active={newTab} onChange={setNewTab}
-          />
-        )}
-
-        {newTab === 'group' && (
+      <Sheet visible={!!optionsFor} onClose={() => setOptionsFor(null)} title={optionsFor ? chatName(optionsFor) : ''}>
+        {optionsFor && (
           <>
-            <Input label="Group Name *" value={groupForm.name} onChange={v => setGroupForm(f => ({ ...f, name: v }))} placeholder="e.g. Class 10-A Updates" />
-            <Input label="Description" value={groupForm.description} onChange={v => setGroupForm(f => ({ ...f, description: v }))} placeholder="Optional" />
-            <Select label="Type" value={groupForm.type} onChange={v => setGroupForm(f => ({ ...f, type: v }))}
-              options={[{ label: 'Group (everyone can chat)', value: 'group' }, { label: 'Broadcast (announcements)', value: 'broadcast' }]} />
-            <Toggle label="Read-only" sub="Only teachers and admins can send messages"
-              value={groupForm.isReadOnly} onChange={v => setGroupForm(f => ({ ...f, isReadOnly: v }))} />
-            <Text style={cs.sectionLabel}>Members ({groupMembers.length} selected)</Text>
+            <SheetItem icon={optionsFor.isMuted ? 'notifications-outline' : 'notifications-off-outline'}
+              label={optionsFor.isMuted ? 'Unmute notifications' : 'Mute notifications'} onPress={() => toggleMute(optionsFor)} />
+            <SheetItem icon="archive-outline" label={optionsFor.isArchived ? 'Unarchive' : 'Archive chat'} onPress={() => toggleArchive(optionsFor)} />
           </>
         )}
+      </Sheet>
 
-        <SearchBar value={contactQ} onChange={setContactQ} placeholder="Search people…" />
-        {contactsLoading ? <LoaderView /> : filteredContacts.length === 0 ? (
-          <Empty icon="people-outline" text="No contacts you're allowed to chat with" />
-        ) : (
-          filteredContacts.slice(0, 40).map((c: any) => {
-            const selected = groupMembers.includes(c._id);
-            return (
-              <TouchableOpacity key={c._id} style={cs.contactRow}
-                onPress={() => newTab === 'group' ? toggleMember(c._id) : startChat(c)}
-                activeOpacity={0.7}>
-                <View style={cs.avatarSm}>
-                  <Text style={cs.avatarText}>{c.name?.[0]?.toUpperCase() ?? '?'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={cs.name}>{c.name}</Text>
-                  <Text style={cs.role}>{(c.role ?? '').replace('_', ' ')}{c.meta ? ` · ${c.meta}` : ''}</Text>
-                </View>
-                {newTab === 'group'
-                  ? <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={20} color={selected ? Colors.accent : Colors.textLight} />
-                  : <Ionicons name="chatbubble-outline" size={16} color={Colors.accent} />}
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </FormModal>
+      <NewChatSheet visible={!!dlg.newChat} onClose={() => setDlg({})} myRole={role}
+        onPick={(c) => { setDlg({}); startDirect(c._id); }} />
+      <CreateGroupSheet visible={!!dlg.createGroup} onClose={() => setDlg({})} myRole={role}
+        onCreated={(row) => { setDlg({}); if (row?._id) { chatStore.upsertChat(row); openThread(row._id); } }}
+        onOpenExisting={async (chatId) => { setDlg({}); await chatStore.refreshChat(chatId); openThread(chatId); }} />
     </>
   );
 }
 
-const cs = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: Radius.lg,
-    padding: Spacing.sm + 4, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  avatar: {
-    width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarSm: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  onlineDot: {
-    position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6,
-    backgroundColor: Colors.success, borderWidth: 2, borderColor: Colors.surface,
-  },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  name: { ...Typography.label, color: Colors.text, flexShrink: 1 },
-  time: { fontSize: 10, color: Colors.textLight },
-  preview: { fontSize: 12, color: Colors.textSecondary, flex: 1, marginTop: 2 },
-  role: { fontSize: 11, color: Colors.textSecondary, textTransform: 'capitalize', marginTop: 1 },
-  unread: {
-    minWidth: 18, height: 18, borderRadius: 9, backgroundColor: Colors.accent,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  unreadText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-  contactRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.divider,
-  },
-  archiveRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 8, paddingHorizontal: 4, marginBottom: 6,
-  },
-  archiveText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
-  sectionLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8, marginTop: 4 },
-  optionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.divider,
-  },
-  optionText: { fontSize: 15, color: Colors.text, fontWeight: '500' },
+const s = StyleSheet.create({
+  topRow: { flexDirection: 'row', gap: 10 },
+  filterBtn: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: C.field, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  filterOn: { borderColor: C.brand, backgroundColor: C.brandSoft },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  allCard: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 14, paddingVertical: 11, paddingHorizontal: 13, borderWidth: 1, borderColor: '#E3E6EE', borderRadius: 10, backgroundColor: '#fff' },
+  allIcon: { width: 44, height: 44, borderRadius: 9, backgroundColor: C.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  allTitle: { fontSize: 15.5, fontWeight: '600', color: C.ink },
+  allSub: { fontSize: 13, color: C.muted, marginTop: 1 },
+  viewChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, paddingLeft: 12, paddingRight: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: C.brandSoft },
+  viewChipText: { fontSize: 13, fontWeight: '600', color: C.brand },
+  label: { fontSize: 11.5, fontWeight: '700', letterSpacing: 0.6, color: C.faint, marginBottom: 4 },
+  emptyBox: { alignItems: 'center', paddingVertical: 36, gap: 4 },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: C.ink2 },
+  empty: { fontSize: 14, color: C.muted, textAlign: 'center', paddingVertical: 8 },
+  hit: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line2 },
+  hitTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hitName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.ink },
+  hitTime: { fontSize: 12, color: C.muted },
+  hitText: { fontSize: 13.5, color: C.ink3, marginTop: 2 },
 });

@@ -183,7 +183,7 @@ export default function EmployeeDirectoryDetailScreen() {
               <ActionBtn label="Call" tone="neutral" small
                 onPress={() => Linking.openURL(`tel:${String(o.officialPhone).replace(/\s/g, '')}`)} />
             )}
-            {!!modules.chat && <ActionBtn label="Chat" tone="info" small onPress={() => router.push('/modules/chat')} />}
+            {!!modules.chat && <ActionBtn label="Chat" tone="info" small onPress={() => router.push({ pathname: '/modules/chat', params: { user: String(o._id) } } as any)} />}
           </View>
 
           <Card>
@@ -246,7 +246,7 @@ export default function EmployeeDirectoryDetailScreen() {
         <View style={st.actions}>
           <ActionBtn label="Email" tone="neutral" small onPress={() => Linking.openURL(`mailto:${o.officialEmail}`)} />
           {!!o.officialPhone && <ActionBtn label="Call" tone="neutral" small onPress={() => Linking.openURL(`tel:${String(o.officialPhone).replace(/\s/g, '')}`)} />}
-          {!!modules.chat && !viewer.isSelf && <ActionBtn label="Chat" tone="info" small onPress={() => router.push('/modules/chat')} />}
+          {!!modules.chat && !viewer.isSelf && <ActionBtn label="Chat" tone="info" small onPress={() => router.push({ pathname: '/modules/chat', params: { user: String(o._id) } } as any)} />}
         </View>
 
         {!!comp && (
