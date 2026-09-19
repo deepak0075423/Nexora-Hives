@@ -114,6 +114,8 @@ const SUPER_ADMIN_MODULES = [
 const PARENT_MODULES = [
   { key: 'classes',    label: 'My Child',   icon: 'school',           route: '/modules/child-class' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
+  // The timetable screen answers for one chosen child at a time (/parent/timetable?child=).
+  { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },

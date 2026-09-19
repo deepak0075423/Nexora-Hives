@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, Modal, ScrollView,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions,
@@ -287,14 +287,28 @@ export function Toggle({ label, value, onChange, sub }: {
 export function SegTabs({ tabs, active, onChange }: {
   tabs: { key: string; label: string }[]; active: string; onChange: (key: string) => void;
 }) {
+  // A strip wider than the phone scrolls, and the selected tab can sit off the
+  // right edge — picked from somewhere else, or on a screen that opens past the
+  // first tab. Keep it in view, with the previous tab peeking at the left.
+  const scroller = useRef<ScrollView>(null);
+  const xs = useRef<Record<string, number>>({});
+  const reveal = (key: string, animated: boolean) => {
+    const x = xs.current[key];
+    if (x != null) scroller.current?.scrollTo({ x: Math.max(0, x - 40), animated });
+  };
+  useEffect(() => { reveal(active, true); }, [active]);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: Spacing.md }}>
+    <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: Spacing.md }}>
       <View style={k.segWrap}>
         {tabs.map(t => (
           <TouchableOpacity
             key={t.key}
             style={[k.segTab, active === t.key && k.segTabActive]}
             onPress={() => onChange(t.key)}
+            onLayout={(e) => {
+              xs.current[t.key] = e.nativeEvent.layout.x;
+              if (t.key === active) reveal(t.key, false);
+            }}
           >
             <Text style={[k.segText, active === t.key && k.segTextActive]}>{t.label}</Text>
           </TouchableOpacity>

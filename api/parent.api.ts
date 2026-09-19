@@ -18,6 +18,11 @@ export const getDocuments       = () => api.get('/parent/documents');
 export const getDocument        = (id: string) => api.get(`/parent/documents/${id}`);
 export const getHolidays        = () => api.get('/parent/holidays');
 
+// Timetable — ONE child's week. `child` picks which; the reply lists `children`
+// to switch between and always names the child it answered for, so one child's
+// week can never render under another's name.
+export const getTimetable       = (params?: object) => api.get('/parent/timetable', { params });
+
 // Fees
 export const getParentFees      = () => api.get('/fees/parent/fees');
 export const getChildFees       = (childId: string) => api.get(`/fees/parent/child/${childId}/fees`);

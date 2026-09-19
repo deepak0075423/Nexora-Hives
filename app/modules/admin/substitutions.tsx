@@ -8,17 +8,24 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { FocusRow } from '@/components/FocusHighlight';
 import {
   unwrap, LoaderView, Empty, Card, Badge, SegTabs, Select, Toggle, Input,
-  FormModal, ActionBtn, StatTile, StatRow, confirmAsync, MODULE_BLOCKED_CODES,
+  FormModal, ActionBtn, confirmAsync, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import { Tiles } from '@/components/timetable/viewKit';
+import {
+  BoardByPeriod, RecentList, SlotAssign, WorkloadTab, SettingsExtra,
+} from '@/components/timetable/subsKit';
 
 /**
  * Substitute Subject Teacher — admin screen.
  *
- * Board     one day at a time: who is away, every period they were due to
- *           teach, and who is covering it.
- * Manual    pick any teacher and cover their periods by hand — the whole
- *           workflow when neither attendance nor leave is enabled.
- * Settings  automation, eligibility and notification switches.
+ * Board     one day at a time, by absent teacher or in period order with the
+ *           day's breaks — who is away, what that leaves, who is covering it.
+ * Manual    cover a period by hand: pick the teacher who is away, or pick the
+ *           class and period and let the server say whose it is.
+ * Workload  timetabled load beside cover taken on, against the school's own
+ *           thresholds.
+ * Settings  automation, detection, eligibility, fairness, notifications and
+ *           records.
  *
  * Mirrors school-frontend/src/pages/admin/Substitutions.jsx.
  */
@@ -229,6 +236,8 @@ export default function AdminSubstitutionsScreen() {
   const [error, setError]     = useState('');
   const [running, setRunning] = useState(false);
   const [picking, setPicking] = useState<any>(null);
+  const [boardView, setBoardView] = useState<'teacher' | 'period'>('teacher');
+  const [manualMode, setManualMode] = useState<'class' | 'teacher'>('class');
 
   // Manual tab
   const [teachers, setTeachers]   = useState<any[]>([]);
@@ -341,8 +350,9 @@ export default function AdminSubstitutionsScreen() {
       >
         <SegTabs
           tabs={[
-            { key: 'board',    label: 'Board' },
+            { key: 'board',    label: 'Today’s Board' },
             { key: 'manual',   label: 'Manual' },
+            { key: 'workload', label: 'Workload' },
             { key: 'settings', label: 'Settings' },
           ]}
           active={tab} onChange={setTab}
@@ -367,16 +377,24 @@ export default function AdminSubstitutionsScreen() {
                     .filter(Boolean).join(' and ')}`}
             </Text>
 
-            <StatRow>
-              <StatTile label="To cover"  value={summary.total ?? 0}     icon="list"            tone="info" />
-              <StatTile label="Covered"   value={summary.assigned ?? 0}  icon="checkmark-circle" tone="success" />
-              <StatTile label="Uncovered" value={summary.uncovered ?? 0} icon="alert-circle"    tone="danger" />
-            </StatRow>
+            <Tiles items={[
+              { label: 'To cover', value: summary.total ?? 0, icon: 'list', tone: 'info' },
+              { label: 'Covered', value: summary.assigned ?? 0, icon: 'checkmark-circle', tone: 'success' },
+              { label: 'Pending', value: summary.needsReview ?? 0, icon: 'time', tone: 'warning' },
+              { label: 'Uncovered', value: Math.max(0, (summary.uncovered ?? 0) - (summary.needsReview ?? 0)), icon: 'alert-circle', tone: 'danger' },
+            ]} />
 
             <ActionBtn label={running ? 'Working…' : '⚡ Detect & fill uncovered'}
               tone="info" onPress={fill} />
 
-            {!board.absentTeachers?.length ? (
+            <View style={{ height: Spacing.sm }} />
+            <SegTabs
+              tabs={[{ key: 'teacher', label: 'By teacher' }, { key: 'period', label: 'By period' }]}
+              active={boardView} onChange={(v) => setBoardView(v as any)} />
+
+            {boardView === 'period' ? (
+              <BoardByPeriod board={board} onPick={setPicking} onCancel={cancelRow} />
+            ) : !board.absentTeachers?.length ? (
               <Empty icon="happy-outline" text="No teacher is recorded away — nothing to cover today." />
             ) : board.absentTeachers.map((a: any) => (
               <Card key={a.teacher._id}>
@@ -400,11 +418,26 @@ export default function AdminSubstitutionsScreen() {
                 ))}
               </Card>
             ))}
+
+            <Text style={[s.sectionTitle, { marginTop: Spacing.md }]}>Recent substitutions</Text>
+            <Card><RecentList /></Card>
           </>
         ))}
 
         {/* ── Manual ──────────────────────────────────────────────────────── */}
         {tab === 'manual' && (
+          <>
+            <SegTabs
+              tabs={[{ key: 'class', label: 'By class & period' }, { key: 'teacher', label: 'By teacher' }]}
+              active={manualMode} onChange={(v) => setManualMode(v as any)} />
+          </>
+        )}
+
+        {tab === 'manual' && manualMode === 'class' && (
+          <SlotAssign date={date} onDone={() => load()} />
+        )}
+
+        {tab === 'manual' && manualMode === 'teacher' && (
           <>
             <Select label="Subject teacher to cover" value={teacherId}
               options={teacherOptions} onChange={setTeacherId}
@@ -458,6 +491,9 @@ export default function AdminSubstitutionsScreen() {
           </>
         )}
 
+        {/* ── Workload ────────────────────────────────────────────────────── */}
+        {tab === 'workload' && <WorkloadTab date={date} />}
+
         {/* ── Settings ────────────────────────────────────────────────────── */}
         {tab === 'settings' && (!settings ? <LoaderView /> : (
           <>
@@ -504,6 +540,9 @@ export default function AdminSubstitutionsScreen() {
                 keyboardType="numeric" value={String(settings.maxSubstitutionsPerDay ?? 0)}
                 onChange={(v) => setSettings((p: any) => ({ ...p, maxSubstitutionsPerDay: Number(v) || 0 }))} />
             </Card>
+
+            <SettingsExtra settings={settings} flags={flags}
+              set={(key, v) => setSettings((p: any) => ({ ...p, [key]: v }))} />
 
             <Card>
               <Text style={s.sectionTitle}>Notifications</Text>
@@ -559,7 +598,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  periodNum: { width: 52 },
+  periodNum: { width: 76 },
   periodNumText: { fontSize: 14, fontWeight: '700', color: Colors.text },
   periodTime: { fontSize: 10, color: Colors.textSecondary },
   periodClass: { fontSize: 13, fontWeight: '600', color: Colors.text },

@@ -3,7 +3,8 @@ import api from './axios';
 export const getDashboard     = () => api.get('/student/dashboard');
 export const getModules       = () => api.get('/student/modules');
 export const getMyClass       = () => api.get('/student/my-class');
-export const getTimetable     = () => api.get('/student/timetable');
+// `week` (any YYYY-MM-DD inside the wanted week) picks which week's covers.
+export const getTimetable     = (params?: object) => api.get('/student/timetable', { params });
 export const getMyAttendance  = (params?: object) => api.get('/student/my-attendance', { params });
 // Attendance — one answer for the month, the year and requests (school-backend services/studentAttendanceView.js)
 export const getAttendanceOverview = (params?: object) => api.get('/student/attendance/overview', { params });

@@ -6,9 +6,10 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as ttApi from '@/api/timetable.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
-  unwrap, LoaderView, Card, Select, Toggle, Input, Empty, FormModal, MODULE_BLOCKED_CODES,
+  unwrap, LoaderView, Card, Select, Toggle, Input, Empty, FormModal, SegTabs, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { ConflictRow, MiniStat, tk } from '@/components/timetable/ttKit';
+import { plural } from '@/components/timetable/viewKit';
 
 const OPTIONS: [string, string][] = [
   ['avoidSameSubjectTwiceADay', 'Avoid the same subject twice a day'],
@@ -60,6 +61,13 @@ export default function TimetableGenerateScreen() {
   const [versionId, setVersionId] = useState('');
   const [progress, setProgress] = useState<any>(null);
   const [conflicts, setConflicts] = useState<any[]>([]);
+  // 'picked' = one class and its sections; 'all' = every active section in
+  // the year, which the server resolves as scopeType 'school'.
+  const [scopeMode, setScopeMode] = useState<'picked' | 'all'>('picked');
+  // Each tab names its feature and carries its count — buried in one long card,
+  // combined classes read as a feature that did not exist.
+  const [ruleTab, setRuleTab] = useState<'subjects' | 'merges' | 'prefs' | 'check'>('subjects');
+  const [check, setCheck] = useState<any>({ loading: false, report: null, planError: null, error: null });
   const pollRef = useRef<any>(null);
 
   useEffect(() => {
@@ -142,7 +150,7 @@ export default function TimetableGenerateScreen() {
     return () => { cancelled = true; };
   }, [classId, sectionId, yearId, allSections, scopeCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const subjects: any[] = plan?.subjects ?? [];
+  const subjects: any[] = useMemo(() => plan?.subjects ?? [], [plan]);
   const capacity: number = plan?.capacity?.periodsPerWeek ?? 0;
   const subjectsMatch = plan?.structureMatches?.sameSubjects !== false;
 
@@ -217,8 +225,30 @@ export default function TimetableGenerateScreen() {
   const unmerge = (key: string) =>
     setMerges((m) => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== key)));
 
-  const canGenerate = !!scopeCount && !!subjects.length && subjectsMatch
+  const planReady = !!scopeCount && !!subjects.length && subjectsMatch
     && assigned > 0 && remaining >= 0 && !lonelyGroups.length;
+  const canGenerate = scopeMode === 'all' ? !!yearId : planReady;
+
+  /* The dry run: what a run would trip over — a teacher with more periods than
+     free time, a subject nobody can teach — before anyone waits for one.
+     Debounced, because every stepper tap changes the plan. */
+  const planKey = JSON.stringify([scopeMode, scopeSectionIds, rules, merges, options, sectionMerges.length]);
+  useEffect(() => {
+    if (!canGenerate) { setCheck({ loading: false, report: null, planError: null, error: null }); return; }
+    let alive = true;
+    setCheck((c: any) => ({ ...c, loading: true }));
+    const t = setTimeout(async () => {
+      try {
+        const d = unwrap(await ttApi.preflight(requestBody()));
+        if (alive) setCheck({ loading: false, report: d?.report ?? null, planError: d?.planError ?? null, error: null });
+      } catch (e: any) {
+        if (alive) setCheck({ loading: false, report: null, planError: null, error: e?.message ?? 'Could not check' });
+      }
+    }, 700);
+    return () => { alive = false; clearTimeout(t); };
+  }, [planKey, canGenerate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dryErrors = (check.report?.problems ?? []).filter((x: any) => x.severity === 'error');
 
   const poll = (id: string) => {
     clearInterval(pollRef.current);
@@ -240,7 +270,43 @@ export default function TimetableGenerateScreen() {
     }, 900);
   };
 
+  const requestBody = () => (scopeMode === 'all'
+    // No one class plan to send: each section keeps the requirements saved
+    // against it, which is exactly what the solver reads with no override.
+    ? { yearId, scopeType: 'school', options }
+    : {
+      yearId,
+      classId,
+      allSections,
+      sectionIds: allSections ? [] : scopeSectionIds,
+      periodsPerWeek: capacity,
+      subjectPlan: subjects.map((sub: any) => ({
+        ...rules[sub._id],
+        subject: sub._id,
+        subjectName: sub.subjectName,
+        mergeGroup: merges[sub._id] || '',
+      })),
+      options,
+    });
+
   const start = async () => {
+    if (scopeMode === 'all') {
+      if (!yearId) { setError('Select an academic year'); return; }
+      setError(''); setStarting(true); setConflicts([]);
+      try {
+        const d = unwrap(await ttApi.generate(requestBody()));
+        setVersionId(d.versionId);
+        setProgress({ status: 'generating', progress: d.progress });
+        poll(d.versionId);
+      } catch (err: any) {
+        if (err?.status === 409 && err?.data?.data?.versionId) {
+          setVersionId(err.data.data.versionId);
+          setProgress({ status: 'generating', progress: { percent: 0, steps: [] } });
+          poll(err.data.data.versionId);
+        } else setError(err?.message ?? 'Could not start generation');
+      } finally { setStarting(false); }
+      return;
+    }
     if (!classId) { setError('Select a class'); return; }
     if (!scopeCount) { setError('Select a section, or choose all sections'); return; }
     if (!subjects.length) { setError('This class has no subjects to schedule'); return; }
@@ -251,20 +317,7 @@ export default function TimetableGenerateScreen() {
 
     setError(''); setStarting(true); setConflicts([]);
     try {
-      const d = unwrap(await ttApi.generate({
-        yearId,
-        classId,
-        allSections,
-        sectionIds: allSections ? [] : scopeSectionIds,
-        periodsPerWeek: capacity,
-        subjectPlan: subjects.map((sub: any) => ({
-          ...rules[sub._id],
-          subject: sub._id,
-          subjectName: sub.subjectName,
-          mergeGroup: merges[sub._id] || '',
-        })),
-        options,
-      }));
+      const d = unwrap(await ttApi.generate(requestBody()));
       setVersionId(d.versionId);
       setProgress({ status: 'generating', progress: d.progress });
       poll(d.versionId);
@@ -333,7 +386,7 @@ export default function TimetableGenerateScreen() {
                   color: failed ? Colors.danger : conflicted ? Colors.warning : Colors.success,
                 }]}>
                   {failed ? 'Unable to generate a complete timetable.'
-                    : conflicted ? `Timetable generated with ${progress.errorCount} conflict(s).`
+                    : conflicted ? `Timetable generated with ${plural(progress.errorCount, 'conflict')}.`
                     : 'Timetable generated successfully.'}
                 </Text>
                 {p.error ? <Text style={g.bannerSub}>{p.error}</Text> : null}
@@ -341,7 +394,7 @@ export default function TimetableGenerateScreen() {
 
               {conflicts.length > 0 && (
                 <Card>
-                  <Text style={tk.sectionHeading}>{conflicts.length} conflict(s)</Text>
+                  <Text style={tk.sectionHeading}>{plural(conflicts.length, 'conflict')}</Text>
                   {conflicts.slice(0, 10).map((c: any, i: number) => <ConflictRow key={c._id ?? i} conflict={c} />)}
                 </Card>
               )}
@@ -377,18 +430,41 @@ export default function TimetableGenerateScreen() {
           options={(meta?.years ?? []).map((y: any) => ({ label: y.yearName + (y.status === 'active' ? ' (active)' : ''), value: y._id }))}
           onChange={setYearId} />
 
-        <Select label="Class" value={classId} placeholder="Pick a class"
-          options={classes.map((c: any) => ({ label: c.className, value: c._id }))}
-          onChange={(v) => { setClassId(v); setSectionId(''); }} />
+        <SegTabs
+          tabs={[{ key: 'picked', label: 'Selected class' }, { key: 'all', label: 'All classes' }]}
+          active={scopeMode} onChange={(v) => { setScopeMode(v as any); setRuleTab(v === 'all' ? 'prefs' : 'subjects'); }} />
 
-        <Select label="Section" value={sectionId} placeholder="Pick a section"
-          options={[
-            ...(sectionsOf.length > 1 ? [{ label: `All sections (${sectionsOf.length})`, value: ALL_SECTIONS }] : []),
-            ...sectionsOf.map((s: any) => ({ label: `Section ${s.sectionName}`, value: s._id })),
-          ]}
-          onChange={setSectionId} />
+        {scopeMode === 'all' ? (
+          <View style={g.infoBox}>
+            <Text style={g.infoText}>
+              Every active section of every class is solved in one run, so teachers and rooms shared
+              between classes never clash. Each section uses the subject requirements already saved
+              for it — pick “Selected class” to edit a class’s weekly plan here first.
+            </Text>
+            <View style={[g.chipWrap, { marginTop: 8 }]}>
+              {classes.filter((c: any) => (c.sections ?? []).length).map((c: any) => (
+                <View key={c._id} style={g.dayChip}>
+                  <Text style={g.dayChipText}>{c.className} · {(c.sections ?? []).length}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <>
+            <Select label="Class" value={classId} placeholder="Pick a class"
+              options={classes.map((c: any) => ({ label: c.className, value: c._id }))}
+              onChange={(v) => { setClassId(v); setSectionId(''); }} />
 
-        {allSections && (
+            <Select label="Section" value={sectionId} placeholder="Pick a section"
+              options={[
+                ...(sectionsOf.length > 1 ? [{ label: `All sections (${sectionsOf.length})`, value: ALL_SECTIONS }] : []),
+                ...sectionsOf.map((s: any) => ({ label: `Section ${s.sectionName}`, value: s._id })),
+              ]}
+              onChange={setSectionId} />
+          </>
+        )}
+
+        {scopeMode === 'picked' && allSections && (
           <View style={g.infoBox}>
             <Text style={g.infoText}>
               All {sectionsOf.length} sections of {selectedClass?.className} are scheduled together, so their
@@ -408,9 +484,20 @@ export default function TimetableGenerateScreen() {
           </View>
         )}
 
+        <View style={{ height: Spacing.sm }} />
+        <SegTabs
+          tabs={[
+            ...(scopeMode === 'picked' ? [
+              { key: 'subjects', label: subjects.length ? `Subjects · ${subjects.length}` : 'Subjects' },
+              { key: 'merges', label: sectionMerges.length ? `Combined Classes · ${sectionMerges.length}` : 'Combined Classes' },
+            ] : []),
+            { key: 'prefs', label: 'Preferences' },
+            { key: 'check', label: dryErrors.length ? `Check · ${dryErrors.length}` : 'Check' },
+          ]}
+          active={ruleTab} onChange={(v) => setRuleTab(v as any)} />
+
         {/* ── Subjects & weekly periods ──────────────────────────────────── */}
-        <Text style={tk.sectionHeading}>Subjects & Weekly Periods</Text>
-        {!classId || !scopeCount ? (
+        {scopeMode === 'picked' && ruleTab === 'subjects' && (!classId || !scopeCount ? (
           <Empty icon="book-outline" text="Pick a class and section to load its subjects" />
         ) : planLoading ? (
           <ActivityIndicator color={Colors.accent} style={{ marginVertical: 20 }} />
@@ -439,58 +526,6 @@ export default function TimetableGenerateScreen() {
                 {Math.abs(remaining)}
               </Text> {remaining < 0 ? 'over' : 'free'}
             </Text>
-
-            {/* ── Combined classes ─────────────────────────────────────── */}
-            <View style={g.ccMergeBox}>
-              <Text style={g.ccMergeTitle}>Combined classes</Text>
-              <Text style={g.ccMergeHint}>
-                Sections that sit together for a subject — one teacher, one room, at the same time in
-                every section&rsquo;s grid. Set up here, it still applies when you generate the other
-                sections later.
-              </Text>
-
-              {sectionMerges.map((m: any) => (
-                <View key={m._id} style={g.ccMergeRow}>
-                  <Ionicons name="link" size={15} color={Colors.accent} />
-                  <Text style={g.ccMergeRowText} numberOfLines={2}>
-                    <Text style={{ fontWeight: '700' }}>{m.subjectName}</Text>
-                    {'  '}{m.sections.map((x: any) => x.label).join('  +  ')}
-                  </Text>
-                  <TouchableOpacity onPress={() => removeSectionMerge(m._id)} disabled={ccBusy} hitSlop={8}>
-                    <Ionicons name="close-circle" size={18} color={Colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              <Select label="Subject" value={ccSubject} placeholder="Choose a subject"
-                options={subjects.map((x: any) => ({ label: x.subjectName, value: x._id }))}
-                onChange={setCcSubject} />
-
-              <Text style={g.ccMergeLabel}>Sections that sit together</Text>
-              <View style={g.ccMergeChips}>
-                {sectionsOf.map((sec: any) => {
-                  const on = ccPicked.includes(sec._id);
-                  return (
-                    <TouchableOpacity key={sec._id} style={[g.ccMergeChip, on && g.ccMergeChipOn]}
-                      onPress={() => setCcPicked(prev => (on
-                        ? prev.filter(x => x !== sec._id)
-                        : [...prev, sec._id]))}>
-                      <Text style={[g.ccMergeChipText, on && { color: '#fff' }]}>{sec.sectionName}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {!sectionsOf.length && <Text style={g.ccMergeHint}>This class has no sections</Text>}
-              </View>
-
-              <TouchableOpacity
-                style={[g.ccMergeBtn, (!ccSubject || ccPicked.length < 2 || ccBusy) && { opacity: 0.5 }]}
-                disabled={!ccSubject || ccPicked.length < 2 || ccBusy}
-                onPress={addSectionMerge}>
-                {ccBusy
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={g.ccMergeBtnText}>Merge these sections</Text>}
-              </TouchableOpacity>
-            </View>
 
             {subjects.map((sub: any) => {
               const key = merges[sub._id];
@@ -567,16 +602,128 @@ export default function TimetableGenerateScreen() {
               </View>
             )}
           </Card>
+        ))}
+
+        {/* ── Combined classes — its own tab, not a paragraph inside another ── */}
+        {scopeMode === 'picked' && ruleTab === 'merges' && (
+          !selectedClass ? (
+            <Empty icon="layers-outline" text="Choose a class first — its sections and any saved combinations load here." />
+          ) : sectionsOf.length < 2 ? (
+            <Empty icon="grid-outline" text={`${selectedClass.className} has one section, so there is nothing to combine it with.`} />
+          ) : !subjects.length ? (
+            <Empty icon="book-outline" text="Pick the sections to generate first — the subjects to combine come from their plan." />
+          ) : (
+            <View style={g.ccMergeBox}>
+              <Text style={g.ccMergeTitle}>Combined classes</Text>
+              <Text style={g.ccMergeHint}>
+                Sections that sit together for a subject — one teacher, one room, at the same time in
+                every section&rsquo;s grid. Set up here, it still applies when you generate the other
+                sections later.
+              </Text>
+
+              {sectionMerges.map((m: any) => (
+                <View key={m._id} style={g.ccMergeRow}>
+                  <Ionicons name="link" size={15} color={Colors.accent} />
+                  <Text style={g.ccMergeRowText} numberOfLines={2}>
+                    <Text style={{ fontWeight: '700' }}>{m.subjectName}</Text>
+                    {'  '}{m.sections.map((x: any) => x.label).join('  +  ')}
+                  </Text>
+                  <TouchableOpacity onPress={() => removeSectionMerge(m._id)} disabled={ccBusy} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={Colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <Select label="Subject" value={ccSubject} placeholder="Choose a subject"
+                options={subjects.map((x: any) => ({ label: x.subjectName, value: x._id }))}
+                onChange={setCcSubject} />
+
+              <Text style={g.ccMergeLabel}>Sections that sit together</Text>
+              <View style={g.ccMergeChips}>
+                {sectionsOf.map((sec: any) => {
+                  const on = ccPicked.includes(sec._id);
+                  return (
+                    <TouchableOpacity key={sec._id} style={[g.ccMergeChip, on && g.ccMergeChipOn]}
+                      onPress={() => setCcPicked(prev => (on
+                        ? prev.filter(x => x !== sec._id)
+                        : [...prev, sec._id]))}>
+                      <Text style={[g.ccMergeChipText, on && { color: '#fff' }]}>{sec.sectionName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {!sectionsOf.length && <Text style={g.ccMergeHint}>This class has no sections</Text>}
+              </View>
+
+              <TouchableOpacity
+                style={[g.ccMergeBtn, (!ccSubject || ccPicked.length < 2 || ccBusy) && { opacity: 0.5 }]}
+                disabled={!ccSubject || ccPicked.length < 2 || ccBusy}
+                onPress={addSectionMerge}>
+                {ccBusy
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={g.ccMergeBtnText}>Merge these sections</Text>}
+              </TouchableOpacity>
+            </View>
+          )
         )}
 
-        <Text style={tk.sectionHeading}>Optimisation Options</Text>
-        <Text style={tk.hint}>
-          Hard rules (clashes, availability, weekly requirements, lab rooms) are always enforced.
-        </Text>
-        {OPTIONS.map(([key, label]) => (
-          <Toggle key={key} label={label} value={!!options[key]}
-            onChange={(v) => setOptions((o) => ({ ...o, [key]: v }))} />
-        ))}
+        {/* ── Preferences ───────────────────────────────────────────────── */}
+        {ruleTab === 'prefs' && (
+          <>
+            <Text style={tk.hint}>
+              Hard rules (clashes, availability, weekly requirements, lab rooms) are always enforced.
+              These decide what the optimiser improves once those hold.
+            </Text>
+            {OPTIONS.map(([key, label]) => (
+              <Toggle key={key} label={label} value={!!options[key]}
+                onChange={(v) => setOptions((o) => ({ ...o, [key]: v }))} />
+            ))}
+          </>
+        )}
+
+        {/* ── Check: the summary and the dry run ───────────────────────── */}
+        {ruleTab === 'check' && (
+          <>
+            <Card>
+              <Text style={tk.sectionHeading}>Generation summary</Text>
+              <SummaryRow k="Scope" v={scopeMode === 'all'
+                ? `All classes · ${classes.reduce((x: number, c: any) => x + (c.sections ?? []).length, 0)} sections`
+                : selectedClass ? `${selectedClass.className} · ${scopeCount} section${scopeCount === 1 ? '' : 's'}` : '—'} />
+              {scopeMode === 'picked' && plan && (
+                <>
+                  <SummaryRow k="Subjects" v={subjects.length} />
+                  <SummaryRow k="Periods planned" v={`${assigned} of ${capacity}`}
+                    tone={remaining < 0 ? Colors.danger : remaining === 0 ? Colors.success : undefined} />
+                  <SummaryRow k="Subjects sharing periods" v={groups.size ? plural(groups.size, 'group') : 'None'} />
+                  <SummaryRow k="Combined classes" v={sectionMerges.length || 'None'} />
+                </>
+              )}
+              <SummaryRow k="Teachers" v={meta?.teachers?.length ?? '—'} />
+              <SummaryRow k="Rooms" v={meta?.rooms?.length ?? '—'} />
+            </Card>
+
+            <Card>
+              <Text style={tk.sectionHeading}>Validation check</Text>
+              {!canGenerate ? (
+                <Text style={tk.hint}>
+                  {scopeMode === 'all' ? 'Pick an academic year.' : 'Finish the plan — pick sections and give subjects their periods.'}
+                </Text>
+              ) : check.loading && !check.report ? (
+                <ActivityIndicator color={Colors.accent} style={{ marginVertical: 10 }} />
+              ) : check.error ? (
+                <Text style={g.warnText}>Could not check the plan: {check.error}</Text>
+              ) : check.planError ? (
+                <Text style={g.errorText}>{check.planError}</Text>
+              ) : !dryErrors.length ? (
+                <>
+                  {['No blocking conflicts detected', 'Teacher availability loaded', 'Rooms available']
+                    .map((x) => <CheckRow key={x} ok text={x} />)}
+                </>
+              ) : dryErrors.map((x: any) => (
+                <CheckRow key={x.key} text={x.title} sub={x.detail} />
+              ))}
+            </Card>
+          </>
+        )}
 
         <TouchableOpacity
           style={[g.primaryBtn, (!canGenerate || starting) && { opacity: 0.5 }]}
@@ -584,7 +731,8 @@ export default function TimetableGenerateScreen() {
           onPress={start}>
           {starting ? <ActivityIndicator color="#fff" />
             : <Text style={g.primaryBtnText}>
-                ⚡ Generate Timetable{scopeCount ? ` (${scopeCount} section${scopeCount === 1 ? '' : 's'})` : ''}
+                ⚡ Generate Timetable{scopeMode === 'all' ? ' (all classes)'
+                  : scopeCount ? ` (${scopeCount} section${scopeCount === 1 ? '' : 's'})` : ''}
               </Text>}
         </TouchableOpacity>
         <TouchableOpacity style={g.secondaryBtn} onPress={() => router.back()}>
@@ -605,6 +753,27 @@ export default function TimetableGenerateScreen() {
         />
       )}
     </>
+  );
+}
+
+function SummaryRow({ k, v, tone }: { k: string; v: any; tone?: string }) {
+  return (
+    <View style={g.sumRow}>
+      <Text style={g.sumK}>{k}</Text>
+      <Text style={[g.sumV, tone ? { color: tone } : null]}>{String(v)}</Text>
+    </View>
+  );
+}
+
+function CheckRow({ ok, text, sub }: { ok?: boolean; text: string; sub?: string }) {
+  return (
+    <View style={g.checkRow}>
+      <Ionicons name={ok ? 'checkmark-circle' : 'alert-circle'} size={17} color={ok ? Colors.success : Colors.danger} />
+      <View style={{ flex: 1 }}>
+        <Text style={g.checkText}>{text}</Text>
+        {!!sub && <Text style={g.checkSub}>{sub}</Text>}
+      </View>
+    </View>
   );
 }
 
@@ -723,6 +892,12 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, perSectionT
 }
 
 const g = StyleSheet.create({
+  sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  sumK: { fontSize: 12.5, color: Colors.textSecondary },
+  sumV: { fontSize: 12.5, fontWeight: '700', color: Colors.text, flexShrink: 1, textAlign: 'right' },
+  checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 6 },
+  checkText: { fontSize: 12.5, color: Colors.text },
+  checkSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   screen: { flex: 1, backgroundColor: Colors.background },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
   stepText: { fontSize: 13, color: Colors.text },
@@ -747,13 +922,13 @@ const g = StyleSheet.create({
 
   ccMergeBox: {
     borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
-    padding: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.surfaceAlt,
+    padding: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.surface,
   },
   ccMergeTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 4 },
   ccMergeHint: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: Spacing.sm },
   ccMergeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.surface, borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceAlt, borderRadius: Radius.sm,
     paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6,
   },
   ccMergeRowText: { flex: 1, fontSize: 12.5, color: Colors.text },

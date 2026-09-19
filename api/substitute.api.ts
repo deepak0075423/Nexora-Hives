@@ -49,3 +49,17 @@ export const getMySubstitutions = (from?: string, to?: string) =>
   api.get('/teacher/substitutions', {
     params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
   });
+
+// ── One slot, addressed the way the admin picked it ───────────────────────────
+// What is taught at (date, section, period), who takes it, whether they are
+// away, and who could cover — before any substitution row exists.
+export const getSlot    = (params: object) => api.get(`${base}/slot`, { params });
+// Open the period and assign in one call, so a failed assign leaves no
+// half-made row behind. 409 means an eligibility clash; re-send with force.
+export const assignSlot = (data: object)   => api.post(`${base}/slot`, data);
+export const bulkAssign = (data: object)   => api.post(`${base}/bulk`, data);
+
+// The last N substitutions across days — the board's "recent activity" lists.
+export const getRecent  = (params?: object) => api.get(`${base}/recent`, { params });
+// Timetabled load beside cover taken on, with the school's own thresholds.
+export const getWorkloadReport = (params?: object) => api.get(`${base}/workload-report`, { params });

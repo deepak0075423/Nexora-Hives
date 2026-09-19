@@ -8,6 +8,7 @@ import {
   unwrap, LoaderView, Empty, Card, Select, Input, Toggle, FAB, FormModal, Badge, confirmAsync, ActionBtn, SearchBar,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import { Tiles, plural } from '@/components/timetable/viewKit';
 import { ROOM_TYPES, DAYS, DAY_SHORT, tk } from '@/components/timetable/ttKit';
 
 const MAX_PERIODS = 10;
@@ -25,6 +26,15 @@ export default function TimetableRoomsScreen() {
   const [disabled, setDisabled] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [summary, setSummary] = useState<any>({});
+  const [buildings, setBuildings] = useState<string[]>([]);
+  const [type, setType] = useState('');
+  const [status, setStatus] = useState('');
+  const [building, setBuilding] = useState('');
+  const [openId, setOpenId] = useState('');
+  const [week, setWeek] = useState<Record<string, any>>({});
+  const [importText, setImportText] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const [form, setForm] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -32,19 +42,61 @@ export default function TimetableRoomsScreen() {
   const load = useCallback(async () => {
     try {
       const [rRes, mRes] = await Promise.all([
-        ttApi.getRooms({ active: 'all' }),
+        ttApi.getRoomsOverview({
+          ...(type ? { type } : {}), ...(status ? { status } : {}), ...(building ? { building } : {}),
+        }),
         meta ? null : ttApi.getMeta(),
       ]);
-      setRooms(unwrap(rRes) ?? []);
+      const d = unwrap(rRes) ?? {};
+      setRooms(d.rooms ?? []);
+      setSummary(d.summary ?? {});
+      setBuildings(d.buildings ?? []);
       if (mRes) setMeta(unwrap(mRes));
       setError('');
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
       else setError(err?.message ?? 'Failed to load rooms');
     } finally { setLoading(false); setRefreshing(false); }
-  }, [meta]);
+  }, [meta, type, status, building]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { load(); }, [type, status, building]); // eslint-disable-line
+
+  // A room's week is fetched on demand — most rooms are never expanded.
+  const toggleWeek = async (id: string) => {
+    if (openId === id) { setOpenId(''); return; }
+    setOpenId(id);
+    if (week[id]) return;
+    try {
+      const d = unwrap(await ttApi.getRoomSchedule(id));
+      setWeek((w) => ({ ...w, [id]: d }));
+    } catch { setWeek((w) => ({ ...w, [id]: { entries: [] } })); }
+  };
+
+  /** name, number, type, capacity, block — a header row is recognised, not required. */
+  const runImport = async () => {
+    const lines = String(importText || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const first = (lines[0] || '').toLowerCase();
+    const body = /name/.test(first) && /type|capacity|number/.test(first) ? lines.slice(1) : lines;
+    const rows = body.map((line) => {
+      const c = line.split(',').map((x) => x.trim().replace(/^"|"$/g, ''));
+      return {
+        roomName: c[0] || '', roomNumber: c[1] || '',
+        roomType: ROOM_TYPES.find((t) => t.toLowerCase() === String(c[2] || '').toLowerCase()) || 'Classroom',
+        capacity: Number(c[3]) || 0, building: c[4] || '',
+      };
+    }).filter((r) => r.roomName);
+    if (!rows.length) { setError('Nothing to import — one room per line: name, number, type, capacity, block'); return; }
+    setImporting(true);
+    try {
+      const d = unwrap(await ttApi.importRooms(rows));
+      setImportText(null);
+      setError(d?.skipped?.length
+        ? `${d.created} added, ${d.skipped.length} skipped (${d.skipped[0].reason}${d.skipped.length > 1 ? '…' : ''})`
+        : '');
+      await load();
+    } catch (err: any) { setError(err?.message ?? 'Import failed'); }
+    finally { setImporting(false); }
+  };
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -103,9 +155,36 @@ export default function TimetableRoomsScreen() {
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 110 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
       >
+        <Tiles items={[
+          { label: 'Rooms', value: summary.total ?? 0, icon: 'business', tone: 'info' },
+          { label: 'Classrooms', value: summary.classrooms ?? 0, icon: 'school', tone: 'success' },
+          { label: 'Labs', value: summary.labs ?? 0, icon: 'flask', tone: 'neutral' },
+          { label: 'Available', value: summary.active ?? 0, icon: 'checkmark-circle', tone: 'success' },
+        ]} />
+
+        <View style={s.filters}>
+          <View style={s.filter}>
+            <Select label="Type" value={type} onChange={setType} placeholder="All types"
+              options={[{ label: 'All types', value: '' }, ...ROOM_TYPES.map((t) => ({ label: t, value: t }))]} />
+          </View>
+          <View style={s.filter}>
+            <Select label="Status" value={status} onChange={setStatus} placeholder="All"
+              options={[{ label: 'All', value: '' }, { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]} />
+          </View>
+        </View>
+        {buildings.length > 0 && (
+          <Select label="Building / block" value={building} onChange={setBuilding} placeholder="All blocks"
+            options={[{ label: 'All blocks', value: '' }, ...buildings.map((b) => ({ label: b, value: b }))]} />
+        )}
+
         <SearchBar value={search} onChange={setSearch} placeholder="Search rooms…" />
         {error ? <View style={s.errorBox}><Text style={s.errorText}>{error}</Text></View> : null}
-        <Text style={tk.hint}>Labs let the generator place practicals automatically and prevent double-booking.</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.sm }}>
+          <Text style={[tk.hint, { flex: 1, marginBottom: 0 }]}>
+            Labs let the generator place practicals automatically and prevent double-booking.
+          </Text>
+          <ActionBtn label="Import" small onPress={() => setImportText('')} />
+        </View>
 
         {!filtered.length ? <Empty icon="business-outline" text="No rooms yet — add one to enable room allocation" /> : filtered.map((r) => (
           <Card key={r._id}>
@@ -119,11 +198,39 @@ export default function TimetableRoomsScreen() {
               </View>
               <Badge label={r.isActive ? 'Active' : 'Inactive'} tone={r.isActive ? 'success' : 'neutral'} />
             </View>
+            {!!r.homeLabel && <Text style={s.sub}>Home class: {r.homeLabel}</Text>}
             {r.unavailable?.length ? (
-              <Text style={s.blocked}>{r.unavailable.length} blocked slot(s)</Text>
+              <Text style={s.blocked}>{plural(r.unavailable.length, 'blocked slot')}</Text>
             ) : null}
+            <View style={s.useRow}>
+              <View style={s.track}>
+                <View style={[s.fill, {
+                  width: `${Math.min(100, r.utilisation ?? 0)}%`,
+                  backgroundColor: (r.utilisation ?? 0) > 85 ? Colors.danger : Colors.success,
+                }]} />
+              </View>
+              <Text style={s.useText}>{r.utilisation ?? 0}% · {r.periodsUsed ?? 0} periods</Text>
+            </View>
+
+            {openId === r._id && (
+              <View style={s.week}>
+                {!week[r._id] ? <LoaderView /> : !(week[r._id].entries ?? []).length ? (
+                  <Text style={s.sub}>Nothing is timetabled in this room.</Text>
+                ) : (week[r._id].entries as any[]).map((e, i) => (
+                  <Text key={i} style={s.weekRow} numberOfLines={1}>
+                    {DAY_SHORT[e.dayOfWeek] || e.dayOfWeek} P{e.periodNumber} · {e.section} · {e.subject}
+                    {e.teacher ? ` · ${e.teacher}` : ''}
+                  </Text>
+                ))}
+              </View>
+            )}
+
             <View style={s.actions}>
+              <ActionBtn label={openId === r._id ? 'Hide week' : 'Its week'} small onPress={() => toggleWeek(r._id)} />
               <ActionBtn label="Edit" tone="info" small onPress={() => openForm(r)} />
+              <ActionBtn label="Duplicate" small onPress={() => openForm({
+                ...r, _id: '', roomName: `${r.roomName} (copy)`, roomNumber: '',
+              })} />
               <ActionBtn label="Delete" tone="danger" small onPress={() => remove(r)} />
             </View>
           </Card>
@@ -131,6 +238,16 @@ export default function TimetableRoomsScreen() {
       </ScrollView>
 
       <FAB onPress={() => openForm()} />
+
+      <FormModal visible={importText !== null} title="Import rooms" onClose={() => setImportText(null)}
+        onSubmit={runImport} submitting={importing} submitLabel="Import">
+        <Text style={tk.hint}>
+          One room per line: name, number, type, capacity, block. A header row is fine; anything
+          already here is skipped rather than duplicated.
+        </Text>
+        <Input label="Rooms" multiline value={importText ?? ''} onChange={(v) => setImportText(v)}
+          placeholder={'Computer Lab, L-101, Computer Lab, 40, Main Block'} />
+      </FormModal>
 
       <FormModal
         visible={!!form}
@@ -192,7 +309,15 @@ const s = StyleSheet.create({
   title: { fontSize: 13.5, fontWeight: '700', color: Colors.text },
   sub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
   blocked: { fontSize: 11, color: Colors.warning, marginTop: 6 },
-  actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  actions: { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+  filters: { flexDirection: 'row', gap: 8 },
+  filter: { flex: 1 },
+  useRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.divider, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 3 },
+  useText: { fontSize: 10.5, color: Colors.textSecondary },
+  week: { marginTop: 8, padding: 8, borderRadius: Radius.sm, backgroundColor: Colors.surfaceAlt, gap: 4 },
+  weekRow: { fontSize: 11.5, color: Colors.text },
 
   fieldLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
   gridHead: { width: 30, fontSize: 9, fontWeight: '700', color: Colors.textSecondary, textAlign: 'center' },
