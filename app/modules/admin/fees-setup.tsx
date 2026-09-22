@@ -6,6 +6,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import LifecycleModal from '@/components/fees/LifecycleModal';
 import {
   unwrap, LoaderView, Empty, Badge, RowItem, SegTabs, FAB, FormModal,
   Input, Select, fmtMoney, SectionTitle, ActionBtn,
@@ -27,6 +28,8 @@ export default function AdminFeesSetupScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
+  // Tapping a structure or a head opens what switching it off would do.
+  const [acting, setActing] = useState<{ kind: 'structure' | 'head'; row: any } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -152,12 +155,18 @@ export default function AdminFeesSetupScreen() {
                   undefined
                 }
                 right={<Badge label={r.isActive === false ? 'inactive' : 'active'} />}
+                onPress={(tab === 'structures' || tab === 'heads')
+                  ? () => setActing({ kind: tab === 'structures' ? 'structure' : 'head', row: r })
+                  : undefined}
               />
             ))
           )}
         </ScrollView>
         {canCreate && <FAB onPress={() => { setForm({}); setShowForm(true); }} />}
       </View>
+
+      <LifecycleModal kind={acting?.kind ?? 'structure'} row={acting?.row ?? null}
+        onClose={() => setActing(null)} onDone={load} />
 
       <FormModal visible={showForm} title={`Add ${TABS.find(t => t.key === tab)?.label ?? ''}`} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input label="Name *" value={form.name ?? ''} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Name" />

@@ -6,11 +6,40 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import * as feesApi from '@/api/fees.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, SegTabs, Select,
   FormModal, Input, fmtMoney, fmtDate,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import MonthPicker, { payableMonths, amountFor, keysFor, dueCount } from '@/components/fees/MonthPicker';
+
+/**
+ * A month's state, said the way a family would say it. `awaiting` means the
+ * money is with the office and not yet approved; `cancelled` means the school
+ * withdrew the charge. Neither is owed, and neither existed when this screen
+ * was first written.
+ */
+const MONTH_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
+  paid:      { label: 'Paid', tone: 'success' },
+  partial:   { label: 'Part paid', tone: 'warning' },
+  due:       { label: 'Due', tone: 'danger' },
+  upcoming:  { label: 'Upcoming', tone: 'neutral' },
+  awaiting:  { label: 'Awaiting approval', tone: 'warning' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+};
+
+/** What is left to pay on a month — net of anything awaiting approval. */
+const owing = (m: any) => Number(m?.payable != null ? m.payable : m?.amountDue) || 0;
+
+/** A downloaded PDF, as base64 the filesystem can write. */
+const blobToBase64 = (blob: any): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Could not read the receipt'));
+  reader.onloadend = () => resolve(String(reader.result).split(',')[1] ?? '');
+  reader.readAsDataURL(blob);
+});
 
 const MODE_OPTIONS = [
   { label: 'Cash', value: 'cash' },
@@ -38,6 +67,18 @@ export default function FeesScreen() {
   const [showPay, setShowPay] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payForm, setPayForm] = useState({ amount: '', paymentMode: 'upi', transactionRef: '', remarks: '' });
+  // Paying by months (the default whenever months are unpaid) or a free
+  // amount. `count` = how many unpaid months are ticked, oldest first.
+  const [byMonths, setByMonths] = useState(true);
+  const [count, setCount] = useState(0);
+  const [savingId, setSavingId] = useState('');
+
+  // What the picker currently comes to. Declared here because the submit
+  // handler below needs it, and it is only ever derived from `book`.
+  const unpaidMonths = payableMonths(book?.monthlySchedule ?? []);
+  const otherDue = Number(book?.otherDue ?? 0);
+  const monthsMode = byMonths && (unpaidMonths.length > 0 || otherDue > 0);
+  const payAmount = amountFor(book?.monthlySchedule ?? [], otherDue, count);
 
   const load = useCallback(async (cid = childId) => {
     try {
@@ -64,20 +105,55 @@ export default function FeesScreen() {
 
   const changeChild = (id: string) => { setChildId(id); setLoading(true); load(id); };
 
+  /**
+   * Fetch the receipt PDF and hand it to the phone to open or share. The
+   * server renders it — the phone never redraws a receipt of its own, so what
+   * a family shows the office is always what the office issued.
+   */
+  const openReceipt = async (pmt: any) => {
+    setSavingId(pmt._id);
+    try {
+      const blob: any = isParent
+        ? await feesApi.downloadChildReceipt(childId, pmt._id)
+        : await feesApi.downloadMyReceipt(pmt._id);
+      const base64 = await blobToBase64(blob);
+      const uri = `${FileSystem.cacheDirectory}receipt-${pmt.receiptNumber || pmt._id}.pdf`;
+      await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+      else Alert.alert('Saved', 'The receipt was saved to this device.');
+    } catch (err: any) {
+      Alert.alert('Could not open the receipt', err?.message ?? 'Please try again.');
+    } finally { setSavingId(''); }
+  };
+
   const openPay = () => {
-    setPayForm(f => ({ ...f, amount: String(book?.suggestedAmount || book?.dueTotal || '') }));
+    const unpaid = payableMonths(book?.monthlySchedule ?? []);
+    setByMonths(unpaid.length > 0 || (book?.otherDue ?? 0) > 0);
+    // Start on what is due now; with nothing due, on the next month.
+    setCount(dueCount(book?.monthlySchedule ?? []) || (unpaid.length ? 1 : 0));
+    // Money already sent and not yet approved is not owed again: suggesting
+    // the gross figure is how a family pays the same month twice.
+    const owed = Number(book?.dueTotal ?? book?.balance ?? 0);
+    const waiting = Number(book?.pendingTotal ?? 0);
+    const left = Math.max(0, Math.round((owed - waiting) * 100) / 100);
+    setPayForm(f => ({ ...f, amount: left > 0 ? String(left) : '' }));
     setShowPay(true);
   };
 
   const submitPay = async () => {
-    const amt = Number(payForm.amount);
-    if (!amt || amt <= 0) return Alert.alert('Invalid', 'Enter a valid amount');
+    const amt = monthsMode ? payAmount : Number(payForm.amount);
+    if (!amt || amt <= 0) {
+      return Alert.alert('Nothing to pay', monthsMode ? 'Tick at least one month.' : 'Enter a valid amount.');
+    }
     setPaying(true);
     try {
-      const payload = {
+      const payload: any = {
         amount: amt, paymentMode: payForm.paymentMode,
         transactionRef: payForm.transactionRef, remarks: payForm.remarks,
       };
+      // The server prices the months itself; sending them is what makes the
+      // receipt name the months rather than a bare amount.
+      if (monthsMode) payload.months = keysFor(book?.monthlySchedule ?? [], count);
       if (isParent) await feesApi.parentPayNow(childId, payload);
       else await feesApi.payNow(payload);
       setShowPay(false);
@@ -99,6 +175,8 @@ export default function FeesScreen() {
   const money = (n?: number | null) => n != null ? `${sym}${Number(n).toLocaleString('en-IN')}` : '--';
   const schedule: any[] = book?.monthlySchedule ?? [];
   const payments: any[] = book?.payments ?? [];
+  // A receipt exists only for an approved payment.
+  const receipts: any[] = payments.filter((p: any) => p.paymentStatus === 'completed');
   const items: any[] = book?.resolved?.items ?? [];
   const concessions: any[] = book?.concessions ?? [];
 
@@ -135,6 +213,17 @@ export default function FeesScreen() {
               </View>
             </View>
 
+            {/* Money sent but not yet approved — say so, or the family pays twice. */}
+            {book.pendingTotal > 0 ? (
+              <View style={s.waiting}>
+                <Ionicons name="time-outline" size={18} color={Colors.warning} />
+                <Text style={s.waitingText}>
+                  {money(book.pendingTotal)} is with the school office and waiting to be approved.
+                  The months it covers are not owed again.
+                </Text>
+              </View>
+            ) : null}
+
             {(book.dueTotal > 0 || book.balance > 0) && (
               <View style={{ marginBottom: Spacing.md }}>
                 <ActionBtn label={`Pay Now (${money(book.suggestedAmount || book.dueTotal)})`} tone="success" onPress={openPay} />
@@ -151,6 +240,7 @@ export default function FeesScreen() {
                 { key: 'overview', label: 'Fee Structure' },
                 { key: 'schedule', label: 'Monthly Schedule' },
                 { key: 'payments', label: `Payments (${payments.length})` },
+                { key: 'receipts', label: `Receipts (${receipts.length})` },
               ]}
               active={tab} onChange={setTab}
             />
@@ -187,15 +277,33 @@ export default function FeesScreen() {
               schedule.map((m: any, i: number) => (
                 <View key={i} style={s.monthRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.monthName}>{m.monthName ?? m.month ?? `Month ${i + 1}`}</Text>
+                    <Text style={s.monthName}>{m.monthLabel ?? m.monthKey ?? `Month ${i + 1}`}</Text>
                     <Text style={s.monthSub}>
-                      {money(m.amount)}{m.amountPaid ? ` · paid ${money(m.amountPaid)}` : ''}
-                      {m.amountDue ? ` · due ${money(m.amountDue)}` : ''}
+                      {money(m.totalAmount)}
+                      {m.amountPaid > 0 ? ` · paid ${money(m.amountPaid)}` : ''}
+                      {owing(m) > 0 ? ` · due ${money(owing(m))}` : ''}
+                      {m.dueDate ? ` · by ${fmtDate(m.dueDate)}` : ''}
                     </Text>
                   </View>
-                  <Badge label={m.payStatus ?? '--'}
-                    tone={m.payStatus === 'paid' ? 'success' : m.payStatus === 'due' ? 'danger' : m.payStatus === 'partial' ? 'warning' : 'neutral'} />
+                  <Badge label={MONTH_STATUS[m.payStatus]?.label ?? m.payStatus ?? '--'}
+                    tone={MONTH_STATUS[m.payStatus]?.tone ?? 'neutral'} />
                 </View>
+              ))
+            )}
+
+            {tab === 'receipts' && (
+              receipts.length === 0 ? <Empty icon="document-text-outline" text="A receipt is issued for every approved payment" /> :
+              receipts.map((pmt: any) => (
+                <Card key={pmt._id}>
+                  <KV label="Receipt" value={pmt.receiptNumber ?? '--'} />
+                  <KV label="For" value={pmt.months?.length ? pmt.months.join(', ') : 'Fee payment'} />
+                  <KV label="Amount" value={money(pmt.amount)} />
+                  <KV label="Paid on" value={fmtDate(pmt.paymentDate)} />
+                  <View style={{ marginTop: Spacing.sm }}>
+                    <ActionBtn small label={savingId === pmt._id ? 'Opening…' : 'Download receipt'}
+                      tone="info" disabled={!!savingId} onPress={() => openReceipt(pmt)} />
+                  </View>
+                </Card>
               ))
             )}
 
@@ -204,6 +312,7 @@ export default function FeesScreen() {
               payments.map((pmt: any) => (
                 <Card key={pmt._id}>
                   <KV label="Amount" value={money(pmt.amount)} />
+                  {pmt.months?.length ? <KV label="Months" value={pmt.months.join(', ')} /> : null}
                   <KV label="Date" value={fmtDate(pmt.paymentDate)} />
                   <KV label="Mode" value={pmt.paymentMode ?? '--'} />
                   {pmt.receiptNumber ? <KV label="Receipt" value={pmt.receiptNumber} /> : null}
@@ -221,7 +330,31 @@ export default function FeesScreen() {
         <Text style={s.payNote}>
           Record a payment you have made (cash/UPI/bank). The school admin verifies it before it reflects in the ledger.
         </Text>
-        <Input label="Amount *" value={payForm.amount} onChange={v => setPayForm(f => ({ ...f, amount: v }))} keyboardType="numeric" />
+
+        {monthsMode ? (
+          <>
+            <Text style={s.payLabel}>Months to pay</Text>
+            <MonthPicker months={book?.monthlySchedule ?? []} otherDue={otherDue}
+              count={count} onCount={setCount} sym={sym} />
+            <View style={s.payTotal}>
+              <Text style={s.payTotalLabel}>
+                {count} month{count === 1 ? '' : 's'}{otherDue > 0 ? ' + other charges' : ''}
+              </Text>
+              <Text style={s.payTotalAmount}>{money(payAmount)}</Text>
+            </View>
+            <Text style={s.payHint}>
+              Ticking a month includes every unpaid month before it — fees are paid in order.
+            </Text>
+            <ActionBtn small label="Pay a different amount instead" onPress={() => setByMonths(false)} />
+          </>
+        ) : (
+          <>
+            <Input label="Amount *" value={payForm.amount} onChange={v => setPayForm(f => ({ ...f, amount: v }))} keyboardType="numeric" />
+            {unpaidMonths.length > 0 ? (
+              <ActionBtn small label="Pay by months instead" onPress={() => setByMonths(true)} />
+            ) : null}
+          </>
+        )}
         <Select label="Payment Mode" value={payForm.paymentMode} onChange={v => setPayForm(f => ({ ...f, paymentMode: v }))} options={MODE_OPTIONS} />
         <Input label="Transaction Reference" value={payForm.transactionRef} onChange={v => setPayForm(f => ({ ...f, transactionRef: v }))} placeholder="UPI ref / cheque no. (optional)" />
         <Input label="Remarks" value={payForm.remarks} onChange={v => setPayForm(f => ({ ...f, remarks: v }))} placeholder="Optional" multiline />
@@ -240,6 +373,12 @@ const s = StyleSheet.create({
   bannerSub: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   bannerIcon: { opacity: 0.5 },
   groupLabel: { ...Typography.h4, color: Colors.text, marginBottom: 8, marginTop: 4 },
+  waiting: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm,
+    backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a',
+    borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  waitingText: { flex: 1, ...Typography.caption, color: '#92400e', lineHeight: 18 },
   monthRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
@@ -248,4 +387,13 @@ const s = StyleSheet.create({
   monthName: { ...Typography.label, color: Colors.text },
   monthSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
   payNote: { fontSize: 12, color: Colors.textSecondary, marginBottom: 12, lineHeight: 17 },
+  payLabel: { ...Typography.label, color: Colors.text, marginBottom: 6 },
+  payTotal: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md,
+    padding: Spacing.md, marginTop: Spacing.sm,
+  },
+  payTotalLabel: { ...Typography.caption, color: Colors.textSecondary },
+  payTotalAmount: { ...Typography.h4, color: Colors.text },
+  payHint: { fontSize: 11, color: Colors.textLight, marginTop: 6, marginBottom: 8, lineHeight: 16 },
 });

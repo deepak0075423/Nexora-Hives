@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
 import * as feesApi from '@/api/fees.api';
@@ -34,6 +34,8 @@ export default function AdminFeesPaymentsScreen() {
   const [disabled, setDisabled] = useState(false);
 
   // Record payment
+  const [voiding, setVoiding] = useState<any>(null);
+  const [voidReason, setVoidReason] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [studentQ, setStudentQ] = useState('');
@@ -63,6 +65,27 @@ export default function AdminFeesPaymentsScreen() {
     if (!(await confirmAsync('Reject Payment', `Reject ${fmtMoney(p.amount)} from ${p.student?.name}?`, 'Reject'))) return;
     try { await feesApi.rejectPayment(p._id); load(); }
     catch (err: any) { Alert.alert('Error', err.message); }
+  };
+
+  /**
+   * Cancel a payment recorded by mistake. The receipt number stays with it —
+   * receipts are never reused — the money goes back on the account as owed,
+   * and the family is told the reason typed here.
+   */
+  const voidPayment = async (p: any) => {
+    setVoiding(p); setVoidReason('');
+  };
+  const submitVoid = async () => {
+    const reason = voidReason.trim();
+    if (!reason) return Alert.alert('Required', 'Say why this payment is being cancelled — the family sees it.');
+    setSaving(true);
+    try {
+      await feesApi.voidPayment(voiding._id, { reason });
+      setVoiding(null); setVoidReason('');
+      load();
+      Alert.alert('Cancelled', 'The payment was cancelled and the family told. The months it settled are payable again.');
+    } catch (err: any) { Alert.alert('Error', err.message); }
+    finally { setSaving(false); }
   };
 
   const searchStudents = async () => {
@@ -122,6 +145,8 @@ export default function AdminFeesPaymentsScreen() {
                 {p.receiptNumber ? <KV label="Receipt" value={p.receiptNumber} /> : null}
                 {p.collectedBy?.name ? <KV label="Collected by" value={p.collectedBy.name} /> : null}
                 <KV label="Status" value={<Badge label={p.paymentStatus} />} />
+                {p.months?.length ? <KV label="Months" value={p.months.join(', ')} /> : null}
+                {p.voidReason ? <KV label="Cancelled because" value={p.voidReason} /> : null}
                 {p.paymentStatus === 'pending' && (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                     <View style={{ flex: 1 }}>
@@ -132,12 +157,28 @@ export default function AdminFeesPaymentsScreen() {
                     </View>
                   </View>
                 )}
+                {p.paymentStatus === 'completed' && (
+                  <View style={{ marginTop: 10 }}>
+                    <ActionBtn small label="Cancel this payment" tone="danger" onPress={() => voidPayment(p)} />
+                  </View>
+                )}
               </Card>
             ))
           )}
         </ScrollView>
         <FAB onPress={() => setShowForm(true)} />
       </View>
+
+      <FormModal visible={!!voiding} title="Cancel this payment" onClose={() => setVoiding(null)}
+        onSubmit={submitVoid} submitting={saving} submitLabel="Cancel payment">
+        <Text style={{ fontSize: 12, color: Colors.textSecondary, marginBottom: 10, lineHeight: 17 }}>
+          {fmtMoney(voiding?.amount)} goes back onto {voiding?.student?.name ?? 'the account'} as owed, and the months it
+          settled become payable again. The receipt number stays with the cancelled payment, so nothing is reused.
+          Refunding the money itself is a separate matter for the office.
+        </Text>
+        <Input label="Why is it being cancelled? *" value={voidReason} onChange={setVoidReason} multiline
+          placeholder="Cheque returned unpaid, entered against the wrong student…" />
+      </FormModal>
 
       <FormModal visible={showForm} title="Record Payment" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving} submitLabel="Record Payment">
         {student ? (
