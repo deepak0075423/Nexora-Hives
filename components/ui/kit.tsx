@@ -42,9 +42,12 @@ export const confirmAsync = (title: string, message: string, destructiveLabel = 
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
-type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+type Tone = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 const TONES: Record<Tone, { bg: string; color: string }> = {
+  // The one filled button on a screen — the action that moves the thing on.
+  // Every other tone is a tint; this one carries the weight.
+  primary: { bg: Colors.primary, color: '#FFFFFF' },
   success: { bg: Colors.successLight, color: Colors.success },
   warning: { bg: Colors.warningLight, color: Colors.warning },
   danger:  { bg: Colors.dangerLight,  color: Colors.danger },
