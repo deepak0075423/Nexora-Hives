@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, TouchableOpa
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModules } from '@/hooks/useModules';
 import * as h from '@/api/hostel.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -31,6 +32,11 @@ const MARK_TONE: Record<string, any> = {
  */
 export default function AdminHostelScreen() {
   const { user } = useAuth();
+  // A teacher posted to a hostel (its warden or staff) gets this same screen for
+  // their own hostel; only those who administer the module decide room changes.
+  const { isAdmin } = useModules();
+  const full = user?.role !== 'teacher' || isAdmin('hostel');
+  const title = full ? 'Hostel' : 'Hostel Duty';
   const [dash, setDash] = useState<any>(undefined);
   const [meta, setMeta] = useState<any>(null);
   const [tab, setTab] = useState('overview');
@@ -44,7 +50,10 @@ export default function AdminHostelScreen() {
   const [savingRoll, setSavingRoll] = useState(false);
 
   const [live, setLive] = useState<any>(null);
-  const [approvals, setApprovals] = useState<any>({ admissions: [], leaves: [], outpasses: [] });
+  const [approvals, setApprovals] = useState<any>({ admissions: [], leaves: [], outpasses: [], moves: [] });
+  const [turnDown, setTurnDown] = useState<any>(null);     // the room change being rejected
+  const [turnDownWhy, setTurnDownWhy] = useState('');
+  const [turningDown, setTurningDown] = useState(false);
   const [tickets, setTickets] = useState<any>({ complaints: [], maintenance: [] });
   const [visitors, setVisitors] = useState<any[]>([]);
   const [residents, setResidents] = useState<any[]>([]);
@@ -85,15 +94,17 @@ export default function AdminHostelScreen() {
       if (t === 'rollcall') return loadRegister();
       if (t === 'gate') setLive(unwrap(await h.getLiveMovement()));
       if (t === 'approvals') {
-        const [ad, lv, op] = await Promise.all([
+        const [ad, lv, op, mv] = await Promise.all([
           h.getAdmissions({ status: 'pending_approval', limit: 25 }),
           h.getLeaves({ status: 'pending', limit: 25 }),
           h.getOutpasses({ status: 'pending', limit: 25 }),
+          h.getTransferRequests({ status: 'pending' }).catch(() => null),
         ]);
         setApprovals({
           admissions: unwrap(ad)?.data ?? [],
           leaves: unwrap(lv)?.data ?? [],
           outpasses: unwrap(op)?.data ?? [],
+          moves: (mv ? unwrap(mv)?.rows : null) ?? [],
         });
       }
       if (t === 'tickets') {
@@ -123,15 +134,40 @@ export default function AdminHostelScreen() {
   };
 
   const decide = async (kind: string, id: string, action: string) => {
-    const verb = action === 'approve' ? 'Approve' : 'Reject';
-    if (!await confirmAsync(`${verb}?`, `${verb} this request?`, verb)) return;
+    const verb = action === 'approve' ? 'Approve' : action === 'parent_approve' ? 'Record consent'
+      : action === 'waitlist' ? 'Waitlist' : 'Reject';
+    const ask = action === 'parent_approve'
+      ? 'Record that a parent has agreed to this outpass (in person or on the phone)?'
+      : `${verb} this request?`;
+    if (!await confirmAsync(`${verb}?`, ask, verb)) return;
     try {
-      if (kind === 'admission') await h.decideAdmission(id, { action });
+      if (kind === 'admission') {
+        try { await h.decideAdmission(id, { action }); }
+        catch (err: any) {
+          // Required papers are missing: approving anyway is a decision, so it is asked for.
+          if (err?.data?.code !== 'DOCUMENTS_MISSING') throw err;
+          const missing = (err.data.missing || []).map(label).join(', ');
+          if (!await confirmAsync('Documents missing', `Required documents are missing: ${missing}. Approve anyway? What was missing is kept on the application.`, 'Approve anyway')) return;
+          await h.decideAdmission(id, { action, acceptMissingDocuments: true });
+        }
+      }
       if (kind === 'leave') await h.actOnLeave(id, { action });
       if (kind === 'outpass') await h.actOnOutpass(id, { action });
+      if (kind === 'move') await h.decideTransferRequest(id, { action });
       loadTab('approvals');
       load();
     } catch (err: any) { alert(err?.message ?? 'Could not complete that'); }
+  };
+
+  const rejectMove = async () => {
+    if (!turnDownWhy.trim()) { alert('Say why the request is turned down — the resident is told'); return; }
+    setTurningDown(true);
+    try {
+      await h.decideTransferRequest(turnDown._id, { action: 'reject', remark: turnDownWhy.trim() });
+      setTurnDown(null); setTurnDownWhy('');
+      loadTab('approvals');
+    } catch (err: any) { alert(err?.message ?? 'Could not complete that'); }
+    finally { setTurningDown(false); }
   };
 
   const lookupPass = async () => {
@@ -158,11 +194,13 @@ export default function AdminHostelScreen() {
     catch (err: any) { alert(err?.message ?? 'Could not update the visitor'); }
   };
 
-  if (disabled) return <><Stack.Screen options={{ title: 'Hostel' }} /><ModuleDisabled /></>;
-  if (dash === undefined) return <><Stack.Screen options={{ title: 'Hostel' }} /><LoaderView /></>;
+  if (disabled) return <><Stack.Screen options={{ title }} /><ModuleDisabled /></>;
+  if (dash === undefined) return <><Stack.Screen options={{ title }} /><LoaderView /></>;
   const d = dash || {};
 
   const pendingTotal = (d.pendingAdmissions ?? 0) + (d.pendingLeaves ?? 0) + (d.pendingOutpasses ?? 0);
+  const awaitingParent = (o: any) => !!o.parentApprovalRequired && !o.parentApprovedAt;
+  const place = (...p: any[]) => p.filter(Boolean).join(' · ');
   const hostelOpts = (meta?.hostels || []).map((x: any) => ({ label: x.name, value: x._id }));
   const filteredResidents = residents.filter((r) =>
     !search || String(r.student?.name ?? '').toLowerCase().includes(search.toLowerCase())
@@ -170,7 +208,7 @@ export default function AdminHostelScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Hostel' }} />
+      <Stack.Screen options={{ title }} />
       <ScrollView style={s.root} contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); loadTab(tab); }} />}>
 
@@ -215,7 +253,8 @@ export default function AdminHostelScreen() {
               <KV label="Open complaints" value={d.pendingComplaints ?? 0} />
               <KV label="Open maintenance" value={d.openMaintenance ?? 0} />
               <KV label="Visitors today" value={d.todayVisitors ?? 0} />
-              <KV label="Outstanding fees" value={fmtMoney(d.outstandingFees)} />
+              {/* Not sent to a teacher who is only posted to a hostel: the books are the office's. */}
+              {d.outstandingFees != null && <KV label="Outstanding fees" value={fmtMoney(d.outstandingFees)} />}
             </Card>
             {(d.recentIncidents || []).length > 0 && (
               <>
@@ -374,10 +413,43 @@ export default function AdminHostelScreen() {
                   </View>
                   <KV label="Purpose" value={o.purpose} />
                   <KV label="Out" value={`${fmtDate(o.departureDate)} ${o.expectedDepartureTime ?? ''}`} />
+                  {o.parentApprovalRequired && (
+                    <KV label="Parent consent" value={o.parentApprovedAt ? 'given' : 'awaiting'} />
+                  )}
                   <View style={s.actions}>
-                    <ActionBtn small label="Approve" tone="success" onPress={() => decide('outpass', o._id, 'approve')} />
+                    {/* Where the school asks for it, a student's pass waits for a parent first. */}
+                    {awaitingParent(o)
+                      ? <ActionBtn small label="Record consent" tone="info" onPress={() => decide('outpass', o._id, 'parent_approve')} />
+                      : <ActionBtn small label="Approve" tone="success" onPress={() => decide('outpass', o._id, 'approve')} />}
                     <ActionBtn small label="Reject" tone="danger" onPress={() => decide('outpass', o._id, 'reject')} />
                   </View>
+                </Card>
+              ))}
+
+            <SectionTitle>Room changes ({approvals.moves.length})</SectionTitle>
+            {approvals.moves.length === 0 ? <Empty icon="swap-horizontal-outline" text="Nothing waiting" />
+              : approvals.moves.map((m: any) => (
+                <Card key={m._id}>
+                  <View style={s.cardHead}>
+                    <Text style={s.cardTitle}>{m.studentName}</Text>
+                    <Badge label="waiting" tone="warning" />
+                  </View>
+                  <KV label="Request" value={`${m.requestNumber} · ${fmtDate(m.createdAt)}`} />
+                  <KV label="From" value={place(m.fromHostelName, m.fromRoom, m.fromBedNumber && `Bed ${m.fromBedNumber}`)} />
+                  <KV label="To" value={m.toBed ? place(m.toHostelName, m.toRoom, m.toBedNumber && `Bed ${m.toBedNumber}`) : `Office to choose${m.preference ? ` — prefers ${m.preference}` : ''}`} />
+                  <KV label="Asked by" value={`${m.requestedByName ?? '--'} (${label(m.requestedByRole)})`} />
+                  <Text style={s.body}>{m.reason}</Text>
+                  {full ? (
+                    <View style={s.actions}>
+                      {m.toBed && m.toBedStatus === 'available'
+                        ? <ActionBtn small label="Approve & move" tone="success" onPress={() => decide('move', m._id, 'approve')} />
+                        : null}
+                      <ActionBtn small label="Reject" tone="danger" onPress={() => { setTurnDown(m); setTurnDownWhy(''); }} />
+                    </View>
+                  ) : <Text style={s.cardSub}>With the hostel administrators</Text>}
+                  {full && !(m.toBed && m.toBedStatus === 'available') && (
+                    <Text style={s.cardSub}>Choosing the bed is done on the web: Hostel → Allocations → Room Changes.</Text>
+                  )}
                 </Card>
               ))}
           </>
@@ -463,6 +535,12 @@ export default function AdminHostelScreen() {
           </>
         )}
       </ScrollView>
+
+      <FormModal visible={!!turnDown} title="Turn Down Room Change" onClose={() => setTurnDown(null)}
+        onSubmit={rejectMove} submitting={turningDown} submitLabel="Reject">
+        <Input label="Reason" value={turnDownWhy} multiline onChange={setTurnDownWhy}
+          placeholder="Why the request is turned down — the resident is told" />
+      </FormModal>
 
       {/* ── The gate ────────────────────────────────────────────────────── */}
       <FormModal visible={gateOpen} title="Gate Verification" onClose={() => { setGateOpen(false); setGateFound(null); }}>

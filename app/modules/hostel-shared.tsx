@@ -5,10 +5,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import * as hostelApi from '@/api/hostel.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import HostelFeesTab from '@/components/hostel/FeesTab';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, SectionTitle, RowItem, StatRow, StatTile,
-  SegTabs, Select, Input, FormModal, ActionBtn, FAB, fmtDate, fmtDateTime, fmtMoney,
+  SegTabs, Select, Input, FormModal, ActionBtn, FAB, fmtDate, fmtDateTime,
   confirmAsync, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 
@@ -22,14 +23,27 @@ const OUTPASS_TYPES = ['day', 'night', 'medical', 'emergency', 'academic', 'mark
 const COMPLAINT_CATS = ['room', 'mess', 'cleaning', 'security', 'maintenance', 'food', 'facilities', 'internet', 'other'];
 const opts = (arr: string[]) => arr.map((v) => ({ label: label(v), value: v }));
 
+const MEALS = ['breakfast', 'lunch', 'snacks', 'dinner'];
+/** "Room 101", whether the school stored "101" or "Room 101". */
+const roomNo = (n?: string) => (n ? (/^room\b/i.test(String(n)) ? String(n) : `Room ${n}`) : 'Room --');
+/** A pass the school will not approve until a parent has agreed. */
+const awaitingParent = (o: any) => o.status === 'pending' && !!o.parentApprovalRequired && !o.parentApprovedAt;
+const sameDay = (a: any, b: any) => new Date(a).toDateString() === new Date(b).toDateString();
+/** When a meal on `d` starts, from the mess's "HH:MM". */
+const mealStart = (d: Date, hhmm?: string) => {
+  const [h, m] = String(hhmm || '00:00').split(':').map(Number);
+  const x = new Date(d); x.setHours(h || 0, m || 0, 0, 0); return x;
+};
+
 /**
- * The resident's hostel screen, shared by the student and parent tabs.
+ * The resident's hostel screen, shared by the student and parent tabs — and by
+ * a teacher who lives in the hostel, who is a resident like any other.
  *
  * `role` picks the API surface; a parent additionally chooses which child they
  * are looking at, and the server refuses any student that is not theirs.
  */
-export default function HostelResident({ role }: { role: 'student' | 'parent' }) {
-  const api = role === 'parent' ? hostelApi.parent : hostelApi.student;
+export default function HostelResident({ role }: { role: 'student' | 'parent' | 'teacher' }) {
+  const api = role === 'parent' ? hostelApi.parent : role === 'teacher' ? hostelApi.teacher : hostelApi.student;
   const title = role === 'parent' ? 'Hostel' : 'My Hostel';
 
   const [data, setData] = useState<any>(undefined);
@@ -48,6 +62,8 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
   const [outForm, setOutForm] = useState<any>({ outpassType: 'day', purpose: '', destination: '', departureDate: today(), expectedDepartureTime: '', expectedReturnTime: '', guardianPhone: '' });
   const [visitorForm, setVisitorForm] = useState<any>({ visitorName: '', mobile: '', relationship: '', purpose: '' });
   const [complaintForm, setComplaintForm] = useState<any>({ category: 'room', priority: 'medium', subject: '', description: '', attachments: [] as string[] });
+  const [roomForm, setRoomForm] = useState<any>({ reason: '', preference: '' });
+  const [skipping, setSkipping] = useState('');
 
   const q = role === 'parent' && child ? { student: child } : undefined;
 
@@ -79,7 +95,6 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
       leave:      () => api.leaves(q),
       outpass:    () => api.outpasses(q),
       visitors:   () => api.visitors(q),
-      fees:       () => api.fees(q),
       complaints: () => api.complaints(q),
       mess:       () => api.mess(q),
     };
@@ -108,6 +123,11 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
       if (kind === 'leave')     { await api.applyLeave({ ...leaveForm, ...(q || {}) }); loadTab('leave'); }
       if (kind === 'outpass')   { await api.applyOutpass({ ...outForm, ...(q || {}) }); loadTab('outpass'); }
       if (kind === 'visitor')   { await api.requestVisitor({ ...visitorForm, ...(q || {}) }); loadTab('visitors'); }
+      if (kind === 'roomChange') {
+        await api.roomChange({ ...roomForm, ...(q || {}) });
+        setRoomForm({ reason: '', preference: '' });
+        load();
+      }
       if (kind === 'complaint') {
         await api.raiseComplaint({ ...complaintForm, ...(q || {}) });
         setComplaintForm({ category: 'room', priority: 'medium', subject: '', description: '', attachments: [] });
@@ -119,7 +139,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
   };
 
   const showPass = async (id: string) => {
-    try { setPass(unwrap(await hostelApi.student.outpassPass(id))); }
+    try { setPass(unwrap(await (role === 'teacher' ? hostelApi.teacher : hostelApi.student).outpassPass(id))); }
     catch (err: any) { alert(err?.message ?? 'No pass available'); }
   };
 
@@ -130,6 +150,21 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
   const consent = async (id: string, approve: boolean) => {
     try { await api.actOnLeave(id, { action: approve ? 'parent_approve' : 'parent_reject' }); loadTab('leave'); }
     catch (err: any) { alert(err?.message ?? 'Could not record consent'); }
+  };
+
+  /** A parent agrees to, or declines, a child's outpass (where the school asks for consent). */
+  const consentOutpass = async (id: string, approve: boolean) => {
+    try {
+      await hostelApi.parent.actOnOutpass(id, { action: approve ? 'parent_approve' : 'parent_reject', ...(q || {}) });
+      loadTab('outpass');
+    } catch (err: any) { alert(err?.message ?? 'Could not record that'); }
+  };
+  /** "I will not be at this meal", or taking that back. */
+  const skipMeal = async (date: string, meal: string, undo: boolean) => {
+    setSkipping(`${date}:${meal}`);
+    try { await api.skipMeal({ date, meal, undo, ...(q || {}) }); await loadTab('mess'); }
+    catch (err: any) { alert(err?.message ?? 'Could not change that meal'); }
+    finally { setSkipping(''); }
   };
 
   if (disabled) return <><Stack.Screen options={{ title }} /><ModuleDisabled /></>;
@@ -191,7 +226,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
 
         <Card style={{ backgroundColor: Colors.primary }}>
           <Text style={s.heroLabel}>{c.hostel?.name}</Text>
-          <Text style={s.heroRoom}>Room {c.room?.roomNumber} · Bed {c.bed?.bedNumber}</Text>
+          <Text style={s.heroRoom}>{roomNo(c.room?.roomNumber)} · Bed {c.bed?.bedNumber}</Text>
           <Text style={s.heroSub}>
             {[c.building?.name, c.floor?.name].filter(Boolean).join(' · ')}
           </Text>
@@ -206,6 +241,23 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
 
         {tab === 'overview' && (
           <>
+            <Card>
+              <SectionTitle>Room change</SectionTitle>
+              {data.roomChange?.status === 'pending' ? (
+                <Text style={s.body}>
+                  Requested on {fmtDate(data.roomChange.createdAt)} ({data.roomChange.requestNumber}). The hostel office will decide and choose the bed.
+                </Text>
+              ) : (
+                <>
+                  {data.roomChange?.status === 'rejected' && (
+                    <Text style={s.body}>The last request was not approved{data.roomChange.decisionRemark ? `: ${data.roomChange.decisionRemark}` : '.'}</Text>
+                  )}
+                  <View style={s.actions}>
+                    <ActionBtn small label="Request a room change" tone="info" onPress={() => setModal('roomChange')} />
+                  </View>
+                </>
+              )}
+            </Card>
             {data.warden && (
               <Card>
                 <SectionTitle>Your warden</SectionTitle>
@@ -304,8 +356,17 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
                 <KV label="Out" value={`${fmtDate(o.departureDate)} ${o.expectedDepartureTime ?? ''}`} />
                 <KV label="Back by" value={fmtDateTime(o.expectedReturnAt)} />
                 {o.lateReturnMinutes > 0 && <KV label="Returned late by" value={`${o.lateReturnMinutes} min`} />}
+                {awaitingParent(o) && (
+                  <KV label="Parent consent" value={role === 'parent' ? 'Needs your consent' : 'Waiting for a parent'} />
+                )}
                 <View style={s.actions}>
-                  {role === 'student' && ['approved', 'active'].includes(o.status) && (
+                  {role === 'parent' && awaitingParent(o) && (
+                    <>
+                      <ActionBtn small label="Give consent" tone="success" onPress={() => consentOutpass(o._id, true)} />
+                      <ActionBtn small label="Decline" tone="danger" onPress={() => consentOutpass(o._id, false)} />
+                    </>
+                  )}
+                  {role !== 'parent' && ['approved', 'active'].includes(o.status) && (
                     <ActionBtn small label="Show pass" tone="info" onPress={() => showPass(o._id)} />
                   )}
                   {['pending', 'approved'].includes(o.status) && (
@@ -357,27 +418,13 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
                     <RowItem key={m._id} icon="fast-food" title={`${label(m.meal)} · ${fmtDate(m.date)}`}
                       sub={(m.items || []).join(', ')} />
                   ))}
+                <SkipMeals mess={lists.mess} busy={skipping} onSkip={skipMeal} />
               </>
             )
         )}
 
-        {tab === 'fees' && (
-          <>
-            <StatRow>
-              <StatTile label="Billed" value={fmtMoney(lists.fees?.summary?.billed)} icon="receipt" tone="info" />
-              <StatTile label="Paid" value={fmtMoney(lists.fees?.summary?.paid)} icon="checkmark-circle" tone="success" />
-              <StatTile label="Due" value={fmtMoney(lists.fees?.summary?.outstanding)} icon="alert-circle"
-                tone={lists.fees?.summary?.outstanding ? 'danger' : 'neutral'} />
-            </StatRow>
-            {(lists.fees?.invoices || []).length === 0
-              ? <Empty icon="card-outline" text="No hostel fees raised" />
-              : lists.fees.invoices.map((i: any) => (
-                <RowItem key={i._id} icon="card" title={`${i.invoiceNumber} · ${fmtMoney(i.netAmount)}`}
-                  sub={`${label(i.feeType)}${i.period?.label ? ` · ${i.period.label}` : ''} · due ${fmtDate(i.dueDate)}`}
-                  right={<Badge label={label(i.status)} />} />
-              ))}
-          </>
-        )}
+        {/* Bills, paying online, receipts and refunds — its own component, with its own loading. */}
+        {tab === 'fees' && <HostelFeesTab student={q?.student} onChanged={load} />}
 
         {tab === 'complaints' && (
           (lists.complaints || []).length === 0
@@ -474,12 +521,21 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
         </TouchableOpacity>
       </FormModal>
 
+      <FormModal visible={modal === 'roomChange'} title="Request a Room Change" onClose={() => setModal(null)}
+        onSubmit={() => submit('roomChange')} submitting={saving} submitLabel="Send request">
+        <Input label="Why would you like to move?" value={roomForm.reason} multiline
+          onChange={(v) => setRoomForm((f: any) => ({ ...f, reason: v }))} />
+        <Input label="Any preference (optional)" value={roomForm.preference} placeholder="e.g. a lower floor"
+          onChange={(v) => setRoomForm((f: any) => ({ ...f, preference: v }))} />
+        <Text style={s.body}>The hostel office decides, and chooses the bed. One request at a time.</Text>
+      </FormModal>
+
       {/* ── The gate pass ───────────────────────────────────────────────── */}
       <FormModal visible={!!pass} title="Gate Pass" onClose={() => setPass(null)}>
         {pass && (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.md }}>
             <Text style={s.passNumber}>{pass.outpassNumber}</Text>
-            <Text style={s.passSub}>{pass.student?.name} · Room {pass.room}</Text>
+            <Text style={s.passSub}>{pass.student?.name} · {roomNo(pass.room)}</Text>
             {/* Rendered server-side and delivered as a data URI, so the app
                 needs no QR library — see school-backend/utils/qrcode.js. */}
             {pass.qrImage
@@ -494,7 +550,65 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' })
   );
 }
 
+/**
+ * The week ahead, a meal at a time. A meal can be skipped — or taken back —
+ * until the school's notice period before it starts; after that the kitchen is
+ * already cooking for it.
+ */
+export function SkipMeals({ mess, busy, onSkip }: { mess: any; busy: string; onSkip: (date: string, meal: string, undo: boolean) => void }) {
+  const timings = mess?.member?.mess?.mealTimings || {};
+  const served = MEALS.filter((k) => timings[k] && timings[k].enabled !== false && (timings[k].start || timings[k].end));
+  if (!served.length) return null;
+  const notice = Number(mess?.noticeHours) || 0;
+  const skips: any[] = mess?.skips || [];
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d; });
+  return (
+    <>
+      <SectionTitle>Skip a meal</SectionTitle>
+      <Text style={s.skipNote}>
+        {notice ? `Tell the mess at least ${notice} hour${notice === 1 ? '' : 's'} before the meal.` : 'Any time before the meal starts.'}
+      </Text>
+      {days.map((d) => {
+        const open = served.filter((k) => mealStart(d, timings[k].start).getTime() - Date.now() >= notice * 36e5);
+        const lockedOff = served.filter((k) => !open.includes(k) && skips.some((x) => x.meal === k && sameDay(x.date, d)));
+        if (!open.length && !lockedOff.length) return null;
+        return (
+          <Card key={iso(d)}>
+            <Text style={s.cardTitle}>{d.toLocaleDateString('en-IN', { weekday: 'long' })} · {fmtDate(d)}</Text>
+            <View style={s.skipRow}>
+              {lockedOff.map((k) => (
+                <View key={k} style={[s.skip, s.skipOn, { opacity: 0.6 }]}><Text style={[s.skipText, s.skipTextOn]}>{label(k)} · skipped</Text></View>
+              ))}
+              {open.map((k) => {
+                const off = skips.some((x) => x.meal === k && sameDay(x.date, d));
+                const key = `${iso(d)}:${k}`;
+                return (
+                  <TouchableOpacity key={k} style={[s.skip, off && s.skipOn, busy === key && { opacity: 0.5 }]} disabled={busy === key}
+                    accessibilityRole="button" accessibilityState={{ selected: off }}
+                    accessibilityLabel={off ? `Take back skipping ${k} on ${fmtDate(d)}` : `Skip ${k} on ${fmtDate(d)}`}
+                    onPress={() => onSkip(iso(d), k, off)}>
+                    <Text style={[s.skipText, off && s.skipTextOn]}>{label(k)}{off ? ' · skipping' : ''}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Card>
+        );
+      })}
+    </>
+  );
+}
+
 const s = StyleSheet.create({
+  skipNote: { ...Typography.caption, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  skipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  skip: {
+    paddingVertical: 7, paddingHorizontal: 12, borderRadius: Radius.full,
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt,
+  },
+  skipOn: { backgroundColor: Colors.warningLight, borderColor: Colors.warning },
+  skipText: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, textTransform: 'capitalize' },
+  skipTextOn: { color: Colors.text },
   root: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.md, paddingBottom: 90 },
   heroLabel: { ...Typography.body, color: Colors.accentLight },

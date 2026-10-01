@@ -16,6 +16,9 @@ export const getRooms       = (params?: any) => api.get('/hostel/admin/rooms', {
 export const getOccupancy   = (params?: any) => api.get('/hostel/admin/occupancy', { params });
 export const getAllocations = (params?: any) => api.get('/hostel/admin/allocations', { params });
 export const getStudentProfile = (studentId: string) => api.get(`/hostel/admin/students/${studentId}/profile`);
+// Room changes waiting for a decision — a warden's move, or a resident's request.
+export const getTransferRequests   = (params?: any) => api.get('/hostel/admin/transfer-requests', { params });
+export const decideTransferRequest = (id: string, d: any) => api.post(`/hostel/admin/transfer-requests/${id}/decide`, d);
 
 // Roll call
 export const getRegister    = (params: any) => api.get('/hostel/admin/attendance', { params });
@@ -66,7 +69,7 @@ export const uploadAttachment = (file: any, meta: Record<string, string> = {}) =
 // ── Student & parent portal ───────────────────────────────────────────────────
 // One factory for both, because the endpoints are identical in shape — the
 // server resolves a parent's child from their own profile.
-const portal = (role: 'student' | 'parent') => ({
+const portal = (role: 'student' | 'parent' | 'teacher') => ({
   myHostel:      (params?: any) => api.get(`/hostel/${role}/my-hostel`, { params }),
   hostels:       (params?: any) => api.get(`/hostel/${role}/hostels`, { params }),
   apply:         (d: any) => api.post(`/hostel/${role}/apply`, d),
@@ -84,6 +87,10 @@ const portal = (role: 'student' | 'parent') => ({
   raiseComplaint: (d: any) => api.post(`/hostel/${role}/complaints`, d),
   actOnComplaint: (id: string, d: any) => api.post(`/hostel/${role}/complaints/${id}/act`, d),
   mess:          (params?: any) => api.get(`/hostel/${role}/mess`, { params }),
+  /** "I will not be at this meal": { date, meal, undo }. */
+  skipMeal:      (d: any) => api.post(`/hostel/${role}/mess/skip`, d),
+  /** Ask to change room: { reason, preference }. The office decides where. */
+  roomChange:    (d: any) => api.post(`/hostel/${role}/room-change`, d),
   record:        (params?: any) => api.get(`/hostel/${role}/record`, { params }),
   uploadAttachment: (file: any, meta: Record<string, string> = {}) => {
     const form = new FormData();
@@ -108,4 +115,25 @@ export const student = {
 export const parent = {
   ...portal('parent'),
   children: () => api.get('/hostel/parent/children'),
+  /** Consent to, or decline, a child's outpass: { action: 'parent_approve' | 'parent_reject', student }. */
+  actOnOutpass: (id: string, d: any) => api.post(`/hostel/parent/outpasses/${id}/act`, d),
 };
+
+/** A member of staff who lives in the hostel — the resident's screen, for themselves. */
+export const teacher = {
+  ...portal('teacher'),
+  outpassPass: (id: string) => api.get(`/hostel/teacher/outpasses/${id}/pass`),
+};
+
+// ── Paying a hostel bill (student, parent for a child, resident teacher) ─────
+/** What is owed, what was paid, every receipt and refund. `student` is for a parent only. */
+export const getMyFeeSummary  = (student?: string) => api.get('/hostel/my-fees/summary', { params: { student } });
+/** Opens a gateway order; the reply carries `checkoutPath`, the hosted page to pay it on. */
+export const createFeeOrder   = (d: { student?: string; invoiceIds?: string[] }) => api.post('/hostel/my-fees/order', d);
+/** What became of an order once its checkout page has closed. */
+export const checkFeePayment  = (d: { orderId: string; student?: string }) => api.post('/hostel/my-fees/check', d);
+/** A receipt / a refund voucher, as data — the phone draws the document itself. */
+export const getFeeReceipt    = (receiptNumber: string, invoice?: string) =>
+  api.get(`/hostel/receipts/${encodeURIComponent(receiptNumber)}`, { params: { format: 'json', invoice } });
+export const getRefundVoucher = (voucherNumber: string) =>
+  api.get(`/hostel/refunds/${encodeURIComponent(voucherNumber)}`, { params: { format: 'json' } });

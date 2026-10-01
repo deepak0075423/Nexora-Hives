@@ -60,6 +60,10 @@ const TEACHER_MODULES = [
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
   { key: 'manageLib',  label: 'Manage Lib', icon: 'albums',           route: '/modules/library-admin', moduleFlag: 'library', requires: 'isLibrarian' },
   { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/inventory-requests', moduleFlag: 'inventory' },
+  // A teacher who lives in the hostel (hostelResident), and one posted to a hostel as its
+  // warden or on its staff (hostelDuty) — two different things; a teacher can be either, both or neither.
+  { key: 'hostel',     label: 'My Hostel',  icon: 'business',         route: '/modules/hostel-teacher', requires: 'hostelResident' },
+  { key: 'hostelDuty', label: 'Hostel Duty', icon: 'shield-checkmark', route: '/modules/admin/hostel',  requires: 'hostelDuty' },
   { key: 'videos',     label: 'Videos',     icon: 'play-circle',      route: '/modules/teacher-videos', moduleFlag: 'videoLibrary' },
   { key: 'feedback',   label: 'My Feedback',icon: 'star',             route: '/modules/teacher-feedback', moduleFlag: 'feedback' },
   { key: 'fbReview',   label: 'Fb Review',  icon: 'school',           route: '/modules/feedback-review',  moduleFlag: 'feedback', requires: 'isPrincipal' },
@@ -380,8 +384,10 @@ function TeacherContent({ data, schoolModules, holidays }: {
   data: any; schoolModules?: Record<string, boolean>; holidays: any[];
 }) {
   const router = useRouter();
-  const modules = filterModules(TEACHER_MODULES, schoolModules);
   const moduleAdmin = (schoolModules as any)?.moduleAdmin as Record<string, boolean> | undefined;
+  // A teacher who administers the hostel already has the "Hostel*" tile to the same screen.
+  const modules = filterModules(TEACHER_MODULES, schoolModules)
+    .filter((m) => !(m.key === 'hostelDuty' && moduleAdmin?.hostel === true));
   const adminModules = moduleAdmin
     ? TEACHER_ADMIN_MODULES.filter((m) => moduleAdmin[m.adminOf] === true)
     : [];
