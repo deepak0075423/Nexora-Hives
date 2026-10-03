@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator, StatusBar,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +29,7 @@ const STUDENT_MODULES = [
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
+  { key: 'examDates',  label: 'Exam Dates', icon: 'calendar-number',  route: '/modules/exam-schedule', moduleFlag: 'result' },
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
@@ -44,7 +45,8 @@ const STUDENT_MODULES = [
 ];
 
 const TEACHER_MODULES = [
-  // Class teachers and vice class teachers only (hasMySection on the module payload).
+  // A teacher with a section this year — class teacher, vice class teacher or
+  // subject teacher (hasMySection on the module payload).
   { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section', requires: 'hasMySection' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
@@ -53,6 +55,7 @@ const TEACHER_MODULES = [
   { key: 'substitutes', label: 'Substitutes', icon: 'repeat',         route: '/modules/my-substitutions', moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
+  { key: 'examDates',  label: 'Exam Dates', icon: 'calendar-number',  route: '/modules/exam-schedule', moduleFlag: 'result' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/leave',       moduleFlag: 'leave' },
@@ -122,6 +125,7 @@ const PARENT_MODULES = [
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'exams',      label: 'Exams',      icon: 'document-text',    route: '/modules/exams',       moduleFlag: 'aptitudeExam' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
+  { key: 'examDates',  label: 'Exam Dates', icon: 'calendar-number',  route: '/modules/exam-schedule', moduleFlag: 'result' },
   { key: 'documents',  label: 'Documents',  icon: 'folder',           route: '/modules/documents',   moduleFlag: 'document' },
   { key: 'holidays',   label: 'Holidays',   icon: 'sunny',            route: '/modules/holidays',    moduleFlag: 'holiday' },
   { key: 'fees',       label: 'Fees',       icon: 'card',             route: '/modules/fees',        moduleFlag: 'fees' },
@@ -872,7 +876,7 @@ function SuperAdminContent({ data }: { data: any }) {
 
 export default function DashboardScreen() {
   const { user, reload } = useAuth();
-  const { modules: fetchedModules } = useModules();
+  const { modules: fetchedModules, refresh: refreshModules } = useModules();
   // Prefer live module flags (includes isLibrarian); fall back to school config from getMe
   const moduleFlags = (fetchedModules ?? user?.school?.modules) as Record<string, boolean> | undefined;
   const [data, setData] = useState<any>(null);
@@ -927,7 +931,11 @@ export default function DashboardScreen() {
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
-  const onRefresh = () => { setRefreshing(true); fetchDashboard(); };
+  // The tiles are drawn from the module map, which pulling to refresh did not
+  // re-ask — a teacher just made class teacher could pull all day and never get
+  // "My Sections". Asked again here, and each time this tab is shown.
+  const onRefresh = () => { setRefreshing(true); refreshModules(); fetchDashboard(); };
+  useFocusEffect(useCallback(() => { refreshModules(60000); }, [refreshModules]));
 
   const firstName = user?.name?.split(' ')[0] ?? 'User';
   const yearChip  = data?.academicYear?.yearName ? `${data.academicYear.yearName}` : '';

@@ -51,13 +51,14 @@ export default function MySectionScreen() {
       setData(unwrap(await teacherApi.getMySection()));
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-      // Class teachers and vice class teachers only. The dashboard hides the
-      // tile from everyone else, but a notification or a stale module map can
+      // For a teacher with a section this year — class teacher, vice class
+      // teacher or subject teacher. The dashboard hides the tile from anyone
+      // attached to nothing, but a notification or a stale module map can
       // still open this screen — the server's answer decides, and the teacher
       // is sent back to their dashboard.
       if (err?.data?.code === 'MY_SECTION_NOT_ASSIGNED') {
         setDenied(true);
-        Alert.alert('My Section', err?.message || 'My Section is available to class teachers and vice class teachers only');
+        Alert.alert('My Section', err?.message || 'My Section opens once you are class teacher, vice class teacher or subject teacher of a section');
         router.replace('/(tabs)' as any);
       }
     } finally { setLoading(false); setRefreshing(false); }
@@ -80,6 +81,13 @@ export default function MySectionScreen() {
   const monitors: any[]       = data?.monitors ?? [];
   const isClassTeacher = data?.role === 'classTeacher';
   const nothing = !section && !viceOf.length && !subjectClasses.length;
+  // What "My Class" holds. A vice class teacher with no class of their own has
+  // the class they cover AS their class — it used to be drawn twice, here and
+  // again under "Vice Class Teacher". That list is now only for a class
+  // teacher's additional vice classes.
+  const ownRows: any[] = isClassTeacher ? classTeacherOf : viceOf;
+  const ownLabel = isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher';
+  const viceList: any[] = isClassTeacher ? viceOf : [];
 
   const openSection = (row: any) => router.push({
     pathname: '/modules/teacher-section-detail',
@@ -150,7 +158,7 @@ export default function MySectionScreen() {
           quote="“Teachers plant seeds that grow forever.”" />
 
         {loading || denied ? <LoaderView /> : nothing ? (
-          // The server refuses a teacher with no class of their own, so an
+          // The server refuses a teacher attached to no section at all, so an
           // empty screen here means the load itself failed.
           <Blank icon="cloud-offline-outline"
             title="My Section could not be loaded"
@@ -173,12 +181,12 @@ export default function MySectionScreen() {
                 caption: subjectClasses.length ? 'Across different sections' : 'No subject assignments' },
               { icon: 'megaphone', tone: 'amber', label: 'Announcements',
                 value: announcements.length,
-                caption: announcements.length ? 'Posted to your class' : 'Nothing posted yet' },
+                caption: announcements.length ? (section ? 'Posted to your class' : 'Posted by you') : 'Nothing posted yet' },
             ]} />
 
             {section ? (
               <Panel icon="school" tone="indigo"
-                title={`My Class (${isClassTeacher ? 'Class Teacher' : 'Vice Class Teacher'})`}>
+                title={`My Class (${ownLabel})`}>
                 <TouchableOpacity style={s.mine} activeOpacity={0.7} onPress={() => openSection(section)}>
                   <View style={[s.chipLg, { backgroundColor: TONES.indigo.bg }]}>
                     <Text style={[s.chipLgText, { color: TONES.indigo.fg }]}>{chipFor(section)}</Text>
@@ -207,12 +215,22 @@ export default function MySectionScreen() {
                     <Text style={s.actText}>Timetable</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* More than one class of their own — or, with none, more
+                    than one covered as vice. */}
+                {ownRows.slice(1).map((r: any) => (
+                  <View key={r._id} style={{ marginTop: 6 }}>
+                    <SectionRow row={r} tone="indigo" badge={isClassTeacher ? 'Class' : 'Vice'}
+                      meta={`Section ${r.sectionName} · ${plural(r.studentCount, 'Student')}`} />
+                    <SectionActions row={r} canMark />
+                  </View>
+                ))}
               </Panel>
             ) : null}
 
-            {viceOf.length > 0 && (
-              <Panel icon="people" tone="green" title={`Vice Class Teacher (${viceOf.length})`}>
-                {viceOf.map((r: any) => (
+            {viceList.length > 0 && (
+              <Panel icon="people" tone="green" title={`Vice Class Teacher (${viceList.length})`}>
+                {viceList.map((r: any) => (
                   <View key={r._id}>
                     <SectionRow row={r} tone="green" badge="Vice"
                       meta={`Section ${r.sectionName} · ${plural(r.studentCount, 'Student')}`} />
@@ -242,13 +260,16 @@ export default function MySectionScreen() {
             <Panel icon="megaphone" tone="amber" title="Recent Announcements">
               {announcements.length === 0 ? (
                 <Blank icon="megaphone-outline" title="Nothing posted yet"
-                  body={section ? `No announcements for ${secLabel(section)}.` : undefined} />
+                  body={section ? `No announcements for ${secLabel(section)}.`
+                    : 'What you post to the classes you teach is listed here.'} />
               ) : announcements.slice(0, 5).map((a: any) => (
                 <View key={a._id} style={s.ann}>
                   <View style={s.annTop}>
                     <Text style={s.annTitle} numberOfLines={1}>{a.title}</Text>
                     <Text style={s.annDate}>{shortDate(a.createdAt)}</Text>
                   </View>
+                  {/* Set on a notice the teacher posted to a class other than their own. */}
+                  {a.where ? <Text style={s.annWhere} numberOfLines={1}>{a.where}</Text> : null}
                   {a.message ? <Text style={s.annBody} numberOfLines={3}>{a.message}</Text> : null}
                 </View>
               ))}
@@ -309,6 +330,7 @@ const s = StyleSheet.create({
   annTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   annTitle: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.text },
   annDate: { fontSize: 10.5, color: Colors.textLight },
+  annWhere: { fontSize: 10.5, fontWeight: '700', color: Colors.textSecondary, marginTop: 2 },
   annBody: { fontSize: 11.5, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
 
   mons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

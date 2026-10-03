@@ -22,6 +22,13 @@ interface NotificationContextValue {
   /** Bumps every time a notification:new event arrives — subscribe to refresh lists */
   lastEventAt: number;
   lastNotification: LiveNotification | null;
+  /**
+   * Bumps when the server says what this person may open has changed — a
+   * teacher made class teacher, an enrolment, another year activated
+   * (`access:changed`). It is a nudge to ask /modules again, never the answer;
+   * hooks/useModules listens for it.
+   */
+  accessChangedAt: number;
   /** Drop the banner without opening it */
   dismissLast: () => void;
   refreshUnread: () => Promise<void>;
@@ -32,6 +39,7 @@ const NotificationContext = createContext<NotificationContextValue>({
   unreadCount: 0,
   lastEventAt: 0,
   lastNotification: null,
+  accessChangedAt: 0,
   dismissLast: () => {},
   refreshUnread: async () => {},
   setUnreadCount: () => {},
@@ -42,6 +50,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastEventAt, setLastEventAt] = useState(0);
   const [lastNotification, setLastNotification] = useState<LiveNotification | null>(null);
+  const [accessChangedAt, setAccessChangedAt] = useState(0);
   const connectedFor = useRef<string | null>(null);
 
   const refreshUnread = useCallback(async () => {
@@ -77,6 +86,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         setLastNotification(n);
         setLastEventAt(Date.now());
       });
+      // Listened for here, where the socket is owned: an account switch
+      // replaces the socket, and a listener a screen had put on the old one
+      // would be gone with it.
+      sock.on('access:changed', () => setAccessChangedAt(Date.now()));
       refreshUnread();
     })();
 
@@ -87,7 +100,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   return (
     <NotificationContext.Provider
-      value={{ unreadCount, lastEventAt, lastNotification, dismissLast, refreshUnread, setUnreadCount }}
+      value={{ unreadCount, lastEventAt, lastNotification, accessChangedAt, dismissLast, refreshUnread, setUnreadCount }}
     >
       {children}
     </NotificationContext.Provider>
