@@ -22,7 +22,10 @@ const MODULES: { key: string; label: string; desc: string }[] = [
   { key: 'fees',         label: 'Fees',           desc: 'Fee structures, payments and receipts' },
   { key: 'inventory',    label: 'Inventory',      desc: 'Stock, assets, procurement & purchase requests' },
   { key: 'transport',    label: 'Transport',      desc: 'Fleet, routes, trips, tracking & transport fees' },
+  { key: 'hostel',       label: 'Hostel',         desc: 'Hostels, rooms, beds, admissions, mess, outpass and hostel fees' },
+  { key: 'videoLibrary', label: 'Video Learning', desc: 'Video library, assignments and approvals' },
   { key: 'employeeDirectory', label: 'Employee Directory', desc: 'Staff directory assembled from existing employee records' },
+  { key: 'idCard',       label: 'ID Cards',       desc: 'Student, teacher, staff and parent ID cards, QR verification and printing' },
   { key: 'chat',         label: 'Chat',           desc: 'Real-time messaging' },
   { key: 'feedback',     label: 'Teacher Feedback', desc: 'Student feedback campaigns, analytics & reports' },
 ];

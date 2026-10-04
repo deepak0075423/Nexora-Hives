@@ -26,6 +26,7 @@ import {
 
 const STUDENT_MODULES = [
   { key: 'classes',    label: 'Classes',    icon: 'school',           route: '/modules/my-class' },
+  { key: 'idcard',     label: 'ID Card',    icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
@@ -48,6 +49,7 @@ const TEACHER_MODULES = [
   // A teacher with a section this year — class teacher, vice class teacher or
   // subject teacher (hasMySection on the module payload).
   { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section', requires: 'hasMySection' },
+  { key: 'idcard',     label: 'My ID Card', icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
@@ -80,6 +82,7 @@ const ADMIN_MODULES = [
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'teachers',   label: 'Teachers',   icon: 'people',           route: '/modules/admin/teachers' },
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
+  { key: 'idcard',     label: 'ID Cards',   icon: 'card',             route: '/modules/admin/id-cards',    moduleFlag: 'idCard' },
   { key: 'verify',     label: 'Verify',     icon: 'shield-checkmark', route: '/modules/employee-verification', moduleFlag: 'employeeDirectory' },
   { key: 'admins',     label: 'Admins',     icon: 'shield-checkmark', route: '/modules/admin/admins' },
   { key: 'classes',    label: 'Classes',    icon: 'business',         route: '/modules/admin/classes' },
@@ -120,6 +123,7 @@ const SUPER_ADMIN_MODULES = [
 
 const PARENT_MODULES = [
   { key: 'classes',    label: 'My Child',   icon: 'school',           route: '/modules/child-class' },
+  { key: 'idcard',     label: 'ID Cards',   icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
   // The timetable screen answers for one chosen child at a time (/parent/timetable?child=).
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
@@ -156,6 +160,7 @@ const TEACHER_ADMIN_MODULES = [
   { key: 'leave',      label: 'Leave*',      icon: 'airplane',        route: '/modules/admin/leave',      adminOf: 'leave' },
   { key: 'documents',  label: 'Documents*',  icon: 'folder-open',     route: '/modules/admin/documents',  adminOf: 'document' },
   { key: 'holidays',   label: 'Holidays*',   icon: 'sunny',           route: '/modules/admin/holidays',   adminOf: 'holiday' },
+  { key: 'idCards',    label: 'ID Cards*',   icon: 'id-card',         route: '/modules/admin/id-cards',   adminOf: 'idCard' },
   { key: 'sendAlert',  label: 'Send Alert',  icon: 'megaphone',       route: '/modules/send-notification', adminOf: 'notification' },
 ];
 

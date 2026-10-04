@@ -54,6 +54,7 @@ export const Colors = {
     hostel:     { bg: '#E0E7FF', icon: '#4F46E5' },
     videos:     { bg: '#FFE4E6', icon: '#E11D48' },
     feedback:   { bg: '#FEF9C3', icon: '#CA8A04' },
+    idcard:     { bg: '#DBEAFE', icon: '#1D4ED8' },
   },
 
   // Tab bar
