@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/kit';
 import { Avatar } from './employee-directory';
 import { withFileToken } from '@/utils/fileAccess';
+import { fatherOrHusbandLabel } from '@/utils/fatherOrHusband';
 
 // One employee, assembled from the modules the school already runs. The tabs
 // shown are decided by the payload: a block the caller has no permission for is
@@ -292,7 +293,7 @@ export default function EmployeeDirectoryDetailScreen() {
             <KV label="Date of Birth" value={fmtDate(data.personal?.dob)} />
             <KV label="Gender" value={dash(data.personal?.gender)} />
             <KV label="Blood Group" value={dash(data.personal?.bloodGroup)} />
-            <KV label="Father's / Husband's Name" value={dash(data.personal?.fatherOrHusbandName)} />
+            <KV label={fatherOrHusbandLabel(data.personal?.gender)} value={dash(data.personal?.fatherOrHusbandName)} />
             <KV label="Emergency Contact" value={dash(data.personal?.emergencyContactName)} />
             <KV label="Emergency Phone" value={dash(data.personal?.emergencyContactPhone)} />
           </Card>

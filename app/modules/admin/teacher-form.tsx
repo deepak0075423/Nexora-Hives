@@ -6,6 +6,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { isEmail, isPhone } from '@/utils/validators';
 import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
+import { fatherOrHusbandLabel } from '@/utils/fatherOrHusband';
 import { FormModal, Input, Select, SectionTitle, ActionBtn } from '@/components/ui/kit';
 import ExistingDoc from '@/components/ExistingDoc';
 
@@ -189,7 +190,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
 
     if (n === 1) {
       return need('name', 'Full name') || need('dob', 'Date of birth') || need('gender', 'Gender')
-        || need('bloodGroup', 'Blood group') || need('fatherOrHusbandName', "Father's / husband's name")
+        || need('bloodGroup', 'Blood group') || need('fatherOrHusbandName', fatherOrHusbandLabel(form.gender, 'sentence'))
         || need('emergencyContactName', 'Emergency contact name')
         || need('emergencyContactPhone', 'Emergency contact phone')
         || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone must be a valid 10-digit mobile number' : null)
@@ -327,7 +328,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
             options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
-          <Input label="Father's / Husband's Name *" value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
+          <Input label={`${fatherOrHusbandLabel(form.gender)} *`} value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
           <Input label="Emergency Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')} />
           <Input label="Emergency Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} phone />
         </>
