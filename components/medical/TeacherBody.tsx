@@ -18,6 +18,7 @@ import {
   safeguardingMe, raiseConcern, myConcerns,
 } from '@/api/medical.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { phoneError } from '@/utils/validators';
 import { LoaderView, unwrap, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import {
   Head, Tiles, Tile, Tabs, Panel, Note, Blank, Muted, Btn, Sheet, Field, Box, Pick, Pill,
@@ -506,6 +507,8 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
     setFail(''); setBusy(false);
   }, [open, health]);
   const save = async () => {
+    const badPhone = phoneError(v.emergencyContact?.phone, 'Their phone');
+    if (badPhone) { setFail(badPhone); return; }
     setBusy(true); setFail('');
     try { onSaved(unwrap(await saveMyStaffHealth(v))); } catch (err: any) { setFail(err?.message || 'It could not be saved'); setBusy(false); }
   };
@@ -541,7 +544,7 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
       <Field label="Medicines taken regularly"><Box value={v.medications || ''} onChange={(x) => setV({ ...v, medications: x })} maxLength={600} /></Field>
       <Field label="Person to call"><Box value={v.emergencyContact?.name || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: x } })} placeholder="Name" maxLength={120} /></Field>
       <Field label="Relation"><Box value={v.emergencyContact?.relation || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: x } })} maxLength={60} /></Field>
-      <Field label="Their phone"><Box value={v.emergencyContact?.phone || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: x } })} keyboardType="phone-pad" maxLength={30} /></Field>
+      <Field label="Their phone"><Box value={v.emergencyContact?.phone || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: x } })} phone /></Field>
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
     </Sheet>
   );

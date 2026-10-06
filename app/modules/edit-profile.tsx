@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, updateProfile } from '@/api/profile.api';
+import { phoneError, phoneInputValue } from '@/utils/validators';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,14 +38,17 @@ interface FieldProps {
   placeholder?: string;
   locked?: boolean;
   multiline?: boolean;
-  keyboardType?: 'default' | 'phone-pad' | 'email-address' | 'numeric';
+  keyboardType?: 'default' | 'email-address' | 'numeric';
   last?: boolean;
+  /** A 10-digit mobile number: the number pad, digits only, never more than ten. */
+  phone?: boolean;
 }
 
 function Field({
   label, value, onChangeText, placeholder,
-  locked, multiline, keyboardType = 'default', last,
+  locked, multiline, keyboardType = 'default', last, phone,
 }: FieldProps) {
+  const shown = phone ? phoneInputValue(value) : value;
   return (
     <View style={[fl.wrap, !last && fl.border]}>
       <Text style={fl.label}>{label}</Text>
@@ -56,12 +60,12 @@ function Field({
       ) : (
         <TextInput
           style={[fl.input, multiline && fl.multiline]}
-          value={value}
-          onChangeText={onChangeText}
+          value={shown}
+          onChangeText={phone && onChangeText ? (t) => onChangeText(phoneInputValue(t, shown)) : onChangeText}
           placeholder={placeholder ?? ''}
           placeholderTextColor={Colors.textLight}
           multiline={multiline}
-          keyboardType={keyboardType}
+          keyboardType={phone ? 'number-pad' : keyboardType}
           autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
           returnKeyType={multiline ? 'default' : 'next'}
         />
@@ -165,7 +169,7 @@ function StudentLockedBlock({ profile }: { profile: Record<string, any> }) {
 function ParentEditBlock({ form, set }: { form: FormState; set: Setter }) {
   return (
     <Block title="Family Info" icon="people-outline">
-      <Field label="Emergency Contact"    value={form.emergencyContact}  onChangeText={v => set('emergencyContact', v)}  keyboardType="phone-pad" placeholder="+91 xxxxxxxxxx" />
+      <Field label="Emergency Contact"    value={form.emergencyContact}  onChangeText={v => set('emergencyContact', v)}  phone placeholder="9876543210" />
       <Field label="Father's Occupation"  value={form.fatherOccupation}  onChangeText={v => set('fatherOccupation', v)}  placeholder="e.g. Engineer" />
       <Field label="Mother's Occupation"  value={form.motherOccupation}  onChangeText={v => set('motherOccupation', v)}  placeholder="e.g. Teacher" />
       <Field label="Guardian's Occupation" value={form.guardianOccupation} onChangeText={v => set('guardianOccupation', v)} placeholder="If applicable" />
@@ -273,6 +277,12 @@ export default function EditProfileScreen() {
       Alert.alert('Validation', 'Name cannot be empty.');
       return;
     }
+    const badPhone = phoneError(form.phone, 'Phone')
+      || (role === 'parent' ? phoneError(form.emergencyContact, 'Emergency contact') : null);
+    if (badPhone) {
+      Alert.alert('Validation', badPhone);
+      return;
+    }
     setSaving(true);
     try {
       await updateProfile(buildPayload(role, form));
@@ -334,8 +344,8 @@ export default function EditProfileScreen() {
               label="Phone"
               value={form.phone}
               onChangeText={v => set('phone', v)}
-              placeholder="+91 9876543210"
-              keyboardType="phone-pad"
+              placeholder="9876543210"
+              phone
             />
             <Field label="Email" value={user?.email ?? ''} locked last />
           </Block>

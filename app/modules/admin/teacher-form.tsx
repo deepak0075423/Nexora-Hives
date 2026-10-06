@@ -192,13 +192,13 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
         || need('bloodGroup', 'Blood group') || need('fatherOrHusbandName', "Father's / husband's name")
         || need('emergencyContactName', 'Emergency contact name')
         || need('emergencyContactPhone', 'Emergency contact phone')
-        || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone is not valid' : null)
+        || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone must be a valid 10-digit mobile number' : null)
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.dob) ? 'Date of birth must be YYYY-MM-DD' : null);
     }
     if (n === 2) {
       return need('phone', 'Mobile number')
-        || (!isPhone(form.phone) ? 'Mobile number is not valid' : null)
-        || (form.alternatePhone && !isPhone(form.alternatePhone) ? 'Secondary phone is not valid' : null)
+        || (!isPhone(form.phone) ? 'Mobile number must be a valid 10-digit mobile number' : null)
+        || (form.alternatePhone && !isPhone(form.alternatePhone) ? 'Secondary phone must be a valid 10-digit mobile number' : null)
         || need('email', 'Email address')
         || (!isEmail(form.email) ? 'Email address is not valid' : null)
         || address('current', 'Current')
@@ -329,14 +329,14 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
           <Input label="Father's / Husband's Name *" value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
           <Input label="Emergency Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')} />
-          <Input label="Emergency Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} keyboardType="phone-pad" />
+          <Input label="Emergency Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} phone />
         </>
       )}
 
       {step === 2 && (
         <>
-          <Input label="Mobile Number *" value={form.phone} onChange={set('phone')} keyboardType="phone-pad" />
-          <Input label="Secondary Phone" value={form.alternatePhone} onChange={set('alternatePhone')} placeholder="Optional" keyboardType="phone-pad" />
+          <Input label="Mobile Number *" value={form.phone} onChange={set('phone')} phone />
+          <Input label="Secondary Phone" value={form.alternatePhone} onChange={set('alternatePhone')} placeholder="Optional" phone />
           <Input label="Email *" value={form.email} onChange={set('email')} keyboardType="email-address" />
 
           <SectionTitle>Current Residential Address</SectionTitle>

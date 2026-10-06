@@ -7,6 +7,7 @@ import * as hostelApi from '@/api/hostel.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import HostelFeesTab from '@/components/hostel/FeesTab';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
+import { phoneError } from '@/utils/validators';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, SectionTitle, RowItem, StatRow, StatTile,
   SegTabs, Select, Input, FormModal, ActionBtn, FAB, fmtDate, fmtDateTime,
@@ -118,6 +119,10 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
   };
 
   const submit = async (kind: string) => {
+    const badPhone = (kind === 'leave' && phoneError(leaveForm.guardianPhone, 'Guardian phone'))
+      || (kind === 'outpass' && phoneError(outForm.guardianPhone, 'Guardian phone'))
+      || (kind === 'visitor' && phoneError(visitorForm.mobile, 'Mobile'));
+    if (badPhone) { alert(badPhone); return; }
     setSaving(true);
     try {
       if (kind === 'leave')     { await api.applyLeave({ ...leaveForm, ...(q || {}) }); loadTab('leave'); }
@@ -467,7 +472,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, reason: v }))} />
         <Input label="Destination" value={leaveForm.destination}
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, destination: v }))} />
-        <Input label="Guardian phone" value={leaveForm.guardianPhone} keyboardType="phone-pad"
+        <Input label="Guardian phone" value={leaveForm.guardianPhone} phone
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, guardianPhone: v }))} />
       </FormModal>
 
@@ -485,7 +490,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
           onChange={(v) => setOutForm((f: any) => ({ ...f, expectedReturnTime: v }))} />
         <Input label="Destination" value={outForm.destination}
           onChange={(v) => setOutForm((f: any) => ({ ...f, destination: v }))} />
-        <Input label="Guardian phone" value={outForm.guardianPhone} keyboardType="phone-pad"
+        <Input label="Guardian phone" value={outForm.guardianPhone} phone
           onChange={(v) => setOutForm((f: any) => ({ ...f, guardianPhone: v }))} />
       </FormModal>
 
@@ -493,7 +498,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
         onSubmit={() => submit('visitor')} submitting={saving} submitLabel="Register">
         <Input label="Visitor name" value={visitorForm.visitorName}
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, visitorName: v }))} />
-        <Input label="Mobile" value={visitorForm.mobile} keyboardType="phone-pad"
+        <Input label="Mobile" value={visitorForm.mobile} phone
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, mobile: v }))} />
         <Input label="Relationship" value={visitorForm.relationship}
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, relationship: v }))} />

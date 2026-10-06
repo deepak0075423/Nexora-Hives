@@ -277,7 +277,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
 
   /** First problem on this step, or null. */
   const stepError = (n: number): string | null => {
-    if (n === 8) return withHealth && health.doctorPhone.trim() && !isPhone(health.doctorPhone.trim()) ? 'The doctor’s phone number is not valid' : null;
+    if (n === 8) return withHealth && health.doctorPhone.trim() && !isPhone(health.doctorPhone.trim()) ? 'The doctor’s phone number must be a valid 10-digit mobile number' : null;
     const need = (key: string, label: string) => (!String(form[key] ?? '').trim() ? `${label} is required` : null);
     const address = (prefix: '' | 'permanent' | 'previousSchool', label: string) => {
       const k = (base: string) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
@@ -290,7 +290,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
     if (n === 1) {
       return need('name', 'Full name')
         || (!isEdit ? (need('email', 'Email') || (!isEmail(form.email) ? 'Email address is not valid' : null)) : null)
-        || (form.phone && !isPhone(form.phone) ? 'Phone number is not valid' : null)
+        || (form.phone && !isPhone(form.phone) ? 'Phone number must be a valid 10-digit mobile number' : null)
         || (isEdit && form.password && form.password.length < 6 ? 'Password must be at least 6 characters' : null);
     }
     if (n === 2) {
@@ -300,7 +300,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         || need('category', 'Category') || need('nationality', 'Nationality')
         || need('emergencyContactName', 'Emergency contact name')
         || need('emergencyContactPhone', 'Emergency contact phone')
-        || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone is not valid' : null)
+        || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone must be a valid 10-digit mobile number' : null)
         || need('emergencyContactRelation', 'Emergency contact relation');
     }
     if (n === 3) {
@@ -328,7 +328,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         || need('previousSchoolLeavingDate', 'School leaving date')
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.previousSchoolLeavingDate) ? 'Leaving date must be YYYY-MM-DD' : null)
         || need('previousSchoolContact', 'Previous school contact')
-        || (!isPhone(form.previousSchoolContact) ? 'Previous school contact is not valid' : null)
+        || (!isPhone(form.previousSchoolContact) ? 'Previous school contact must be a valid 10-digit mobile number' : null)
         || need('tcNumber', 'TC number')
         || need('tcDate', 'TC date')
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.tcDate) ? 'TC date must be YYYY-MM-DD' : null)
@@ -343,7 +343,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         const b = newParent[role];
         if (!String(b.name).trim())       return `${label}'s name is required`;
         if (!String(b.phone).trim())      return `${label}'s phone is required`;
-        if (!isPhone(b.phone))            return `${label}'s phone is not valid`;
+        if (!isPhone(b.phone))            return `${label}'s phone must be a valid 10-digit mobile number`;
         if (!String(b.occupation).trim()) return `${label}'s occupation is required`;
         if (!String(b.aadhaarNumber).trim()) return `${label}'s Aadhaar number is required`;
         if (!AADHAAR_RE.test(String(b.aadhaarNumber).replace(/\s/g, ''))) return `${label}'s Aadhaar must be 12 digits`;
@@ -479,7 +479,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <Input label="Full Name *" value={form.name} onChange={set('name')} placeholder="Aarav Sharma" />
           <Input label={isEdit ? 'Email' : 'Email *'} value={form.email} onChange={set('email')}
             keyboardType="email-address" placeholder="student@school.com" editable={!isEdit} />
-          <Input label="Phone" value={form.phone} onChange={set('phone')} keyboardType="phone-pad" placeholder="Optional" />
+          <Input label="Phone" value={form.phone} onChange={set('phone')} phone placeholder="Optional" />
           {isEdit ? (
             <Input label="New Password" value={form.password} onChange={set('password')} secure
               placeholder="Leave blank to keep current" />
@@ -505,7 +505,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <Input label="Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')}
             placeholder="Who should the school call first?" />
           <Input label="Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')}
-            keyboardType="phone-pad" placeholder="+91 98765 43210" />
+            phone placeholder="9876543210" />
           <Input label="Relation with the Student *" value={form.emergencyContactRelation}
             onChange={set('emergencyContactRelation')} placeholder="e.g. Uncle, Neighbour" />
         </>
@@ -607,7 +607,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
               <Input label="School Leaving Date *" value={form.previousSchoolLeavingDate}
                 onChange={set('previousSchoolLeavingDate')} placeholder="YYYY-MM-DD" />
               <Input label="Previous School Contact *" value={form.previousSchoolContact}
-                onChange={set('previousSchoolContact')} keyboardType="phone-pad" />
+                onChange={set('previousSchoolContact')} phone />
 
               <SectionTitle>Transfer Certificate</SectionTitle>
               <Input label="TC Number *" value={form.tcNumber} onChange={set('tcNumber')} />
@@ -691,7 +691,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
                       onChange={v => setBlock(role, 'email', v)} keyboardType="email-address"
                       placeholder={isOwner ? 'name@email.com' : 'Optional'} />
                     <Input label="Mobile Number *" value={newParent[role].phone}
-                      onChange={v => setBlock(role, 'phone', v)} keyboardType="phone-pad" />
+                      onChange={v => setBlock(role, 'phone', v)} phone />
                     <Input label="Occupation *" value={newParent[role].occupation} onChange={v => setBlock(role, 'occupation', v)} />
                     <Input label="Organization" value={newParent[role].organization} onChange={v => setBlock(role, 'organization', v)}
                       placeholder="Company / employer" />
@@ -753,7 +753,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <SectionTitle>Doctor, medicines, food</SectionTitle>
           <Input label="Medicines taken regularly" value={health.medicines} onChange={(v) => setHealth((h) => ({ ...h, medicines: v }))} multiline placeholder="Name, dose and when" />
           <Input label="Family doctor" value={health.doctorName} onChange={(v) => setHealth((h) => ({ ...h, doctorName: v }))} />
-          <Input label="Doctor’s phone" value={health.doctorPhone} onChange={(v) => setHealth((h) => ({ ...h, doctorPhone: v }))} keyboardType="phone-pad" />
+          <Input label="Doctor’s phone" value={health.doctorPhone} onChange={(v) => setHealth((h) => ({ ...h, doctorPhone: v }))} phone />
           <Input label="Food needs" value={health.dietary} onChange={(v) => setHealth((h) => ({ ...h, dietary: v }))} placeholder="e.g. Vegetarian, no nuts" />
           <Input label="Anything else the nurse should know" value={health.notes} onChange={(v) => setHealth((h) => ({ ...h, notes: v }))} multiline />
         </>

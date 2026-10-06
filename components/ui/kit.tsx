@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
+import { phoneInputValue } from '@/utils/validators';
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
@@ -190,21 +191,28 @@ export function SearchBar({ value, onChange, placeholder = 'Search…' }: {
   );
 }
 
-export function Input({ label, value, onChange, placeholder, keyboardType, multiline, secure, editable = true }: {
+/**
+ * A labelled text box. `phone` makes it the app's phone-number box: a 10-digit
+ * mobile number, digits only (utils/validators phoneInputValue) — the number
+ * pad, nothing but digits kept from typing or pasting, never more than ten, a
+ * pasted "+91 98765 43210" kept as its ten digits.
+ */
+export function Input({ label, value, onChange, placeholder, keyboardType, multiline, secure, editable = true, phone }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad'; multiline?: boolean;
-  secure?: boolean; editable?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'number-pad'; multiline?: boolean;
+  secure?: boolean; editable?: boolean; phone?: boolean;
 }) {
+  const shown = phone ? phoneInputValue(value) : value;
   return (
     <View style={k.field}>
       <Text style={k.fieldLabel}>{label}</Text>
       <TextInput
         style={[k.input, multiline && { height: 80, textAlignVertical: 'top' }, !editable && { opacity: 0.5 }]}
-        value={value}
-        onChangeText={onChange}
+        value={shown}
+        onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : onChange}
         placeholder={placeholder}
         placeholderTextColor={Colors.textLight}
-        keyboardType={keyboardType ?? 'default'}
+        keyboardType={phone ? 'number-pad' : (keyboardType ?? 'default')}
         multiline={multiline}
         secureTextEntry={secure}
         editable={editable}

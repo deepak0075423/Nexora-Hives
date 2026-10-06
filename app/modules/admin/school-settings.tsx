@@ -172,7 +172,7 @@ export default function AdminSchoolSettingsScreen() {
   const save = async () => {
     if (!form.name.trim()) return Alert.alert('Required', 'School name is required');
     if (form.email && !isEmail(form.email)) return Alert.alert('Invalid', 'Please enter a valid email address');
-    if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid phone number');
+    if (form.phone && !isPhone(form.phone)) return Alert.alert('Invalid', 'Please enter a valid 10-digit mobile number');
     if (form.website && !isURL(form.website)) return Alert.alert('Invalid', 'Website must be a valid URL starting with http:// or https://');
     setSaving(true);
     try {
@@ -306,7 +306,7 @@ export default function AdminSchoolSettingsScreen() {
             <SectionTitle>Profile</SectionTitle>
             <Input label="School Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
             <Input label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" />
-            <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} keyboardType="phone-pad" />
+            <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} phone />
             <Input label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
 
             {/* ── Admission number format ── */}

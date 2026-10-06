@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius } from '@/constants/theme';
+import { phoneInputValue } from '@/utils/validators';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 // The same values the other module kits use, so the app reads as one app.
@@ -461,16 +462,18 @@ export function Field({ label, required, hint, error, children }: {
   );
 }
 
-export function Box({ value, onChange, placeholder, multiline, keyboardType, maxLength, onFocus }: {
+/** A text box. `phone` makes it a 10-digit mobile number box, as the kit's Input does. */
+export function Box({ value, onChange, placeholder, multiline, keyboardType, maxLength, onFocus, phone }: {
   value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean;
-  keyboardType?: any; maxLength?: number; onFocus?: () => void;
+  keyboardType?: any; maxLength?: number; onFocus?: () => void; phone?: boolean;
 }) {
+  const shown = phone ? phoneInputValue(value) : value;
   return (
     <TextInput
       style={[f.box, multiline && { height: 92, textAlignVertical: 'top', paddingTop: 10 }]}
-      value={value} onChangeText={onChange} placeholder={placeholder}
+      value={shown} onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : onChange} placeholder={placeholder}
       placeholderTextColor={Colors.textLight} multiline={multiline}
-      keyboardType={keyboardType} maxLength={maxLength} onFocus={onFocus}
+      keyboardType={phone ? 'number-pad' : keyboardType} maxLength={phone ? undefined : maxLength} onFocus={onFocus}
     />
   );
 }

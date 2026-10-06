@@ -22,6 +22,7 @@ import {
   setFamilyLanguage,
 } from '@/api/medical.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import { phoneError } from '@/utils/validators';
 import { LoaderView, unwrap, MODULE_BLOCKED_CODES, confirmAsync } from '@/components/ui/kit';
 import { KidSwitch } from '@/components/results/parts';
 import {
@@ -163,7 +164,7 @@ function UpdateSheet({ preset, record, onClose, onDone }: { preset: any; record:
   const act = twoWay ? action : 'add';
   const text = (k: string, label: string, opts: { required?: boolean; placeholder?: string; multiline?: boolean; phone?: boolean; hint?: string } = {}) => (
     <Field label={label} required={opts.required} hint={opts.hint}>
-      <Box value={String(p[k] ?? '')} onChange={(v) => set(k, v)} placeholder={opts.placeholder} multiline={opts.multiline} keyboardType={opts.phone ? 'phone-pad' : undefined} />
+      <Box value={String(p[k] ?? '')} onChange={(v) => set(k, v)} placeholder={opts.placeholder} multiline={opts.multiline} phone={opts.phone} />
     </Field>
   );
 
@@ -172,6 +173,7 @@ function UpdateSheet({ preset, record, onClose, onDone }: { preset: any; record:
     if (kind === 'allergy' && act === 'add' && !String(p.allergen || '').trim()) return 'Say what your child is allergic to';
     if (kind === 'condition' && act === 'add' && !String(p.condition || '').trim() && !p.type) return 'Name the condition';
     if (kind === 'contact' && (!String(p.name || '').trim() || !String(p.phone || '').trim())) return 'Give the contact’s name and phone';
+    if (['contact', 'doctor', 'hospital'].includes(kind) && phoneError(p.phone, 'Phone')) return phoneError(p.phone, 'Phone') as string;
     if ((kind === 'doctor' || kind === 'hospital') && !String(p.name || '').trim()) return kind === 'doctor' ? 'Name the doctor' : 'Name the hospital';
     if (kind === 'vaccination' && !String(p.vaccine || '').trim()) return 'Name the vaccine';
     if (kind === 'vaccination' && !DAY_RE.test(String(p.givenOn || ''))) return 'Write the date it was given as YYYY-MM-DD';

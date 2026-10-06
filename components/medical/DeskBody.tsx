@@ -27,6 +27,7 @@ import { ReadingSheet, CareSheet, TriagePill } from '@/components/medical/care';
 import { DeskProgrammeNotes, CampaignRosterSheet, OutbreakSheet, IllnessReportsSheet } from '@/components/medical/programmes';
 import { ScanSheet, AddRecordSheet, CheckupSheet, OfflineSheet } from '@/components/medical/nurse';
 import { useAuth } from '@/contexts/AuthContext';
+import { phoneError } from '@/utils/validators';
 import {
   Head, Tiles, Tile, Tabs, Panel, Note, Blank, Muted, Btn, Sheet, Field, Box, Pick, Pill,
   VISIT_STATUS, VISIT_NEXT, IN_ROOM, REQUEST_STATUS, URGENCY, INCIDENT_TYPE, INCIDENT_SEVERITY, INCIDENT_STATUS, DOSE_STATUS,
@@ -445,7 +446,7 @@ function StatusSheet({ visit, meta, onClose, onDone }: { visit: any; meta: any; 
       await setMedVisitStatus(visit._id, {
         status, referral: status === 'referred' ? { hospital: hospital.trim(), reason: why } : undefined,
         bed: status === 'observation' && bed ? bed : undefined, outcomeNote: departed ? outcomeNote : undefined, notifyParents,
-        collection: handover ? collection : undefined,
+        collection: handover ? collectionToSend(collection) : undefined,
         exclusion: status === 'sent_home' && offRule ? { rule: offRule, until: offRule === 'other' ? offUntil : undefined } : undefined,
       });
       onDone(`${visit.studentName || 'The student'}: ${labelOf(VISIT_STATUS, status)}`);
@@ -606,10 +607,15 @@ function GiveSheet({ plan, onClose, onDone }: { plan: any; onClose: () => void; 
 
 /* ── Sent home: who collected the student ──────────────────────────────────── */
 
+// The phone typed under "Someone else" stays in the form when a known contact
+// is picked instead; it is not theirs, so it is not sent.
+const collectionToSend = (c: any) => (c?.contact === 'other' ? c : { ...c, phone: undefined });
+
 const collectionProblem = (c: any) => {
   if (!c?.contact) return 'Choose who collected the student';
   if (c.contact === 'other' && !String(c.name || '').trim()) return 'Who collected the student?';
   if (c.contact === 'other' && !String(c.note || '').trim()) return 'Someone not on the record: say who allowed it';
+  if (c.contact === 'other' && phoneError(c.phone, 'Their phone')) return phoneError(c.phone, 'Their phone') as string;
   return '';
 };
 
@@ -632,7 +638,7 @@ function CollectorPicker({ visitId, value, onChange }: { visitId: string; value:
           <Note tone="amber" icon="warning-outline">Only with a parent’s permission — say who gave it. The parents are told at once.</Note>
           <Field label="Name" required><Box value={value.name || ''} onChange={(v) => set({ name: v })} /></Field>
           <Field label="Relation"><Box value={value.relation || ''} onChange={(v) => set({ relation: v })} placeholder="e.g. Neighbour, driver" /></Field>
-          <Field label="Phone"><Box value={value.phone || ''} onChange={(v) => set({ phone: v })} keyboardType="phone-pad" /></Field>
+          <Field label="Phone"><Box value={value.phone || ''} onChange={(v) => set({ phone: v })} phone /></Field>
           <Field label="Who allowed it" required><Box value={value.note || ''} onChange={(v) => set({ note: v })} placeholder="e.g. Mother, by phone at 11:40" /></Field>
         </>
       ) : null}
@@ -651,7 +657,7 @@ function CollectionSheet({ visit, onClose, onDone }: { visit: any; onClose: () =
     const p = collectionProblem(c);
     if (p) { setFail(p); return; }
     setBusy(true); setFail('');
-    try { await recordVisitCollection(visit._id, c); onDone(`${visit.studentName || 'The student'}: collection recorded`); }
+    try { await recordVisitCollection(visit._id, collectionToSend(c)); onDone(`${visit.studentName || 'The student'}: collection recorded`); }
     catch (err: any) { setFail(err?.message || 'It could not be recorded'); } finally { setBusy(false); }
   };
   return (
