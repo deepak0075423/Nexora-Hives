@@ -496,7 +496,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
 
       <FormModal visible={modal === 'visitor'} title="Pre-register a Visitor" onClose={() => setModal(null)}
         onSubmit={() => submit('visitor')} submitting={saving} submitLabel="Register">
-        <Input label="Visitor name" value={visitorForm.visitorName}
+        <Input text="name" label="Visitor name" value={visitorForm.visitorName}
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, visitorName: v }))} />
         <Input label="Mobile" value={visitorForm.mobile} phone
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, mobile: v }))} />

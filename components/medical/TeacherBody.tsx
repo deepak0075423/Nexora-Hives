@@ -542,7 +542,7 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
         <View style={{ alignSelf: 'flex-start' }}><Btn icon="add" onPress={() => setV((x: any) => ({ ...x, conditions: [...(x.conditions || []), { condition: '', notes: '' }] }))}>Add a condition</Btn></View>
       </Field>
       <Field label="Medicines taken regularly"><Box value={v.medications || ''} onChange={(x) => setV({ ...v, medications: x })} maxLength={600} /></Field>
-      <Field label="Person to call"><Box value={v.emergencyContact?.name || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: x } })} placeholder="Name" maxLength={120} /></Field>
+      <Field label="Person to call"><Box text="name" value={v.emergencyContact?.name || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: x } })} placeholder="Name" maxLength={120} /></Field>
       <Field label="Relation"><Box value={v.emergencyContact?.relation || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: x } })} maxLength={60} /></Field>
       <Field label="Their phone"><Box value={v.emergencyContact?.phone || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: x } })} phone /></Field>
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}

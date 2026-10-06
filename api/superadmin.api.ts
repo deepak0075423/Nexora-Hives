@@ -6,6 +6,7 @@ export const getDashboard = () => api.get('/super-admin/dashboard');
 // ── Schools ──────────────────────────────────────────────────────────────────
 export const getSchools   = (params?: object) => api.get('/super-admin/schools', { params });
 export const getSchool    = (id: string)       => api.get(`/super-admin/schools/${id}`);
+export const pincodeLookup = (pin: string)     => api.get(`/super-admin/pincode/${pin}`);
 export const createSchool = (data: object)     => api.post('/super-admin/schools', data);
 export const updateSchool = (id: string, data: object) => api.put(`/super-admin/schools/${id}`, data);
 export const deleteSchool = (id: string)       => api.delete(`/super-admin/schools/${id}`);

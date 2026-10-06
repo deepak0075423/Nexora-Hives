@@ -322,14 +322,14 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
 
       {step === 1 && (
         <>
-          <Input label="Full Name *" value={form.name} onChange={set('name')} placeholder="Anita Sharma" />
+          <Input text="name" label="Full Name *" value={form.name} onChange={set('name')} placeholder="Anita Sharma" />
           <Input label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
           <Select label="Gender *" value={form.gender} onChange={set('gender')}
             options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
-          <Input label={`${fatherOrHusbandLabel(form.gender)} *`} value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
-          <Input label="Emergency Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')} />
+          <Input text="name" label={`${fatherOrHusbandLabel(form.gender)} *`} value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />
+          <Input text="name" label="Emergency Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')} />
           <Input label="Emergency Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')} phone />
         </>
       )}
@@ -422,7 +422,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
 
       {step === 6 && (
         <>
-          <Input label="Bank Account Holder Name *" value={form.bankAccountHolder} onChange={set('bankAccountHolder')} />
+          <Input text="name" label="Bank Account Holder Name *" value={form.bankAccountHolder} onChange={set('bankAccountHolder')} />
           <Input label="Bank Account Number *" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} keyboardType="numeric" />
           <Input label="IFSC Code *" value={form.bankIfsc} onChange={v => set('bankIfsc')(v.toUpperCase())} placeholder="HDFC0001234" />
           <Input label="Bank Branch Name *" value={form.bankBranch} onChange={set('bankBranch')} />

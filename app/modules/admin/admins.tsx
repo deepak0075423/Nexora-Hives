@@ -88,7 +88,7 @@ export default function AdminAdminsScreen() {
       </View>
 
       <FormModal visible={showForm} title="Add Admin" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving} submitLabel="Create Admin">
-        <Input label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Admin name" />
+        <Input text="name" label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Admin name" />
         <Input label="Email *" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} placeholder="admin@email.com" keyboardType="email-address" />
         <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} placeholder="Optional" phone />
       </FormModal>

@@ -162,9 +162,9 @@ function UpdateSheet({ preset, record, onClose, onDone }: { preset: any; record:
   const conditions = (record?.conditions || []).filter((c: any) => c.status !== 'resolved');
   const twoWay = ['allergy', 'condition'].includes(kind);
   const act = twoWay ? action : 'add';
-  const text = (k: string, label: string, opts: { required?: boolean; placeholder?: string; multiline?: boolean; phone?: boolean; hint?: string } = {}) => (
+  const text = (k: string, label: string, opts: { required?: boolean; placeholder?: string; multiline?: boolean; phone?: boolean; hint?: string; text?: 'name' } = {}) => (
     <Field label={label} required={opts.required} hint={opts.hint}>
-      <Box value={String(p[k] ?? '')} onChange={(v) => set(k, v)} placeholder={opts.placeholder} multiline={opts.multiline} phone={opts.phone} />
+      <Box value={String(p[k] ?? '')} onChange={(v) => set(k, v)} placeholder={opts.placeholder} multiline={opts.multiline} phone={opts.phone} text={opts.text} />
     </Field>
   );
 
@@ -261,12 +261,12 @@ function UpdateSheet({ preset, record, onClose, onDone }: { preset: any; record:
       {kind === 'contact' ? (
         <>
           <Field label="Which contact"><Seg options={[{ value: 'emergency', label: 'Emergency contact' }, { value: 'alternate', label: 'Alternate contact' }]} value={p.slot} onChange={(v) => { if (v !== p.slot) load('contact', 'add', '', v); }} /></Field>
-          {text('name', 'Name', { required: true })}
+          {text('name', 'Name', { required: true, text: 'name' })}
           {text('phone', 'Phone', { required: true, phone: true })}
           {text('relation', 'Relation to the child', { placeholder: 'e.g. Uncle' })}
         </>
       ) : null}
-      {kind === 'doctor' ? (<>{text('name', 'Doctor', { required: true })}{text('phone', 'Phone', { phone: true })}{text('clinic', 'Clinic')}</>) : null}
+      {kind === 'doctor' ? (<>{text('name', 'Doctor', { required: true, text: 'name' })}{text('phone', 'Phone', { phone: true })}{text('clinic', 'Clinic')}</>) : null}
       {kind === 'hospital' ? (<>{text('name', 'Hospital', { required: true })}{text('phone', 'Phone', { phone: true })}{text('address', 'Address')}</>) : null}
       {kind === 'profile' ? (
         <>
@@ -358,7 +358,7 @@ function ConsentSheet({ open, r, onClose, onDone }: { open: boolean; r: any; onC
           <SwitchRow label="Share medical alerts with teachers" sub="Off: teachers see only the critical alerts they need to keep your child safe." value={v.shareWithTeachers} onChange={(x) => setV({ ...v, shareWithTeachers: x })} />
           <SwitchRow label="Injury photos" sub="Only the medical staff see them." value={v.injuryPhotos} onChange={(x) => setV({ ...v, injuryPhotos: x })} />
           <SwitchRow label="May carry their own rescue medicine" sub="A reliever inhaler or an auto-injector, in their bag." value={v.selfCarry} onChange={(x) => setV({ ...v, selfCarry: x })} />
-          <Field label="Type your full name to sign" required><Box value={v.signedName} onChange={(x) => setV({ ...v, signedName: x })} placeholder="e.g. Rahul Sharma" maxLength={120} /></Field>
+          <Field label="Type your full name to sign" required><Box text="name" value={v.signedName} onChange={(x) => setV({ ...v, signedName: x })} placeholder="e.g. Rahul Sharma" maxLength={120} /></Field>
         </>
       ) : null}
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}

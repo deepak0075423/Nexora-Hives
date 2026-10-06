@@ -3,6 +3,7 @@ import { View, Text, ScrollView, RefreshControl, Alert, StyleSheet } from 'react
 import { Stack, router } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as superApi from '@/api/superadmin.api';
+import { natural } from '@/utils/listOrder';
 import {
   unwrap, LoaderView, Empty, Select, Toggle, ActionBtn, RowItem,
 } from '@/components/ui/kit';
@@ -29,7 +30,7 @@ const MODULES: { key: string; label: string; desc: string }[] = [
   { key: 'medical',      label: 'Medical Room',   desc: 'Medical visits, teacher requests, incidents, medicines, vaccinations, checkups and health records' },
   { key: 'chat',         label: 'Chat',           desc: 'Real-time messaging' },
   { key: 'feedback',     label: 'Teacher Feedback', desc: 'Student feedback campaigns, analytics & reports' },
-];
+].sort((a, b) => natural(a.label, b.label));   // A–Z by name
 
 export default function SuperPermissionsScreen() {
   const [schools, setSchools] = useState<any[]>([]);
@@ -43,7 +44,7 @@ export default function SuperPermissionsScreen() {
   const load = async () => {
     try {
       const d = unwrap(await superApi.getPermissions());
-      setSchools(d ?? []);
+      setSchools([...(d ?? [])].sort((a: any, b: any) => natural(a.name, b.name)));   // A–Z by name
       // Keep the current selection; refresh its flags from server
       if (schoolId) {
         const cur = (d ?? []).find((s: any) => s._id === schoolId);

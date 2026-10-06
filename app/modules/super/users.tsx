@@ -157,7 +157,7 @@ export default function SuperUsersScreen() {
       </View>
 
       <FormModal visible={showForm} title="Add User" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving} submitLabel="Create User">
-        <Input label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
+        <Input text="name" label="Full Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
         <Input label="Email *" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" />
         <Select label="Role *" value={form.role} onChange={v => setForm(f => ({ ...f, role: v }))} options={ROLE_OPTIONS} />
         {form.role !== 'super_admin' && (

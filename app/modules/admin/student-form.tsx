@@ -476,7 +476,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
 
       {step === 1 && (
         <>
-          <Input label="Full Name *" value={form.name} onChange={set('name')} placeholder="Aarav Sharma" />
+          <Input text="name" label="Full Name *" value={form.name} onChange={set('name')} placeholder="Aarav Sharma" />
           <Input label={isEdit ? 'Email' : 'Email *'} value={form.email} onChange={set('email')}
             keyboardType="email-address" placeholder="student@school.com" editable={!isEdit} />
           <Input label="Phone" value={form.phone} onChange={set('phone')} phone placeholder="Optional" />
@@ -502,7 +502,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} placeholder="Indian" />
 
           <SectionTitle>Emergency Contact</SectionTitle>
-          <Input label="Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')}
+          <Input text="name" label="Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')}
             placeholder="Who should the school call first?" />
           <Input label="Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')}
             phone placeholder="9876543210" />
@@ -682,10 +682,10 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
                 return (
                   <View key={role} style={{ marginBottom: 6 }}>
                     <SectionTitle>{label}{isOwner ? ' — guardian / login account' : ''}</SectionTitle>
-                    <Input label={`${label}'s Name *`} value={newParent[role].name} onChange={v => setBlock(role, 'name', v)} />
+                    <Input text="name" label={`${label}'s Name *`} value={newParent[role].name} onChange={v => setBlock(role, 'name', v)} />
                     {role === 'guardian' && (
                       <Input label="Relation with the Student *" value={newParent[role].relation ?? ''}
-                        onChange={v => setBlock(role, 'relation', v)} placeholder="e.g. Uncle, Grandmother" />
+                        onChange={v => setBlock(role, 'relation', v)} placeholder="e.g. Uncle, Grandmother" text="letters" />
                     )}
                     <Input label={`Email${isOwner ? ' *' : ''}`} value={newParent[role].email}
                       onChange={v => setBlock(role, 'email', v)} keyboardType="email-address"
@@ -752,7 +752,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <ActionBtn label="+ Add a condition" tone="info" small onPress={() => setHealth((h) => ({ ...h, conditions: [...h.conditions, { condition: '', type: 'asthma', severity: 'mild' }] }))} />
           <SectionTitle>Doctor, medicines, food</SectionTitle>
           <Input label="Medicines taken regularly" value={health.medicines} onChange={(v) => setHealth((h) => ({ ...h, medicines: v }))} multiline placeholder="Name, dose and when" />
-          <Input label="Family doctor" value={health.doctorName} onChange={(v) => setHealth((h) => ({ ...h, doctorName: v }))} />
+          <Input text="name" label="Family doctor" value={health.doctorName} onChange={(v) => setHealth((h) => ({ ...h, doctorName: v }))} />
           <Input label="Doctor’s phone" value={health.doctorPhone} onChange={(v) => setHealth((h) => ({ ...h, doctorPhone: v }))} phone />
           <Input label="Food needs" value={health.dietary} onChange={(v) => setHealth((h) => ({ ...h, dietary: v }))} placeholder="e.g. Vegetarian, no nuts" />
           <Input label="Anything else the nurse should know" value={health.notes} onChange={(v) => setHealth((h) => ({ ...h, notes: v }))} multiline />

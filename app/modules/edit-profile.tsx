@@ -9,6 +9,7 @@ import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, updateProfile } from '@/api/profile.api';
 import { phoneError, phoneInputValue } from '@/utils/validators';
+import { cleanText, type TextKind } from '@/utils/textRules';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,13 +43,16 @@ interface FieldProps {
   last?: boolean;
   /** A 10-digit mobile number: the number pad, digits only, never more than ten. */
   phone?: boolean;
+  /** What else it takes (utils/textRules): English text by default, 'name' for a person's name. */
+  text?: TextKind;
 }
 
 function Field({
   label, value, onChangeText, placeholder,
-  locked, multiline, keyboardType = 'default', last, phone,
+  locked, multiline, keyboardType = 'default', last, phone, text,
 }: FieldProps) {
   const shown = phone ? phoneInputValue(value) : value;
+  const kind: TextKind | null = phone ? null : (text ?? (keyboardType === 'email-address' ? 'email' : 'text'));
   return (
     <View style={[fl.wrap, !last && fl.border]}>
       <Text style={fl.label}>{label}</Text>
@@ -61,7 +65,7 @@ function Field({
         <TextInput
           style={[fl.input, multiline && fl.multiline]}
           value={shown}
-          onChangeText={phone && onChangeText ? (t) => onChangeText(phoneInputValue(t, shown)) : onChangeText}
+          onChangeText={!onChangeText ? undefined : phone ? (t) => onChangeText(phoneInputValue(t, shown)) : kind ? (t) => onChangeText(cleanText(t, kind)) : onChangeText}
           placeholder={placeholder ?? ''}
           placeholderTextColor={Colors.textLight}
           multiline={multiline}
@@ -336,6 +340,7 @@ export default function EditProfileScreen() {
           <Block title="Contact" icon="person-outline">
             <Field
               label="Full Name"
+              text="name"
               value={form.name}
               onChangeText={v => set('name', v)}
               placeholder="Your full name"

@@ -636,7 +636,7 @@ function CollectorPicker({ visitId, value, onChange }: { visitId: string; value:
       {value.contact === 'other' ? (
         <>
           <Note tone="amber" icon="warning-outline">Only with a parent’s permission — say who gave it. The parents are told at once.</Note>
-          <Field label="Name" required><Box value={value.name || ''} onChange={(v) => set({ name: v })} /></Field>
+          <Field label="Name" required><Box text="name" value={value.name || ''} onChange={(v) => set({ name: v })} /></Field>
           <Field label="Relation"><Box value={value.relation || ''} onChange={(v) => set({ relation: v })} placeholder="e.g. Neighbour, driver" /></Field>
           <Field label="Phone"><Box value={value.phone || ''} onChange={(v) => set({ phone: v })} phone /></Field>
           <Field label="Who allowed it" required><Box value={value.note || ''} onChange={(v) => set({ note: v })} placeholder="e.g. Mother, by phone at 11:40" /></Field>
