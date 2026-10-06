@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { FormModal, Select, Toggle, unwrap } from '@/components/ui/kit';
+import { newestYear, previousYear } from '@/utils/listOrder';
 
 /**
  * Copy one academic year's structure into another.
@@ -138,7 +139,7 @@ export default function ImportYearStructureSheet({
 
   useEffect(() => {
     if (!visible) return;
-    const src = options[0]?._id ?? '';
+    const src = (previousYear(options, targetYear) || newestYear(options))?._id ?? '';
     const pick = { ...ALL_PARTS, ...defaultParts };
     setFromYear(src); setParts(pick); setWithTeachers(false); setPlan(null); setError('');
     preview(src, pick, false);

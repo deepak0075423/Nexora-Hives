@@ -263,7 +263,9 @@ function NewCorrectionSheet({ visible, sections, mode, onClose, onDone }: {
 
   useEffect(() => {
     if (!visible) return;
-    setSection(sections[0]?._id ? String(sections[0]._id) : ''); setSubject(''); setDate(todayKey());
+    // The teacher's own section first; the list itself is in class order.
+    const own = sections.find((s: any) => s.role === 'classTeacher') || sections.find((s: any) => s.role === 'vice') || sections[0];
+    setSection(own?._id ? String(own._id) : ''); setSubject(''); setDate(todayKey());
     setStudent(''); setMark('present'); setReason(''); setFind(''); setProblem('');
   }, [visible]);
 

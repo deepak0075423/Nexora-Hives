@@ -27,6 +27,7 @@ import { Empty, LoaderView, Select, Toggle, FormModal, unwrap } from '@/componen
 import { fmtDay, plural } from '@/components/results/parts';
 import { DayPicker } from '@/components/attendance/parts';
 import { os, say } from '@/components/results/office';
+import { newestYear } from '@/utils/listOrder';
 
 type Paper = { subject: string; name: string; include: boolean; maxMarks: string; passingMarks: string; gradeOnly: boolean; examDate: string; components: any; startTime: string; endTime: string; untaught?: boolean };
 const day = (d: any) => (d ? String(d).slice(0, 10) : '');
@@ -80,7 +81,7 @@ export default function ResultFormScreen() {
             })),
           ]);
         } else {
-          const year = m.years.find((y: any) => y.current) || m.years[0];
+          const year = m.years.find((y: any) => y.current) || newestYear(m.years);
           set({ academicYear: String(year?._id || ''), examType: m.examTypes[0]?.value || '' });
         }
       } catch (err: any) { setLoadError(err?.message || 'The form could not be loaded'); }
