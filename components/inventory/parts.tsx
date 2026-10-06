@@ -306,14 +306,15 @@ export const Muted = ({ children }: { children: React.ReactNode }) => <Text styl
 // ── Buttons ───────────────────────────────────────────────────────────────────
 
 export function Btn({ kind = 'ghost', icon, children, onPress, disabled, block }: {
-  kind?: 'primary' | 'ghost' | 'danger'; icon?: any; children: React.ReactNode;
+  // 'stop' is solid red: going ahead past a safety check, never a soft choice.
+  kind?: 'primary' | 'ghost' | 'danger' | 'stop'; icon?: any; children: React.ReactNode;
   onPress?: () => void; disabled?: boolean; block?: boolean;
 }) {
-  const bg = kind === 'primary' ? BRAND : kind === 'danger' ? '#FEF2F2' : '#fff';
-  const fg = kind === 'primary' ? '#fff' : kind === 'danger' ? Colors.danger : Colors.text;
+  const bg = kind === 'primary' ? BRAND : kind === 'stop' ? '#DC2626' : kind === 'danger' ? '#FEF2F2' : '#fff';
+  const fg = kind === 'primary' || kind === 'stop' ? '#fff' : kind === 'danger' ? Colors.danger : Colors.text;
   return (
     <TouchableOpacity
-      style={[s.btn, { backgroundColor: bg, borderColor: kind === 'primary' ? BRAND : kind === 'danger' ? '#FECACA' : Colors.border },
+      style={[s.btn, { backgroundColor: bg, borderColor: kind === 'primary' ? BRAND : kind === 'stop' ? '#DC2626' : kind === 'danger' ? '#FECACA' : Colors.border },
         block && { flex: 1 }, disabled && { opacity: 0.5 }]}
       onPress={onPress} disabled={disabled} activeOpacity={0.8} accessibilityRole="button">
       {icon ? <Ionicons name={icon} size={15} color={fg} /> : null}

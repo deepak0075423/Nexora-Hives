@@ -10,6 +10,8 @@ import {
   FormModal, Input, Select, SectionTitle, ActionBtn, Toggle, SegTabs, RowItem, unwrap,
 } from '@/components/ui/kit';
 import ExistingDoc from '@/components/ExistingDoc';
+import { useModules } from '@/hooks/useModules';
+import { ALLERGY_CATEGORY, ALLERGY_SEVERITY, CONDITION_TYPE, CONDITION_SEVERITY, optionsOf } from '@/components/medical/parts';
 
 // Mirrors school-frontend/src/pages/admin/StudentForm.jsx and
 // validateStudentProfile() / resolveNewParent() in the backend controller.
@@ -22,6 +24,21 @@ const BOARDS       = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge (IGCSE)', 
 const MEDIUMS      = ['English', 'Hindi', 'Marathi', 'Gujarati', 'Bengali', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Urdu', 'Other'];
 
 const STEPS = ['Basic', 'Personal', 'Address', 'Documents', 'Previous School', 'Enrolment', 'Parents'];
+
+// 8 — Health (adding a student, at a school that uses the Medical Room): what the
+// family wrote on the admission form, written into the Medical Room's record
+// (school-backend services/medicalIntake). The web form has the same step.
+type Health = { allergies: any[]; conditions: any[]; medicines: string; doctorName: string; doctorPhone: string; dietary: string; notes: string };
+const EMPTY_HEALTH: Health = { allergies: [], conditions: [], medicines: '', doctorName: '', doctorPhone: '', dietary: '', notes: '' };
+const healthBody = (h: Health) => ({
+  allergies: h.allergies.filter((a) => String(a.allergen).trim()),
+  conditions: h.conditions.map((c) => ({ ...c, condition: String(c.condition).trim() || (c.type !== 'other' ? (CONDITION_TYPE as any)[c.type] || '' : '') })).filter((c) => c.condition),
+  medicines: h.medicines, doctor: { name: h.doctorName, phone: h.doctorPhone }, dietary: h.dietary, notes: h.notes,
+});
+const healthFilled = (h: Health) => {
+  const b = healthBody(h);
+  return !!(b.allergies.length || b.conditions.length || b.medicines.trim() || b.doctor.name.trim() || b.doctor.phone.trim() || b.dietary.trim() || b.notes.trim());
+};
 
 const EMPTY_PARENT_BLOCK = {
   name: '', email: '', phone: '', occupation: '', organization: '', designation: '',
@@ -131,6 +148,11 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
   const [classes, setClasses] = useState<any[]>([]);
   const [docs, setDocs]       = useState<any>(null);        // files already on record
   const [existingParent, setEP] = useState<any>(null);
+  const [health, setHealth] = useState<Health>(EMPTY_HEALTH);
+  const { isEnabled } = useModules();
+  const withHealth = !isEdit && isEnabled('medical');
+  const steps = withHealth ? [...STEPS, 'Health'] : STEPS;
+  const setRow = (list: 'allergies' | 'conditions', i: number, patch: any) => setHealth((h) => ({ ...h, [list]: h[list].map((x: any, j: number) => (j === i ? { ...x, ...patch } : x)) }));
 
   // Parent step
   const [parentMode, setParentMode] = useState<'search' | 'create'>('search');
@@ -146,7 +168,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
     setNewParent((p: any) => ({ ...p, [role]: { ...p[role], [key]: v } }));
 
   const reset = () => {
-    setStep(1); setForm(EMPTY_STUDENT); setFiles({}); setDocs(null); setEP(null);
+    setStep(1); setForm(EMPTY_STUDENT); setFiles({}); setDocs(null); setEP(null); setHealth(EMPTY_HEALTH);
     setParentMode('search'); setParentQ(''); setPR([]); setParentId(''); setParentName('');
     setNewParent(EMPTY_NEW_PARENT);
   };
@@ -255,6 +277,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
 
   /** First problem on this step, or null. */
   const stepError = (n: number): string | null => {
+    if (n === 8) return withHealth && health.doctorPhone.trim() && !isPhone(health.doctorPhone.trim()) ? 'The doctor’s phone number is not valid' : null;
     const need = (key: string, label: string) => (!String(form[key] ?? '').trim() ? `${label} is required` : null);
     const address = (prefix: '' | 'permanent' | 'previousSchool', label: string) => {
       const k = (base: string) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
@@ -359,7 +382,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
 
   const submit = async () => {
     // Every step is re-checked so a jumped-over problem cannot slip through
-    for (let n = 1; n <= STEPS.length; n++) {
+    for (let n = 1; n <= steps.length; n++) {
       const problem = stepError(n);
       if (problem) { setStep(n); return Alert.alert('Required', problem); }
     }
@@ -415,24 +438,26 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       Object.entries(files).forEach(([k, f]) => {
         if (f) fd.append(k, { uri: f.uri, name: f.name, type: f.type } as any);
       });
+      if (withHealth && healthFilled(health)) fd.append('health', JSON.stringify(healthBody(health)));
 
+      let healthFailed: string[] = [];
       if (isEdit) await adminApi.updateStudentForm(student._id, fd);
-      else        await adminApi.createStudentForm(fd);
+      else healthFailed = (unwrap(await adminApi.createStudentForm(fd)) as any)?.healthSaved?.failed || [];
       reset();
       onSaved();
       onClose();
-      Alert.alert('Success', isEdit ? 'Student updated' : 'Student created. Login OTP has been emailed.');
+      Alert.alert('Success', isEdit ? 'Student updated' : `Student created. Login OTP has been emailed.${healthFailed.length ? ` Some health details were not saved — add them in the Medical Room: ${healthFailed[0]}` : ''}`);
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
   };
 
-  const isLast = step === STEPS.length;
+  const isLast = step === steps.length;
   const roles: string[] = newParent.accountFor === 'Guardian' ? ['father', 'mother', 'guardian'] : ['father', 'mother'];
 
   return (
     <FormModal
       visible={visible}
-      title={`${isEdit ? 'Edit' : 'Add'} Student — ${step}/${STEPS.length} ${STEPS[step - 1]}`}
+      title={`${isEdit ? 'Edit' : 'Add'} Student — ${step}/${steps.length} ${steps[step - 1]}`}
       onClose={close}
       onSubmit={isLast ? submit : next}
       submitting={saving}
@@ -440,7 +465,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
     >
       {/* progress dots */}
       <View style={s.dots}>
-        {STEPS.map((label, i) => (
+        {steps.map((label, i) => (
           <View key={label} style={[
             s.dot,
             i + 1 === step && { backgroundColor: Colors.primary, width: 18 },
@@ -700,6 +725,38 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         <View style={{ marginTop: Spacing.md }}>
           <ActionBtn label="← Back" tone="neutral" onPress={() => setStep(s => s - 1)} />
         </View>
+      )}
+          {step === 8 && withHealth && (
+        <>
+          <Text style={{ fontSize: 12.5, color: Colors.textSecondary, marginBottom: 10 }}>Optional — anything the school nurse should know from the first day. It goes into the Medical Room’s record, where the nurse checks it with the family.</Text>
+          <SectionTitle>Allergies</SectionTitle>
+          {health.allergies.map((a: any, i: number) => (
+            <View key={`a${i}`} style={{ marginBottom: 6 }}>
+              <Input label={`Allergy ${i + 1}`} value={a.allergen} onChange={(v) => setRow('allergies', i, { allergen: v })} placeholder="e.g. Peanuts" />
+              <Select label="Kind" value={a.category} options={optionsOf(ALLERGY_CATEGORY)} onChange={(v) => setRow('allergies', i, { category: v })} />
+              <Select label="How severe" value={a.severity} options={optionsOf(ALLERGY_SEVERITY)} onChange={(v) => setRow('allergies', i, { severity: v })} />
+              <Input label="What happens (optional)" value={a.reaction} onChange={(v) => setRow('allergies', i, { reaction: v })} />
+              <ActionBtn label="Remove" tone="neutral" small onPress={() => setHealth((h) => ({ ...h, allergies: h.allergies.filter((_: any, j: number) => j !== i) }))} />
+            </View>
+          ))}
+          <ActionBtn label="+ Add an allergy" tone="info" small onPress={() => setHealth((h) => ({ ...h, allergies: [...h.allergies, { allergen: '', category: 'food', severity: 'moderate', reaction: '' }] }))} />
+          <SectionTitle>Medical conditions</SectionTitle>
+          {health.conditions.map((c: any, i: number) => (
+            <View key={`c${i}`} style={{ marginBottom: 6 }}>
+              <Select label={`Condition ${i + 1}`} value={c.type} options={optionsOf(CONDITION_TYPE)} onChange={(v) => setRow('conditions', i, { type: v })} />
+              <Input label="Name (if not in the list)" value={c.condition} onChange={(v) => setRow('conditions', i, { condition: v })} />
+              <Select label="Severity" value={c.severity} options={optionsOf(CONDITION_SEVERITY)} onChange={(v) => setRow('conditions', i, { severity: v })} />
+              <ActionBtn label="Remove" tone="neutral" small onPress={() => setHealth((h) => ({ ...h, conditions: h.conditions.filter((_: any, j: number) => j !== i) }))} />
+            </View>
+          ))}
+          <ActionBtn label="+ Add a condition" tone="info" small onPress={() => setHealth((h) => ({ ...h, conditions: [...h.conditions, { condition: '', type: 'asthma', severity: 'mild' }] }))} />
+          <SectionTitle>Doctor, medicines, food</SectionTitle>
+          <Input label="Medicines taken regularly" value={health.medicines} onChange={(v) => setHealth((h) => ({ ...h, medicines: v }))} multiline placeholder="Name, dose and when" />
+          <Input label="Family doctor" value={health.doctorName} onChange={(v) => setHealth((h) => ({ ...h, doctorName: v }))} />
+          <Input label="Doctor’s phone" value={health.doctorPhone} onChange={(v) => setHealth((h) => ({ ...h, doctorPhone: v }))} keyboardType="phone-pad" />
+          <Input label="Food needs" value={health.dietary} onChange={(v) => setHealth((h) => ({ ...h, dietary: v }))} placeholder="e.g. Vegetarian, no nuts" />
+          <Input label="Anything else the nurse should know" value={health.notes} onChange={(v) => setHealth((h) => ({ ...h, notes: v }))} multiline />
+        </>
       )}
     </FormModal>
   );

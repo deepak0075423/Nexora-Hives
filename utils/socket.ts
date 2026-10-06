@@ -11,6 +11,31 @@ const GATEWAY_URL =
 
 let socket: Socket | null = null;
 
+/*
+ * Listeners that outlive the socket. The socket is replaced on an account
+ * switch, a logout and login, and when the notification context connects
+ * after a screen did — and disconnectSocket() takes every listener off the old
+ * one. A screen that registers here is bound to whichever socket is current,
+ * now and after every reconnect, and never creates a socket itself.
+ */
+const persistent = new Map<string, Set<(data: any) => void>>();
+function bind(s: Socket, event: string) {
+  const bound: Set<string> = ((s as any).__persistentBound ||= new Set<string>());
+  if (bound.has(event)) return;
+  bound.add(event);
+  s.on(event, (data: any) => {
+    persistent.get(event)?.forEach((fn) => { try { fn(data); } catch { /* the listener's problem */ } });
+  });
+}
+/** Listen for `event` on the current socket and every later one. Returns the unsubscribe. */
+export function onSocketEvent(event: string, fn: (data: any) => void): () => void {
+  let set = persistent.get(event);
+  if (!set) { set = new Set(); persistent.set(event, set); }
+  set.add(fn);
+  if (socket) bind(socket, event);
+  return () => { set!.delete(fn); };
+}
+
 export type SocketState = 'connecting' | 'connected' | 'offline';
 let state: SocketState = 'offline';
 const stateListeners = new Set<(s: SocketState) => void>();
@@ -37,6 +62,7 @@ export function connectSocket(_token?: string): Socket {
     reconnectionDelayMax: 10000,
   });
   setState('connecting');
+  for (const event of persistent.keys()) bind(socket, event);
   socket.on('connect', () => setState('connected'));
   socket.on('disconnect', (reason) => {
     // The server hung up on purpose — socket.io will not retry that itself.

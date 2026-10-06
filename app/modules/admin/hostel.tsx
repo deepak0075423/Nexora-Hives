@@ -12,6 +12,7 @@ import {
   SegTabs, Select, Input, FormModal, ActionBtn, SearchBar, fmtDate, fmtDateTime, fmtMoney,
   confirmAsync, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import MedicalAlertsLink from '@/components/medical/MedicalAlertsLink';
 
 const label = (v?: string) => String(v ?? '').replace(/_/g, ' ');
 const iso = (d: Date) =>
@@ -234,6 +235,7 @@ export default function AdminHostelScreen() {
 
         {tab === 'overview' && (
           <>
+            {!full ? <MedicalAlertsLink title="Medical alerts for your residents" body="Severe allergies, conditions and rescue medicines — what to do, and the numbers to call." /> : null}
             <Card>
               <SectionTitle>Today&apos;s roll call</SectionTitle>
               <KV label="Present" value={d.attendanceToday?.present ?? 0} />

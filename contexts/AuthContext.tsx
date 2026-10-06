@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import storage from '@/utils/storage';
+import { clearOffline } from '@/utils/medicalOffline';
+import { unregisterPush } from '@/utils/pushNotifications';
 import { getMe, switchAccount as switchAccountApi } from '@/api/auth.api';
+import { startFileAccess, stopFileAccess } from '@/utils/fileAccess';
 
 export type UserRole = 'student' | 'teacher' | 'parent' | 'admin' | 'super-admin';
 
@@ -135,6 +138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { loadUser(); refreshAccounts(); }, [loadUser, refreshAccounts]);
 
+  // Private uploads open with a file token while someone is signed in (utils/fileAccess).
+  useEffect(() => {
+    if (user?._id) startFileAccess();
+    else if (!loading) stopFileAccess();
+  }, [user?._id, loading]);
+
   /** Upsert an entry in the saved-accounts registry */
   const upsertAccount = async (u: User, token: string, refreshToken: string) => {
     const list = await readAccounts();
@@ -168,6 +177,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** Sign out the CURRENT account (removes it from the registry) */
   const signOut = async () => {
+    // This phone stops showing the account's notifications — while the session can still say so.
+    await unregisterPush().catch(() => {});
+    // Medical emergency cards saved for offline use leave with the account.
+    await clearOffline().catch(() => {});
     const list = (await readAccounts()).filter(a => a._id !== user?._id);
     await writeAccounts(list);
     setAccounts(list);

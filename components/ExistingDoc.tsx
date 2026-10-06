@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Linking, Alert } from 
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
+import { withFileToken } from '@/utils/fileAccess';
 
 /**
  * The paperwork already on a record, shown inside a document picker.
@@ -20,7 +21,8 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
 
 /** `folder` is the uploads sub-directory the form's paperwork lives in. */
 export function docUrl(folder: string, file?: string) {
-  return file ? `${UPLOADS_ORIGIN}/uploads/${folder}/${file}` : '';
+  // The folder is private: the reader's file token rides on the address (utils/fileAccess).
+  return file ? withFileToken(`${UPLOADS_ORIGIN}/uploads/${folder}/${file}`) : '';
 }
 
 export default function ExistingDoc({ folder, file, replaceHint = 'tap the button above to replace it' }: {

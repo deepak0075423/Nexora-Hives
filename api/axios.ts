@@ -14,6 +14,11 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   const token = await storage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // The Medical Room's "confirm it is you" token (an emailed code, 12 hours).
+  if (String(config.url || '').startsWith('/medical/')) {
+    const up = await storage.getItem('medicalStepUp').catch(() => null);
+    if (up) config.headers['X-Medical-Step-Up'] = up;
+  }
   return config;
 });
 

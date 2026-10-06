@@ -1,11 +1,12 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Linking from 'expo-linking';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
-import { registerForPushNotifications } from '@/utils/pushNotifications';
+import { registerForPushNotifications, setUpNotifications } from '@/utils/pushNotifications';
 import { lockRequired, clearPinAndLocks } from '@/utils/appLock';
 import {
   receiptIdFromUrl, rememberPendingNotification, takePendingNotification,
@@ -13,6 +14,9 @@ import {
 import NotificationBanner from '@/components/NotificationBanner';
 import LockScreen from '@/components/LockScreen';
 import storage from '@/utils/storage';
+
+// How a notification shows while the app is open, and Android's channels — before anything can arrive.
+setUpNotifications();
 
 function RootGuard() {
   const { user, loading } = useAuth();
@@ -51,10 +55,45 @@ function RootGuard() {
     return () => { cancelled = true; };
   }, [user, loading, router]);
 
-  // Register push token once logged in (no-op in Expo Go dev builds)
+  // This phone shows the signed-in person's notifications as the OS's own —
+  // registered again after switching account, so it follows whoever is signed in.
   useEffect(() => {
-    if (user) registerForPushNotifications();
-  }, [user]);
+    if (user?._id) registerForPushNotifications();
+  }, [user?._id]);
+
+  return null;
+}
+
+/**
+ * A tapped OS notification (utils/pushNotifications): a notification opens its
+ * receipt — app/notification/[id].tsx marks it read and forwards to the right
+ * screen for this reader, or parks it until sign-in; a chat message opens its
+ * conversation. Works for a tap that started the app as well as one while it
+ * runs (useLastNotificationResponse covers both).
+ */
+function PushBridge() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const response = Notifications.useLastNotificationResponse();
+  const handled = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const id = response.notification.request.identifier;
+    if (handled.current === id) return;
+    const data: any = response.notification.request.content.data || {};
+    if (data.chatId) {
+      if (loading || !user) return;           // opened once the session is back
+      handled.current = id;
+      router.push({ pathname: '/modules/chat-thread', params: { id: String(data.chatId) } } as any);
+      return;
+    }
+    const receiptId = data.receiptId || receiptIdFromUrl(data.url);
+    if (!receiptId) return;
+    handled.current = id;
+    if (loading || !user) rememberPendingNotification(String(receiptId));
+    else router.push(`/notification/${receiptId}` as any);
+  }, [response, user, loading, router]);
 
   return null;
 }
@@ -174,6 +213,7 @@ export default function RootLayout() {
       <SessionScope>
       <NotificationProvider>
         <DeepLinkBridge />
+        {Platform.OS === 'web' ? null : <PushBridge />}
         <LockGate>
           <RootGuard />
           <Stack screenOptions={{ headerShown: false }}>

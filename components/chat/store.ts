@@ -21,6 +21,7 @@ import { AppState } from 'react-native';
 import * as chatApi from '@/api/chat.api';
 import { connectSocket, emitWithAck, getSocket, onSocketState, socketState, type SocketState } from '@/utils/socket';
 import { newClientId, backendRole } from './format';
+import { presentChatFromSocket } from '@/utils/pushNotifications';
 import { unwrap, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 
 export type Msg = any;
@@ -474,6 +475,16 @@ class ChatStore {
           this.set((s) => ({ typing: { ...s.typing, [chatId]: rest } }));
         }
         if (viewing) this.markRead(chatId, msg._id);
+        // In the background, and only when remote push is not bringing it: the OS's own notification.
+        else {
+          const chat: any = this.state.chats.find((c) => c._id === chatId);
+          const who = msg.sender?.name || 'New message';
+          presentChatFromSocket({
+            chatId,
+            title: chat?.type && chat.type !== 'direct' && chat.name ? `${who} · ${chat.name}` : who,
+            body: String((msg as any).content || '').trim() || ((msg as any).type === 'image' ? 'Photo' : 'Attachment'),
+          });
+        }
       }
     });
 

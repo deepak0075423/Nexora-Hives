@@ -9,6 +9,7 @@ import {
   unwrap, LoaderView, Empty, RowItem, Badge, confirmAsync, fmtDate,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import { withFileToken } from '@/utils/fileAccess';
 
 // Uploads live at the backend root, not under /api
 const FILE_BASE = BASE_URL.replace(/\/api\/?$/, '');
@@ -33,8 +34,11 @@ export default function AdminDocumentsScreen() {
   const openFile = (doc: any) => {
     const url = doc.fileUrl ?? doc.filePath ?? doc.file;
     if (!url) return Alert.alert('No file', 'This document has no attached file.');
-    const full = String(url).startsWith('http') ? url : `${FILE_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
-    Linking.openURL(full).catch(() => Alert.alert('Error', 'Could not open the file'));
+    // Stored paths can be the server's own disk path: the address is what follows `uploads/`.
+    const p = String(url).replace(/\\/g, '/');
+    const at = p.indexOf('uploads/');
+    const full = /^https?:/.test(p) ? p : `${FILE_BASE}/${at !== -1 ? p.slice(at) : p.replace(/^\//, '')}`;
+    Linking.openURL(withFileToken(full)).catch(() => Alert.alert('Error', 'Could not open the file'));
   };
 
   const archive = async (doc: any) => {

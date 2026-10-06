@@ -4,6 +4,7 @@ import { connectSocket, disconnectSocket } from '@/utils/socket';
 import { getUnreadCount } from '@/api/notifications.api';
 import storage from '@/utils/storage';
 import type { NotificationLink } from '@/utils/notificationLink';
+import { presentFromSocket, setBadge } from '@/utils/pushNotifications';
 
 export interface LiveNotification {
   _id: string;
@@ -15,6 +16,10 @@ export interface LiveNotification {
   createdAt?: string;
   /** Where it opens, already resolved for this reader's role by the server */
   link?: NotificationLink;
+  /** 'high' | 'medium' | 'low' */
+  priority?: string;
+  /** The sender marked it urgent — the banner stays until it is seen, and the phone vibrates */
+  urgent?: boolean;
 }
 
 interface NotificationContextValue {
@@ -81,10 +86,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const sock = connectSocket(token);
       sock.on('notification:unread_count', ({ count }: { count: number }) => {
         setUnreadCount(count ?? 0);
+        setBadge(count ?? 0);
       });
       sock.on('notification:new', (n: LiveNotification) => {
         setLastNotification(n);
         setLastEventAt(Date.now());
+        // The OS's own notification too, when remote push is not already bringing it.
+        presentFromSocket(n);
       });
       // Listened for here, where the socket is owned: an account switch
       // replaces the socket, and a listener a screen had put on the old one

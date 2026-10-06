@@ -9,6 +9,7 @@ import {
   unwrap, LoaderView, Empty, Badge, Card, SectionTitle, StatTile, StatRow, ActionBtn,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import { withFileToken } from '@/utils/fileAccess';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Profile verification.
@@ -27,7 +28,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const UPLOADS_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
-const fileUrl = (p?: string) => (!p ? '' : /^https?:/.test(p) ? p : `${UPLOADS_ORIGIN}${p}`);
+const fileUrl = (p?: string) => withFileToken(!p ? '' : /^https?:/.test(p) ? p : `${UPLOADS_ORIGIN}${p}`);
 
 const TONE: Record<string, any> = { verified: 'success', pending: 'warning', rejected: 'danger' };
 

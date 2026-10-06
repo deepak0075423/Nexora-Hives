@@ -10,6 +10,7 @@ import * as parentApi from '@/api/parent.api';
 import { BASE_URL } from '@/api/axios';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { withFileToken } from '@/utils/fileAccess';
 
 const TYPE_ICON: Record<string, { icon: string; bg: string; color: string }> = {
   assignment:   { icon: 'document-text',  bg: '#EDE9FE', color: '#7C3AED' },
@@ -43,8 +44,11 @@ export default function DocumentsScreen() {
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const openFile = (file: string) => {
-    const url = file.startsWith('http') ? file : `${BASE_URL.replace('/api', '')}/${file}`;
-    Linking.openURL(url);
+    // Stored paths can be the server's own disk path: the address is what follows `uploads/`.
+    const p = String(file).replace(/\\/g, '/');
+    const at = p.indexOf('uploads/');
+    const url = /^https?:/.test(p) ? p : `${BASE_URL.replace(/\/api\/?$/, '')}/${at !== -1 ? p.slice(at) : p.replace(/^\//, '')}`;
+    Linking.openURL(withFileToken(url));
   };
 
   if (disabled) return (

@@ -25,6 +25,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import { Empty, LoaderView, unwrap, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { saveAndShare } from '@/components/payroll/parts';
 import { KidSwitch, Pill, fmtDayShort, fmtRange, fmtTimeRange, classLine, plural } from '@/components/results/parts';
+import MedicalAlertsLink from '@/components/medical/MedicalAlertsLink';
 
 const WHEN: Record<string, { label: string; fg: string; bg: string }> = {
   ongoing: { label: 'On now', fg: Colors.success, bg: Colors.successLight },
@@ -137,6 +138,7 @@ export default function ExamScheduleScreen() {
               <Text style={s.who}>{plural(d.sections.filter((x: any) => x.current).length, 'section')} you teach or look after</Text>
             ) : null}
 
+            {teacher && d.duties?.length ? <MedicalAlertsLink title="Medical alerts for your exam rooms" body="On the day: the students seated in your rooms with a severe allergy, a condition or a rescue medicine." /> : null}
             {teacher && d.duties?.length ? (
               <View style={s.card}>
                 <Text style={s.dutyCap}>YOUR INVIGILATION DUTIES</Text>

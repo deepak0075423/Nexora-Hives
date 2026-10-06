@@ -12,13 +12,14 @@ import {
   StatTile, StatRow, fmtDate, ActionBtn,
 } from '@/components/ui/kit';
 import { Avatar } from './employee-directory';
+import { withFileToken } from '@/utils/fileAccess';
 
 // One employee, assembled from the modules the school already runs. The tabs
 // shown are decided by the payload: a block the caller has no permission for is
 // absent from the response, so there is nothing on this screen to hide.
 
 const UPLOADS_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
-const fileUrl = (p?: string) => (!p ? '' : /^https?:/.test(p) ? p : `${UPLOADS_ORIGIN}${p}`);
+const fileUrl = (p?: string) => withFileToken(!p ? '' : /^https?:/.test(p) ? p : `${UPLOADS_ORIGIN}${p}`);
 
 const STATUS_TONE: Record<string, any> = { active: 'success', on_leave: 'warning', inactive: 'neutral' };
 const STATUS_LABEL: Record<string, string> = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };

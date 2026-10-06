@@ -56,6 +56,21 @@
       ],
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#4F46E5",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to scan student ID cards and medicine packs in the Medical Room.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

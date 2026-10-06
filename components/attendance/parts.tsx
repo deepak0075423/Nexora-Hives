@@ -21,6 +21,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
+import { withFileToken } from '@/utils/fileAccess';
 
 export const BRAND = '#4F46E5';
 export const INK = '#1E1B4B';
@@ -119,7 +120,7 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 /** 40.5 → "40.5", 41 → "41": a half day is half a day, not a rounding error. */
 export const num = (n?: number | null) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(1));
 export const errText = (e: any) => e?.data?.message ?? e?.message ?? 'Something went wrong';
-export const fileUrl = (path?: string) => (!path ? '' : /^https?:/.test(path) ? path : `${BASE_URL.replace(/\/api\/?$/, '')}${path}`);
+export const fileUrl = (path?: string) => withFileToken(!path ? '' : /^https?:/.test(path) ? path : `${BASE_URL.replace(/\/api\/?$/, '')}${path}`);
 export const firstName = (name?: string) => String(name || '').split(/\s+/)[0] || 'Your child';
 
 // ── Header & tabs ────────────────────────────────────────────────────────────

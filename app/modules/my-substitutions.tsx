@@ -9,6 +9,7 @@ import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Card, Badge, SegTabs, StatTile, StatRow, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import MedicalAlertsLink from '@/components/medical/MedicalAlertsLink';
 
 /**
  * A teacher's own view: the substitute classes I have to take, and my own
@@ -105,6 +106,7 @@ export default function MySubstitutionsScreen() {
         {loading ? <LoaderView /> : (
           <>
             {!!error && <Text style={s.error}>{error}</Text>}
+            {duties.length ? <MedicalAlertsLink title="Medical alerts for the classes you cover today" body="The students with a severe allergy, a condition or a rescue medicine, and what to do." /> : null}
 
             {!!w && (
               <>

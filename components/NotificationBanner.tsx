@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Animated, Text, TouchableOpacity, StyleSheet, Platform, Vibration } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,10 @@ const VISIBLE_MS = 5000;
  *
  * Deliberately silent on the auth screens: a notification arriving mid-login
  * has nowhere to take anyone yet.
+ *
+ * Urgent news (the sender marked it so — a child sent home, an emergency, a
+ * family that has not answered) is red, vibrates, and stays until it is tapped
+ * or closed: with no text messages, the app is how it reaches people.
  */
 export default function NotificationBanner() {
   const { lastNotification, dismissLast } = useNotifications();
@@ -37,7 +41,11 @@ export default function NotificationBanner() {
     Animated.spring(slide, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
 
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(hide, VISIBLE_MS);
+    if (lastNotification.urgent) {
+      try { Vibration.vibrate([0, 400, 200, 400]); } catch { /* no vibrator */ }
+    } else {
+      timer.current = setTimeout(hide, VISIBLE_MS);
+    }
     return () => { if (timer.current) clearTimeout(timer.current); };
     // A second notification while the first is up replaces it, which is why
     // this keys off the notification itself and not a mount-once effect.
@@ -64,12 +72,14 @@ export default function NotificationBanner() {
       pointerEvents="box-none"
       style={[s.wrap, { top: insets.top + 6, transform: [{ translateY: slide }] }]}
     >
-      <TouchableOpacity style={s.card} activeOpacity={0.9} onPress={open}>
-        <Ionicons name="notifications" size={18} color={Colors.primary} style={{ marginTop: 1 }} />
+      <TouchableOpacity style={[s.card, shown.urgent && s.urgentCard]} activeOpacity={0.9} onPress={open}
+        accessibilityRole="alert" accessibilityLabel={`${shown.urgent ? 'Urgent: ' : ''}${shown.title}`}>
+        <Ionicons name={shown.urgent ? 'alert-circle' : 'notifications'} size={18} color={shown.urgent ? Colors.danger : Colors.primary} style={{ marginTop: 1 }} />
         <Animated.View style={{ flex: 1 }}>
-          <Text style={s.title} numberOfLines={1}>{shown.title}</Text>
-          {!!shown.body && <Text style={s.body} numberOfLines={2}>{shown.body}</Text>}
-          <Text style={s.hint}>{hasTarget(shown) ? 'Tap to open' : 'Tap to read'}</Text>
+          {shown.urgent ? <Text style={s.urgentTag}>URGENT</Text> : null}
+          <Text style={s.title} numberOfLines={shown.urgent ? 2 : 1}>{shown.title}</Text>
+          {!!shown.body && <Text style={s.body} numberOfLines={shown.urgent ? 4 : 2}>{shown.body}</Text>}
+          <Text style={[s.hint, shown.urgent && { color: Colors.danger }]}>{hasTarget(shown) ? 'Tap to open' : 'Tap to read'}</Text>
         </Animated.View>
         <TouchableOpacity onPress={hide} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="close" size={17} color={Colors.textLight} />
@@ -91,6 +101,8 @@ const s = StyleSheet.create({
       android: { elevation: 8 },
     }),
   },
+  urgentCard: { backgroundColor: Colors.dangerLight, borderColor: Colors.danger, borderLeftWidth: 4 },
+  urgentTag: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: Colors.danger, marginBottom: 1 },
   title: { fontSize: 13, fontWeight: '700', color: Colors.text },
   body:  { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
   hint:  { fontSize: 11, color: Colors.primary, fontWeight: '600', marginTop: 4 },

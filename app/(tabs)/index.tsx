@@ -27,6 +27,7 @@ import {
 const STUDENT_MODULES = [
   { key: 'classes',    label: 'Classes',    icon: 'school',           route: '/modules/my-class' },
   { key: 'idcard',     label: 'ID Card',    icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
+  { key: 'medical',    label: 'My Health',  icon: 'medkit',           route: '/modules/medical',     moduleFlag: 'medical' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
   { key: 'results',    label: 'Results',    icon: 'bar-chart',        route: '/modules/results',     moduleFlag: 'result' },
@@ -50,6 +51,7 @@ const TEACHER_MODULES = [
   // subject teacher (hasMySection on the module payload).
   { key: 'section',    label: 'My Sections', icon: 'people',          route: '/modules/my-section', requires: 'hasMySection' },
   { key: 'idcard',     label: 'My ID Card', icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
+  { key: 'medical',    label: 'Medical Room', icon: 'medkit',         route: '/modules/medical',     moduleFlag: 'medical' },
   { key: 'analytics',  label: 'Analytics',  icon: 'compass',          route: '/modules/student-analytics' },
   { key: 'directory',  label: 'Staff',      icon: 'id-card',          route: '/modules/employee-directory', moduleFlag: 'employeeDirectory' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/teacher-attendance', moduleFlag: 'attendance' },
@@ -98,6 +100,7 @@ const ADMIN_MODULES = [
   { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/admin/inventory',   moduleFlag: 'inventory' },
   { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/admin/transport',   moduleFlag: 'transport' },
   { key: 'hostel',     label: 'Hostel',     icon: 'business',         route: '/modules/admin/hostel',      moduleFlag: 'hostel' },
+  { key: 'medical',    label: 'Medical Room', icon: 'medkit',         route: '/modules/admin/medical',     moduleFlag: 'medical' },
   { key: 'videos',     label: 'Videos',     icon: 'play-circle',      route: '/modules/admin-videos',      moduleFlag: 'videoLibrary' },
   { key: 'feedback',   label: 'Feedback',   icon: 'star',             route: '/modules/admin/feedback',    moduleFlag: 'feedback' },
   { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/admin/leave',       moduleFlag: 'leave' },
@@ -124,6 +127,7 @@ const SUPER_ADMIN_MODULES = [
 const PARENT_MODULES = [
   { key: 'classes',    label: 'My Child',   icon: 'school',           route: '/modules/child-class' },
   { key: 'idcard',     label: 'ID Cards',   icon: 'id-card',          route: '/modules/id-card',     moduleFlag: 'idCard' },
+  { key: 'medical',    label: 'Medical',    icon: 'medkit',           route: '/modules/medical',     moduleFlag: 'medical' },
   { key: 'attendance', label: 'Attendance', icon: 'checkmark-circle', route: '/modules/attendance',  moduleFlag: 'attendance' },
   // The timetable screen answers for one chosen child at a time (/parent/timetable?child=).
   { key: 'timetable',  label: 'Timetable',  icon: 'calendar',         route: '/modules/timetable',   moduleFlag: 'timetable' },
@@ -161,6 +165,8 @@ const TEACHER_ADMIN_MODULES = [
   { key: 'documents',  label: 'Documents*',  icon: 'folder-open',     route: '/modules/admin/documents',  adminOf: 'document' },
   { key: 'holidays',   label: 'Holidays*',   icon: 'sunny',           route: '/modules/admin/holidays',   adminOf: 'holiday' },
   { key: 'idCards',    label: 'ID Cards*',   icon: 'id-card',         route: '/modules/admin/id-cards',   adminOf: 'idCard' },
+  // A nurse: the medical room's desk, beside the teacher's own Medical Room tile.
+  { key: 'medicalDesk', label: 'Medical Desk*', icon: 'medkit',       route: '/modules/admin/medical',    adminOf: 'medical' },
   { key: 'sendAlert',  label: 'Send Alert',  icon: 'megaphone',       route: '/modules/send-notification', adminOf: 'notification' },
 ];
 

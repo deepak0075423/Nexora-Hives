@@ -55,6 +55,8 @@ export const Colors = {
     videos:     { bg: '#FFE4E6', icon: '#E11D48' },
     feedback:   { bg: '#FEF9C3', icon: '#CA8A04' },
     idcard:     { bg: '#DBEAFE', icon: '#1D4ED8' },
+    medical:    { bg: '#FFE4E6', icon: '#E11D48' },
+    medicalDesk: { bg: '#FFE4E6', icon: '#BE123C' },
   },
 
   // Tab bar
