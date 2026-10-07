@@ -8,6 +8,7 @@ import {
   unwrap, LoaderView, Empty, Badge, Card, KV, ActionBtn, FormModal, Input, Select, Toggle, FAB,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
+import { textError } from '@/utils/textRules';
 
 // Leave types are the entitlement figures only — every rule (accrual, carry
 // forward, day limits, approvals) lives in Leave → Policies, so there is one
@@ -57,7 +58,14 @@ export default function AdminLeaveTypesScreen() {
 
   const save = async () => {
     if (!form.name.trim()) { Alert.alert('Name required', 'Give the leave type a name.'); return; }
+    // No symbols in a type's name — the server holds the same rule.
+    const badName = textError(form.name, 'Name', 'words');
+    if (badName) { Alert.alert('Check the name', badName); return; }
     if (!form.code.trim()) { Alert.alert('Code required', 'Give the leave type a short code, e.g. CL.'); return; }
+    // One code, one type — the server refuses it too.
+    const code = form.code.trim().toUpperCase();
+    const holder = types.find((t) => String(t.code || '').toUpperCase() === code && String(t._id) !== String(editing?._id || ''));
+    if (holder) { Alert.alert('Code in use', `Code ${code} is already used by ${holder.name}.`); return; }
     setSaving(true);
     try {
       const payload = {
@@ -142,7 +150,7 @@ export default function AdminLeaveTypesScreen() {
         onSubmit={save}
         submitting={saving}
       >
-        <Input text="title" label="Name" value={form.name}
+        <Input text="words" label="Name" value={form.name}
           onChange={(v: string) => setForm((f: any) => ({ ...f, name: v }))} placeholder="e.g. Casual Leave" />
         <Input text="code" label="Code" value={form.code}
           onChange={(v: string) => setForm((f: any) => ({ ...f, code: v.toUpperCase() }))} placeholder="e.g. CL" />

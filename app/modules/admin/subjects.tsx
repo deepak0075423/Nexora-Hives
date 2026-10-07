@@ -64,6 +64,8 @@ export default function AdminSubjectsScreen() {
 
   const submit = async () => {
     if (!form.subjectName.trim()) return Alert.alert('Required', 'Subject name is required');
+    // Unique within the school's year — the server says so if it is taken.
+    if (!form.subjectCode.trim()) return Alert.alert('Required', 'Subject code is required');
     setSaving(true);
     try {
       if (editing) await adminApi.updateSubject(editing._id, form);
@@ -149,7 +151,7 @@ export default function AdminSubjectsScreen() {
 
       <FormModal visible={showForm} title={editing ? 'Edit Subject' : 'Add Subject'} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
         <Input text="title" label="Subject Name *" value={form.subjectName} onChange={v => setForm(f => ({ ...f, subjectName: v }))} placeholder="e.g. Mathematics" />
-        <Input text="code" label="Subject Code" value={form.subjectCode} onChange={v => setForm(f => ({ ...f, subjectCode: v }))} placeholder="e.g. MATH10" />
+        <Input text="code" label="Subject Code *" value={form.subjectCode} onChange={v => setForm(f => ({ ...f, subjectCode: v }))} placeholder="e.g. MATH10" />
         <Select label="Type" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={TYPE_OPTIONS} />
       </FormModal>
     </>
