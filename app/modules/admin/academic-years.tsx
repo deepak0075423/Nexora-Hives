@@ -99,9 +99,9 @@ export default function AdminAcademicYearsScreen() {
       />
 
       <FormModal visible={showForm} title="Add Academic Year" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
-        <Input label="Year Name *" value={form.yearName} onChange={v => setForm(f => ({ ...f, yearName: v }))} placeholder="e.g. 2026-27" />
-        <Input label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-04-01" />
-        <Input label="End Date * (YYYY-MM-DD)" value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))} placeholder="2027-03-31" />
+        <Input text="title" label="Year Name *" value={form.yearName} onChange={v => setForm(f => ({ ...f, yearName: v }))} placeholder="e.g. 2026-27" />
+        <Input text="date" label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-04-01" />
+        <Input text="date" label="End Date * (YYYY-MM-DD)" value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))} placeholder="2027-03-31" />
       </FormModal>
     </>
   );

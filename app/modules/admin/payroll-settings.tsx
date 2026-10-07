@@ -109,10 +109,10 @@ export default function AdminPayrollSettingsScreen() {
                   { label: 'School calendar, minus offs and holidays', value: 'school' },
                 ]} />
               {form.workingDaysBasis === 'fixed' && (
-                <Input label="Fixed working days" value={String(form.fixedWorkingDays)} keyboardType="numeric"
+                <Input text="digits" label="Fixed working days" value={String(form.fixedWorkingDays)} keyboardType="numeric"
                   onChange={(v: string) => set('fixedWorkingDays')(Number(v) || 0)} />
               )}
-              <Input label="Pay day (of the following month)" value={String(form.payDay)} keyboardType="numeric"
+              <Input text="digits" label="Pay day (of the following month)" value={String(form.payDay)} keyboardType="numeric"
                 onChange={(v: string) => set('payDay')(Number(v) || 1)} />
               <Select label="Financial year starts" value={String(form.financialYearStartMonth)}
                 onChange={(v: string) => set('financialYearStartMonth')(Number(v))}
@@ -171,20 +171,20 @@ export default function AdminPayrollSettingsScreen() {
               <Toggle label="Open the month automatically" value={form.autoOpenRun} onChange={set('autoOpenRun')}
                 sub="Creates the run as a draft once the month has ended. Nothing automatic ever approves or publishes." />
               {form.autoOpenRun && (
-                <Input label="Open on day" value={String(form.autoOpenDay)} keyboardType="numeric"
+                <Input text="digits" label="Open on day" value={String(form.autoOpenDay)} keyboardType="numeric"
                   onChange={(v: string) => set('autoOpenDay')(Number(v) || 25)} />
               )}
               <Toggle label="Remind me before pay day" value={form.remindBeforePayDay} onChange={set('remindBeforePayDay')}
                 sub="One notice when pay day is close and the month is still unpublished." />
               {form.remindBeforePayDay && (
-                <Input label="Days before" value={String(form.remindDaysBefore)} keyboardType="numeric"
+                <Input text="digits" label="Days before" value={String(form.remindDaysBefore)} keyboardType="numeric"
                   onChange={(v: string) => set('remindDaysBefore')(Number(v) || 3)} />
               )}
             </Panel>
 
             <Panel icon="business" tone="slate" title="Payslips and the bank">
-              <Input label="Payslip prefix" value={form.payslipPrefix} onChange={set('payslipPrefix')} />
-              <Input label="School bank account" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} />
+              <Input text="code" label="Payslip prefix" value={form.payslipPrefix} onChange={set('payslipPrefix')} />
+              <Input text="account" label="School bank account" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} />
               <Input label="Payslip footer note" value={form.payslipNote} onChange={set('payslipNote')} multiline />
             </Panel>
 

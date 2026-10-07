@@ -395,7 +395,7 @@ export default function AdminSectionDetailScreen() {
 
       <FormModal visible={!!rollEdit} title="Update Roll Number" onClose={() => setRollEdit(null)}
         onSubmit={saveRollNumber} submitting={rollBusy} submitLabel="Save">
-        <Input label={`Roll number for ${rollEdit?.name ?? ''}`} value={rollEdit?.value ?? ''}
+        <Input text="code" label={`Roll number for ${rollEdit?.name ?? ''}`} value={rollEdit?.value ?? ''}
           onChange={v => setRollEdit(r => (r ? { ...r, value: v } : r))} placeholder="e.g. 12" />
         <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 4 }}>
           Must be unique within this section. Leave blank to clear it — the student&rsquo;s record is updated too.
@@ -474,7 +474,7 @@ export default function AdminSectionDetailScreen() {
         submitting={saving}
         submitLabel="Save"
       >
-        <Input label="Seats" value={capValue} onChange={v => { setCapErr(''); setCapValue(v); }}
+        <Input text="digits" label="Seats" value={capValue} onChange={v => { setCapErr(''); setCapValue(v); }}
           placeholder="40" keyboardType="numeric" />
         {capErr ? <Text style={{ color: Colors.danger, fontSize: 12, marginBottom: 8 }}>{capErr}</Text> : null}
         <Text style={{ fontSize: 12, color: Colors.textSecondary, lineHeight: 18 }}>

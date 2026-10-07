@@ -84,7 +84,7 @@ export default function AdminFeesSettingsScreen() {
             </Card>
 
             <SectionTitle>Receipts & Currency</SectionTitle>
-            <Input label="Receipt Prefix" value={form.receiptPrefix} onChange={v => setForm(f => ({ ...f, receiptPrefix: v }))} />
+            <Input text="code" label="Receipt Prefix" value={form.receiptPrefix} onChange={v => setForm(f => ({ ...f, receiptPrefix: v }))} />
             <Input label="Currency Symbol" value={form.currencySymbol} onChange={v => setForm(f => ({ ...f, currencySymbol: v }))} />
             <Select label="Rounding" value={form.roundingRule} onChange={v => setForm(f => ({ ...f, roundingRule: v }))}
               options={[

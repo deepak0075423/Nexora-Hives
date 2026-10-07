@@ -464,9 +464,9 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
         onSubmit={() => submit('leave')} submitting={saving} submitLabel="Request">
         <Select label="Type" value={leaveForm.leaveType} options={opts(LEAVE_TYPES)}
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, leaveType: v }))} />
-        <Input label="From (YYYY-MM-DD)" value={leaveForm.fromDate} placeholder={today()}
+        <Input text="date" label="From (YYYY-MM-DD)" value={leaveForm.fromDate} placeholder={today()}
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, fromDate: v }))} />
-        <Input label="To (YYYY-MM-DD)" value={leaveForm.toDate} placeholder={today()}
+        <Input text="date" label="To (YYYY-MM-DD)" value={leaveForm.toDate} placeholder={today()}
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, toDate: v }))} />
         <Input label="Reason" value={leaveForm.reason} multiline
           onChange={(v) => setLeaveForm((f: any) => ({ ...f, reason: v }))} />
@@ -482,11 +482,11 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
           onChange={(v) => setOutForm((f: any) => ({ ...f, outpassType: v }))} />
         <Input label="Purpose" value={outForm.purpose}
           onChange={(v) => setOutForm((f: any) => ({ ...f, purpose: v }))} />
-        <Input label="Departure date (YYYY-MM-DD)" value={outForm.departureDate}
+        <Input text="date" label="Departure date (YYYY-MM-DD)" value={outForm.departureDate}
           onChange={(v) => setOutForm((f: any) => ({ ...f, departureDate: v }))} />
-        <Input label="Leaving at (HH:MM)" value={outForm.expectedDepartureTime} placeholder="16:00"
+        <Input text="time" label="Leaving at (HH:MM)" value={outForm.expectedDepartureTime} placeholder="16:00"
           onChange={(v) => setOutForm((f: any) => ({ ...f, expectedDepartureTime: v }))} />
-        <Input label="Back by (HH:MM)" value={outForm.expectedReturnTime} placeholder="20:00"
+        <Input text="time" label="Back by (HH:MM)" value={outForm.expectedReturnTime} placeholder="20:00"
           onChange={(v) => setOutForm((f: any) => ({ ...f, expectedReturnTime: v }))} />
         <Input label="Destination" value={outForm.destination}
           onChange={(v) => setOutForm((f: any) => ({ ...f, destination: v }))} />
@@ -500,7 +500,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, visitorName: v }))} />
         <Input label="Mobile" value={visitorForm.mobile} phone
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, mobile: v }))} />
-        <Input label="Relationship" value={visitorForm.relationship}
+        <Input text="letters" label="Relationship" value={visitorForm.relationship}
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, relationship: v }))} />
         <Input label="Purpose" value={visitorForm.purpose}
           onChange={(v) => setVisitorForm((f: any) => ({ ...f, purpose: v }))} />

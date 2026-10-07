@@ -7,7 +7,8 @@
  * answer them.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import {
@@ -267,7 +268,7 @@ export function CategorySheet({ form, setForm, categories, saving, error, onClos
       {error || err ? <FormError>{err || error}</FormError> : null}
       <FormSection title="Details">
         <Field label="Name" required error={taken ? 'Another category already has this name.' : null} count={`${form.name.length} / 120`}>
-          <TextBox maxLength={120} value={form.name} placeholder="e.g. Classroom Management" onChange={(v) => { set('name', v); setErr(''); }} />
+          <TextBox text="title" maxLength={120} value={form.name} placeholder="e.g. Classroom Management" onChange={(v) => { set('name', v); setErr(''); }} />
         </Field>
         <Field label="What it is about" hint="Shown to admins beside the category. Students never see it." count={`${(form.description || '').length} / 500`}>
           <TextBox multiline rows={3} maxLength={500} value={form.description || ''} placeholder="e.g. Discipline, fairness and class atmosphere" onChange={(v) => set('description', v)} />
@@ -367,7 +368,7 @@ export function TemplateSheet({ form, setForm, questions, categories, saving, er
 
       <FormSection title="Details">
         <Field label="Name" required count={`${form.name.length} / 150`}>
-          <TextBox maxLength={150} value={form.name} placeholder="e.g. Standard Teacher Evaluation" onChange={(v) => { set('name', v); setErr(''); }} />
+          <TextBox text="title" maxLength={150} value={form.name} placeholder="e.g. Standard Teacher Evaluation" onChange={(v) => { set('name', v); setErr(''); }} />
         </Field>
         <Field label="Description" hint="For admins choosing a template.">
           <TextBox maxLength={500} value={form.description} placeholder="e.g. The two-minute end-of-term evaluation" onChange={(v) => set('description', v)} />

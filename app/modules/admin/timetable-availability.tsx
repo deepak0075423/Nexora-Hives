@@ -251,9 +251,9 @@ export default function TimetableAvailabilityScreen() {
               </View>
             </ScrollView>
 
-            <Input label="Max periods per day" value={edit.maxPeriodsPerDay} keyboardType="numeric"
+            <Input text="digits" label="Max periods per day" value={edit.maxPeriodsPerDay} keyboardType="numeric"
               onChange={(v) => setEdit((t: any) => ({ ...t, maxPeriodsPerDay: v }))} placeholder="School default" />
-            <Input label="Max periods per week" value={edit.maxPeriodsPerWeek} keyboardType="numeric"
+            <Input text="digits" label="Max periods per week" value={edit.maxPeriodsPerWeek} keyboardType="numeric"
               onChange={(v) => setEdit((t: any) => ({ ...t, maxPeriodsPerWeek: v }))} placeholder="School default" />
             <Toggle label="Daily limit is a hard rule" sub="Otherwise it is only optimised for"
               value={edit.hardDailyLimit} onChange={(v) => setEdit((t: any) => ({ ...t, hardDailyLimit: v }))} />
@@ -306,9 +306,9 @@ function BulkSheet({ bulk, setBulk, teachers, saving, onSubmit }: any) {
       {bulk && (
         <>
           <Text style={tk.hint}>Leave a limit blank to leave it as it is. Blocked slots are kept unless you say otherwise.</Text>
-          <Input label="Daily limit" keyboardType="numeric" value={bulk.day} placeholder="Unchanged"
+          <Input text="digits" label="Daily limit" keyboardType="numeric" value={bulk.day} placeholder="Unchanged"
             onChange={(v) => setBulk((b: any) => ({ ...b, day: v }))} />
-          <Input label="Weekly limit" keyboardType="numeric" value={bulk.week} placeholder="Unchanged"
+          <Input text="digits" label="Weekly limit" keyboardType="numeric" value={bulk.week} placeholder="Unchanged"
             onChange={(v) => setBulk((b: any) => ({ ...b, week: v }))} />
           <Toggle label="Also clear every blocked slot" value={bulk.clearBlocks}
             onChange={(v) => setBulk((b: any) => ({ ...b, clearBlocks: v }))} />
@@ -343,9 +343,9 @@ function ImportSheet({ imp, setImp, saving, onCheck, onApply }: any) {
             Availability is a weekly pattern; leave is a range of dates. What maps between them is a
             teacher away the same weekday, repeatedly. This finds those and offers to block that day.
           </Text>
-          <Input label="From (YYYY-MM-DD)" value={imp.from} placeholder="Today"
+          <Input text="date" label="From (YYYY-MM-DD)" value={imp.from} placeholder="Today"
             onChange={(v) => setImp((x: any) => ({ ...x, from: v, found: null }))} />
-          <Input label="To (YYYY-MM-DD)" value={imp.to} placeholder="30 days on"
+          <Input text="date" label="To (YYYY-MM-DD)" value={imp.to} placeholder="30 days on"
             onChange={(v) => setImp((x: any) => ({ ...x, to: v, found: null }))} />
           {imp.found && (imp.found.length ? imp.found.map((f: any) => (
             <View key={`${f.teacher}${f.dayOfWeek}`} style={a.found}>

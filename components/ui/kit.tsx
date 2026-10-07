@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, TouchableOpacity, Modal, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { phoneInputValue } from '@/utils/validators';
-import { cleanText, type TextKind } from '@/utils/textRules';
+import { type TextKind } from '@/utils/textRules';
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
@@ -198,32 +199,33 @@ export function SearchBar({ value, onChange, placeholder = 'Search…' }: {
  * pad, nothing but digits kept from typing or pasting, never more than ten, a
  * pasted "+91 98765 43210" kept as its ten digits.
  *
- * Every other box takes English and never markup while it is typed in
- * (utils/textRules); `text` says what kind of field it is — 'name' for a
- * person's name, 'letters', 'any' (other languages and emoji). An email box is
- * 'email'; a password box is left alone.
+ * Every other box takes what its kind takes while it is typed in
+ * (utils/textRules, through components/ui/TextInput); `text` says what kind of
+ * field it is — 'name' for a person's name, 'pincode', 'code', 'any' (other
+ * languages and emoji)… Without it the keyboard decides: a number pad takes
+ * digits, a numeric keyboard a number, an email box an address, anything else
+ * English text. A password box is left alone.
  */
 export function Input({ label, value, onChange, placeholder, keyboardType, multiline, secure, editable = true, phone, text }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'number-pad'; multiline?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'number-pad' | 'decimal-pad'; multiline?: boolean;
   secure?: boolean; editable?: boolean; phone?: boolean; text?: TextKind;
 }) {
   const shown = phone ? phoneInputValue(value) : value;
-  const kind: TextKind | null = phone || secure ? null : (text ?? (keyboardType === 'email-address' ? 'email' : 'text'));
   return (
     <View style={k.field}>
       <Text style={k.fieldLabel}>{label}</Text>
       <TextInput
         style={[k.input, multiline && { height: 80, textAlignVertical: 'top' }, !editable && { opacity: 0.5 }]}
         value={shown}
-        onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : kind ? (t) => onChange(cleanText(t, kind)) : onChange}
+        text={phone ? 'off' : text}
+        onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : onChange}
         placeholder={placeholder}
         placeholderTextColor={Colors.textLight}
-        keyboardType={phone ? 'number-pad' : (keyboardType ?? 'default')}
+        keyboardType={phone ? 'number-pad' : keyboardType}
         multiline={multiline}
         secureTextEntry={secure}
         editable={editable}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
       />
     </View>
   );

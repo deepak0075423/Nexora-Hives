@@ -10,7 +10,8 @@
  * the page holding it.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import * as teacherApi from '@/api/teacher.api';
 import { FocusRow, useFocusId } from '@/components/FocusHighlight';

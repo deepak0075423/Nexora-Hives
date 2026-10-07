@@ -22,7 +22,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius } from '@/constants/theme';
 import { phoneInputValue } from '@/utils/validators';
-import { cleanText, type TextKind } from '@/utils/textRules';
+import { type TextKind } from '@/utils/textRules';
+import { TextInput } from '@/components/ui/TextInput';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 // The same values the other module kits use, so the app reads as one app.
@@ -390,7 +391,7 @@ const s = StyleSheet.create({
 
 // ── Full-screen form sheet ────────────────────────────────────────────────────
 
-import { Modal, KeyboardAvoidingView, Platform, TextInput, ActivityIndicator } from 'react-native';
+import { Modal, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -465,19 +466,19 @@ export function Field({ label, required, hint, error, children }: {
 
 /**
  * A text box. `phone` makes it a 10-digit mobile number box, as the kit's
- * Input does; otherwise it takes English and never markup (utils/textRules),
- * `text` saying what kind of field it is ('name', 'letters', 'any').
+ * Input does; otherwise it takes what its kind takes (utils/textRules, through
+ * components/ui/TextInput), `text` saying what kind of field it is ('name',
+ * 'code', 'gstin', 'any' …) — without it, what its keyboard suggests.
  */
 export function Box({ value, onChange, placeholder, multiline, keyboardType, maxLength, onFocus, phone, text }: {
   value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean;
   keyboardType?: any; maxLength?: number; onFocus?: () => void; phone?: boolean; text?: TextKind;
 }) {
   const shown = phone ? phoneInputValue(value) : value;
-  const kind: TextKind | null = phone ? null : (text ?? (keyboardType === 'email-address' ? 'email' : 'text'));
   return (
     <TextInput
       style={[f.box, multiline && { height: 92, textAlignVertical: 'top', paddingTop: 10 }]}
-      value={shown} onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : kind ? (t) => onChange(cleanText(t, kind)) : onChange} placeholder={placeholder}
+      value={shown} text={phone ? 'off' : text} onChangeText={phone ? (t) => onChange(phoneInputValue(t, shown)) : onChange} placeholder={placeholder}
       placeholderTextColor={Colors.textLight} multiline={multiline}
       keyboardType={phone ? 'number-pad' : keyboardType} maxLength={phone ? undefined : maxLength} onFocus={onFocus}
     />

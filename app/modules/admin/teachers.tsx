@@ -10,6 +10,7 @@ import {
   unwrap, LoaderView, Empty, Badge, RowItem, SearchBar, FAB, FormModal,
   KV, ActionBtn,
 } from '@/components/ui/kit';
+import { experienceText } from '@/utils/validators';
 
 export default function AdminTeachersScreen() {
   const [list, setList] = useState<any[]>([]);
@@ -137,7 +138,7 @@ export default function AdminTeachersScreen() {
         <KV label="Date of Joining" value={p?.joiningDate ? String(p.joiningDate).slice(0, 10) : '--'} />
         <KV label="Qualification" value={p?.qualification || '--'} />
         <KV label="Teaching Degree" value={p?.teachingDegree || '--'} />
-        <KV label="Experience" value={p?.employmentType === 'experienced' ? (p?.totalExperience || 'Experienced') : (p?.employmentType ? 'Fresher' : '--')} />
+        <KV label="Experience" value={p?.employmentType === 'experienced' ? (experienceText(p?.totalExperience) || 'Experienced') : (p?.employmentType ? 'Fresher' : '--')} />
         <KV label="Emergency Contact" value={p?.emergencyContactName ? `${p.emergencyContactName} · ${p.emergencyContactPhone || ''}`.trim() : '--'} />
         <KV label="Status" value={<Badge label={u?.isActive === false ? 'inactive' : 'active'} />} />
         <View style={{ marginTop: 12 }}>

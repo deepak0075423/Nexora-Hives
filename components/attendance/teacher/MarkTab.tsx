@@ -7,7 +7,8 @@
  * left unmarked as "absent", which told those families their child was absent.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import * as teacherApi from '@/api/teacher.api';
 import {

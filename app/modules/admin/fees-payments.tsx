@@ -199,7 +199,7 @@ export default function AdminFeesPaymentsScreen() {
         )}
         <Input label="Amount (₹) *" value={form.amount} onChange={v => setForm(f => ({ ...f, amount: v }))} keyboardType="numeric" placeholder="0" />
         <Select label="Payment Mode" value={form.paymentMode} onChange={v => setForm(f => ({ ...f, paymentMode: v }))} options={MODE_OPTIONS} />
-        <Input label="Transaction Ref" value={form.transactionRef} onChange={v => setForm(f => ({ ...f, transactionRef: v }))} placeholder="Optional" />
+        <Input text="code" label="Transaction Ref" value={form.transactionRef} onChange={v => setForm(f => ({ ...f, transactionRef: v }))} placeholder="Optional" />
         <Input label="Remarks" value={form.remarks} onChange={v => setForm(f => ({ ...f, remarks: v }))} placeholder="Optional" multiline />
       </FormModal>
     </>

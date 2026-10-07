@@ -14,7 +14,8 @@
  * working and offers the typed number instead.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet} from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Colors } from '@/constants/theme';
 import {
   resolveStudent, itemByCode, addStudentAllergy, addStudentCondition, addStudentVaccination,
@@ -145,7 +146,7 @@ export function AddRecordSheet({ student, onClose, onDone }: { student: any | nu
       <Seg value={kind} onChange={(x) => setKind(x as any)} options={[{ value: 'allergy', label: 'Allergy' }, { value: 'condition', label: 'Condition' }, { value: 'vaccination', label: 'Vaccination' }]} />
       {kind === 'allergy' ? (
         <>
-          <Field label="Allergic to" required><Box value={v.allergen || ''} onChange={(x) => setV({ ...v, allergen: x })} placeholder="e.g. Peanuts" maxLength={120} /></Field>
+          <Field label="Allergic to" required><Box text="title" value={v.allergen || ''} onChange={(x) => setV({ ...v, allergen: x })} placeholder="e.g. Peanuts" maxLength={120} /></Field>
           <Field label="Kind"><Seg value={v.category} onChange={(x) => setV({ ...v, category: x })} options={optionsOf(ALLERGY_CATEGORY)} /></Field>
           <Field label="How severe"><Seg value={v.severity} onChange={(x) => setV({ ...v, severity: x })} options={optionsOf(ALLERGY_SEVERITY)} /></Field>
           <Field label="What happens"><Box value={v.reaction || ''} onChange={(x) => setV({ ...v, reaction: x })} multiline maxLength={400} /></Field>
@@ -153,19 +154,19 @@ export function AddRecordSheet({ student, onClose, onDone }: { student: any | nu
       ) : null}
       {kind === 'condition' ? (
         <>
-          <Field label="Condition" required><Box value={v.condition || ''} onChange={(x) => setV({ ...v, condition: x })} placeholder="e.g. Asthma" maxLength={120} /></Field>
+          <Field label="Condition" required><Box text="title" value={v.condition || ''} onChange={(x) => setV({ ...v, condition: x })} placeholder="e.g. Asthma" maxLength={120} /></Field>
           <Field label="Type"><Seg value={v.type} onChange={(x) => setV({ ...v, type: x })} options={optionsOf(CONDITION_TYPE).slice(0, 5)} /></Field>
           <Field label="Severity"><Seg value={v.csev} onChange={(x) => setV({ ...v, csev: x })} options={optionsOf(CONDITION_SEVERITY)} /></Field>
-          <Field label="Medicine"><Box value={v.medication || ''} onChange={(x) => setV({ ...v, medication: x })} maxLength={400} /></Field>
+          <Field label="Medicine"><Box text="title" value={v.medication || ''} onChange={(x) => setV({ ...v, medication: x })} maxLength={400} /></Field>
         </>
       ) : null}
       {kind !== 'vaccination' ? <Field label="If it happens at school"><Box value={v.instructions || ''} onChange={(x) => setV({ ...v, instructions: x })} multiline maxLength={400} /></Field> : null}
       {kind === 'vaccination' ? (
         <>
-          <Field label="Vaccine" required><Box value={v.vaccine || ''} onChange={(x) => setV({ ...v, vaccine: x })} placeholder="e.g. MMR" maxLength={120} /></Field>
-          <Field label="Dose"><Box value={v.dose || ''} onChange={(x) => setV({ ...v, dose: x })} placeholder="e.g. Dose 2" maxLength={60} /></Field>
-          <Field label="Given on" required hint="YYYY-MM-DD"><Box value={v.givenOn || ''} onChange={(x) => setV({ ...v, givenOn: x })} maxLength={10} /></Field>
-          <Field label="Where"><Box value={v.provider || ''} onChange={(x) => setV({ ...v, provider: x })} maxLength={160} /></Field>
+          <Field label="Vaccine" required><Box text="title" value={v.vaccine || ''} onChange={(x) => setV({ ...v, vaccine: x })} placeholder="e.g. MMR" maxLength={120} /></Field>
+          <Field label="Dose"><Box text="title" value={v.dose || ''} onChange={(x) => setV({ ...v, dose: x })} placeholder="e.g. Dose 2" maxLength={60} /></Field>
+          <Field label="Given on" required hint="YYYY-MM-DD"><Box text="date" value={v.givenOn || ''} onChange={(x) => setV({ ...v, givenOn: x })} maxLength={10} /></Field>
+          <Field label="Where"><Box text="title" value={v.provider || ''} onChange={(x) => setV({ ...v, provider: x })} maxLength={160} /></Field>
         </>
       ) : null}
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}

@@ -7,7 +7,8 @@
  * is declined, with the reason the family reads.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack } from 'expo-router';
 import { Colors, Radius } from '@/constants/theme';
 import * as R from '@/api/results.api';

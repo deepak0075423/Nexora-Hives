@@ -240,11 +240,11 @@ export default function CompOffScreen() {
       {/* Apply */}
       <FormModal visible={applyOpen} title="Apply for Comp Off" onClose={() => setApplyOpen(false)}
         onSubmit={submitApply} submitting={saving} submitLabel="Apply">
-        <Input label="Work date (YYYY-MM-DD)" value={form.workDate}
+        <Input text="date" label="Work date (YYYY-MM-DD)" value={form.workDate}
           onChange={(v: string) => setForm(f => ({ ...f, workDate: v }))} placeholder={todayStr()} />
-        <Input label="Check in (HH:mm)" value={form.checkIn}
+        <Input text="time" label="Check in (HH:mm)" value={form.checkIn}
           onChange={(v: string) => setForm(f => ({ ...f, checkIn: v }))} placeholder="09:00" />
-        <Input label="Check out (HH:mm)" value={form.checkOut}
+        <Input text="time" label="Check out (HH:mm)" value={form.checkOut}
           onChange={(v: string) => setForm(f => ({ ...f, checkOut: v }))} placeholder="18:00" />
         {preview && (
           <View style={[s.preview, { backgroundColor: preview.eligible ? Colors.successLight : Colors.warningLight }]}>

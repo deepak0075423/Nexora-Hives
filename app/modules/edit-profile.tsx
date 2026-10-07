@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, updateProfile } from '@/api/profile.api';
 import { phoneError, phoneInputValue } from '@/utils/validators';
-import { cleanText, type TextKind } from '@/utils/textRules';
+import { type TextKind } from '@/utils/textRules';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,6 @@ function Field({
   locked, multiline, keyboardType = 'default', last, phone, text,
 }: FieldProps) {
   const shown = phone ? phoneInputValue(value) : value;
-  const kind: TextKind | null = phone ? null : (text ?? (keyboardType === 'email-address' ? 'email' : 'text'));
   return (
     <View style={[fl.wrap, !last && fl.border]}>
       <Text style={fl.label}>{label}</Text>
@@ -65,12 +65,12 @@ function Field({
         <TextInput
           style={[fl.input, multiline && fl.multiline]}
           value={shown}
-          onChangeText={!onChangeText ? undefined : phone ? (t) => onChangeText(phoneInputValue(t, shown)) : kind ? (t) => onChangeText(cleanText(t, kind)) : onChangeText}
+          text={phone ? 'off' : text}
+          onChangeText={!onChangeText ? undefined : phone ? (t) => onChangeText(phoneInputValue(t, shown)) : onChangeText}
           placeholder={placeholder ?? ''}
           placeholderTextColor={Colors.textLight}
           multiline={multiline}
           keyboardType={phone ? 'number-pad' : keyboardType}
-          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
           returnKeyType={multiline ? 'default' : 'next'}
         />
       )}
@@ -115,13 +115,13 @@ function TeacherEditBlock({ form, set }: { form: FormState; set: Setter }) {
   return (
     <>
       <Block title="Professional" icon="briefcase-outline">
-        <Field label="Department"    value={form.department}    onChangeText={v => set('department', v)}    placeholder="e.g. Science" />
-        <Field label="Qualification" value={form.qualification} onChangeText={v => set('qualification', v)} placeholder="e.g. M.Sc, B.Ed" />
-        <Field label="Experience"    value={form.experience}    onChangeText={v => set('experience', v)}    placeholder="e.g. 5 years" last />
+        <Field label="Department" text="title"    value={form.department}    onChangeText={v => set('department', v)}    placeholder="e.g. Science" />
+        <Field label="Qualification" text="title" value={form.qualification} onChangeText={v => set('qualification', v)} placeholder="e.g. M.Sc, B.Ed" />
+        <Field label="Experience" text="decimal"    value={form.experience}    onChangeText={v => set('experience', v)}    placeholder="e.g. 5" last />
       </Block>
       <Block title="Personal" icon="person-outline">
         <ChipSelect label="Gender" options={GENDERS} value={form.gender} onChange={v => set('gender', v)} />
-        <Field label="Date of Birth" value={form.dob} onChangeText={v => set('dob', v)} placeholder="YYYY-MM-DD" keyboardType="numeric" last />
+        <Field label="Date of Birth" text="date" value={form.dob} onChangeText={v => set('dob', v)} placeholder="YYYY-MM-DD" keyboardType="numeric" last />
       </Block>
     </>
   );
@@ -146,7 +146,7 @@ function StudentEditBlock({ form, set }: { form: FormState; set: Setter }) {
     <>
       <Block title="Personal" icon="person-outline">
         <ChipSelect label="Gender" options={GENDERS} value={form.gender} onChange={v => set('gender', v)} />
-        <Field label="Date of Birth" value={form.dob} onChangeText={v => set('dob', v)} placeholder="YYYY-MM-DD" keyboardType="numeric" last />
+        <Field label="Date of Birth" text="date" value={form.dob} onChangeText={v => set('dob', v)} placeholder="YYYY-MM-DD" keyboardType="numeric" last />
       </Block>
       <Block title="Medical & Address" icon="medical-outline">
         <ChipSelect label="Blood Group" options={BLOOD_GROUPS} value={form.bloodGroup} onChange={v => set('bloodGroup', v)} />
@@ -174,10 +174,10 @@ function ParentEditBlock({ form, set }: { form: FormState; set: Setter }) {
   return (
     <Block title="Family Info" icon="people-outline">
       <Field label="Emergency Contact"    value={form.emergencyContact}  onChangeText={v => set('emergencyContact', v)}  phone placeholder="9876543210" />
-      <Field label="Father's Occupation"  value={form.fatherOccupation}  onChangeText={v => set('fatherOccupation', v)}  placeholder="e.g. Engineer" />
-      <Field label="Mother's Occupation"  value={form.motherOccupation}  onChangeText={v => set('motherOccupation', v)}  placeholder="e.g. Teacher" />
-      <Field label="Guardian's Occupation" value={form.guardianOccupation} onChangeText={v => set('guardianOccupation', v)} placeholder="If applicable" />
-      <Field label="Annual Income"        value={form.annualIncome}      onChangeText={v => set('annualIncome', v)}      keyboardType="numeric" placeholder="e.g. 500000" last />
+      <Field label="Father's Occupation" text="title"  value={form.fatherOccupation}  onChangeText={v => set('fatherOccupation', v)}  placeholder="e.g. Engineer" />
+      <Field label="Mother's Occupation" text="title"  value={form.motherOccupation}  onChangeText={v => set('motherOccupation', v)}  placeholder="e.g. Teacher" />
+      <Field label="Guardian's Occupation" text="title" value={form.guardianOccupation} onChangeText={v => set('guardianOccupation', v)} placeholder="If applicable" />
+      <Field label="Annual Income" text="digits"        value={form.annualIncome}      onChangeText={v => set('annualIncome', v)}      keyboardType="numeric" placeholder="e.g. 500000" last />
     </Block>
   );
 }

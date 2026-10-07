@@ -231,15 +231,15 @@ export default function LibraryBookCopiesScreen() {
       </View>
 
       <FormModal visible={showAdd} title="Add Copies" onClose={() => setShowAdd(false)} onSubmit={submitAdd} submitting={saving} submitLabel="Add Copies">
-        <Input label="Number of copies *" value={addForm.count} keyboardType="numeric"
+        <Input text="digits" label="Number of copies *" value={addForm.count} keyboardType="numeric"
           onChange={v => setAddForm(f => ({ ...f, count: v.replace(/[^0-9]/g, '') }))} placeholder="e.g. 10" />
         <Select label="Condition" value={addForm.condition} options={CONDITIONS}
           onChange={v => setAddForm(f => ({ ...f, condition: v }))} />
-        <Input label="Rack location" value={addForm.rackLocation}
+        <Input text="title" label="Rack location" value={addForm.rackLocation}
           onChange={v => setAddForm(f => ({ ...f, rackLocation: v }))} placeholder="e.g. A-01" />
-        <Input label="Vendor" value={addForm.vendor}
+        <Input text="title" label="Vendor" value={addForm.vendor}
           onChange={v => setAddForm(f => ({ ...f, vendor: v }))} placeholder="Who it was bought from" />
-        <Input label="Bill number" value={addForm.billNumber}
+        <Input text="code" label="Bill number" value={addForm.billNumber}
           onChange={v => setAddForm(f => ({ ...f, billNumber: v }))} placeholder="Invoice reference" />
         <Input label="Cost per copy (₹)" value={addForm.cost} keyboardType="numeric"
           onChange={v => setAddForm(f => ({ ...f, cost: v.replace(/[^0-9.]/g, '') }))} placeholder="0" />
@@ -262,7 +262,7 @@ export default function LibraryBookCopiesScreen() {
       <FormModal visible={!!editCopy} title={editCopy?.uniqueCode ?? 'Edit Copy'} onClose={() => setEditCopy(null)} onSubmit={submitEdit} submitting={saving} submitLabel="Save">
         <Select label="Condition" value={editForm.condition} options={CONDITIONS}
           onChange={v => setEditForm(f => ({ ...f, condition: v }))} />
-        <Input label="Rack location" value={editForm.rackLocation}
+        <Input text="title" label="Rack location" value={editForm.rackLocation}
           onChange={v => setEditForm(f => ({ ...f, rackLocation: v }))} placeholder="e.g. A-01" />
       </FormModal>
     </>

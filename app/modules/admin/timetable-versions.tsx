@@ -254,7 +254,7 @@ export default function TimetableVersionsScreen() {
         onSubmit={saveNotes} submitting={busy === 'notes'}>
         {notes && (
           <>
-            <Input label="Name" value={notes.label} onChange={(v) => setNotes((n: any) => ({ ...n, label: v }))} />
+            <Input text="title" label="Name" value={notes.label} onChange={(v) => setNotes((n: any) => ({ ...n, label: v }))} />
             <Input label="Notes" multiline value={notes.description} placeholder="What is different about this run?"
               onChange={(v) => setNotes((n: any) => ({ ...n, description: v }))} />
           </>

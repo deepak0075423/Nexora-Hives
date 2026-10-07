@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput, Alert, RefreshControl,
+  View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, RefreshControl,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
@@ -99,7 +100,7 @@ export default function TeacherVideosScreen() {
               <Text style={s.label}>Title</Text>
               <TextInput style={s.input} value={form.title} onChangeText={(t) => setForm((f) => ({ ...f, title: t }))} placeholder="Video title" placeholderTextColor={Colors.textSecondary} />
               <Text style={s.label}>YouTube / Vimeo URL</Text>
-              <TextInput style={s.input} value={form.sourceUrl} onChangeText={(t) => setForm((f) => ({ ...f, sourceUrl: t }))} placeholder="https://youtu.be/…" placeholderTextColor={Colors.textSecondary} autoCapitalize="none" />
+              <TextInput text="token" style={s.input} value={form.sourceUrl} onChangeText={(t) => setForm((f) => ({ ...f, sourceUrl: t }))} placeholder="https://youtu.be/…" placeholderTextColor={Colors.textSecondary} autoCapitalize="none" />
               <TouchableOpacity style={[s.submitBtn, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.submitTxt}>Submit for approval</Text>}
               </TouchableOpacity>

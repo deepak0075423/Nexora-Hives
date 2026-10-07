@@ -17,7 +17,8 @@
  * and seal are shown but uploaded on the web: the app has no file picker.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Image, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -282,7 +283,7 @@ export default function ResultSettingsScreen() {
                 <View style={x.bandHead}><Text style={[x.small, { flex: 1.2 }]}>Grade</Text><Text style={[x.small, { flex: 1 }]}>From %</Text><Text style={[x.small, { flex: 1 }]}>Point</Text><Text style={[x.small, { width: 64 }]}>Result</Text><View style={{ width: 34 }} /></View>
                 {d.bands.map((b) => (
                   <View key={b.id} style={x.bandRow}>
-                    <TextInput style={[x.input, x.cell, { flex: 1.2 }]} value={b.grade} maxLength={6} onChangeText={(v) => set({ bands: d.bands.map((y) => (y.id === b.id ? { ...y, grade: v } : y)) })} accessibilityLabel="Grade" />
+                    <TextInput text="code" style={[x.input, x.cell, { flex: 1.2 }]} value={b.grade} maxLength={6} onChangeText={(v) => set({ bands: d.bands.map((y) => (y.id === b.id ? { ...y, grade: v } : y)) })} accessibilityLabel="Grade" />
                     <TextInput style={[x.input, x.cell, { flex: 1 }]} value={b.min} keyboardType="decimal-pad" onChangeText={(v) => set({ bands: d.bands.map((y) => (y.id === b.id ? { ...y, min: v } : y)) })} accessibilityLabel="Starts at" />
                     <TextInput style={[x.input, x.cell, { flex: 1 }]} value={b.point} placeholder="—" placeholderTextColor={Colors.textLight} keyboardType="decimal-pad" onChangeText={(v) => set({ bands: d.bands.map((y) => (y.id === b.id ? { ...y, point: v } : y)) })} accessibilityLabel="Grade point" />
                     <TouchableOpacity style={[x.pass, !b.pass && x.fail]} onPress={() => set({ bands: d.bands.map((y) => (y.id === b.id ? { ...y, pass: !y.pass } : y)) })}>
@@ -314,7 +315,7 @@ export default function ResultSettingsScreen() {
             {d.examTypes.map((t: any) => (
               <View key={t.id} style={x.typeRow}>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <TextInput style={x.input} value={t.label} maxLength={40} onChangeText={(v) => set({ examTypes: d.examTypes.map((y: any) => (y.id === t.id ? { ...y, label: v } : y)) })} placeholder="e.g. Half Yearly" placeholderTextColor={Colors.textLight} accessibilityLabel="Exam type name" />
+                  <TextInput text="title" style={x.input} value={t.label} maxLength={40} onChangeText={(v) => set({ examTypes: d.examTypes.map((y: any) => (y.id === t.id ? { ...y, label: v } : y)) })} placeholder="e.g. Half Yearly" placeholderTextColor={Colors.textLight} accessibilityLabel="Exam type name" />
                   {t.builtIn || t.key ? <Text style={x.hint}>Counts as {conf.kinds.find((k: any) => k.value === t.kind)?.label}{t.builtIn ? ' · built in' : ''}</Text> : (
                     <Select label="Counts as" value={t.kind} onChange={(v) => set({ examTypes: d.examTypes.map((y: any) => (y.id === t.id ? { ...y, kind: v } : y)) })}
                       options={conf.kinds.map((k: any) => ({ value: k.value, label: k.label }))} />
@@ -333,7 +334,7 @@ export default function ResultSettingsScreen() {
           <Section id="year" title="Terms & the Year’s Result" sub="Terms, and how the counted exams add up" open={open === 'year'} onToggle={toggle}>
             {d.terms.map((t: any) => (
               <View key={t.id} style={x.ruleRow}>
-                <TextInput style={[x.input, x.cell, { flex: 1 }]} value={t.label} maxLength={30} placeholder="e.g. Term 1" placeholderTextColor={Colors.textLight} onChangeText={(v) => set({ terms: d.terms.map((y: any) => (y.id === t.id ? { ...y, label: v } : y)) })} accessibilityLabel="Term name" />
+                <TextInput text="title" style={[x.input, x.cell, { flex: 1 }]} value={t.label} maxLength={30} placeholder="e.g. Term 1" placeholderTextColor={Colors.textLight} onChangeText={(v) => set({ terms: d.terms.map((y: any) => (y.id === t.id ? { ...y, label: v } : y)) })} accessibilityLabel="Term name" />
                 <TextInput style={[x.input, x.cell, { width: 80 }]} value={t.weight} placeholder="Equal" placeholderTextColor={Colors.textLight} keyboardType="number-pad" onChangeText={(v) => set({ terms: d.terms.map((y: any) => (y.id === t.id ? { ...y, weight: v } : y)) })} accessibilityLabel="Weight" />
                 <Mini icon="trash-outline" danger onPress={() => set({ terms: d.terms.filter((y: any) => y.id !== t.id) })} />
               </View>
@@ -380,7 +381,7 @@ export default function ResultSettingsScreen() {
             <Text style={x.label}>Co-scholastic areas</Text>
             {d.coScholastic.map((a: any) => (
               <View key={a.id} style={x.ruleRow}>
-                <TextInput style={[x.input, x.cell, { flex: 1 }]} value={a.label} maxLength={40} placeholder="e.g. Art Education" placeholderTextColor={Colors.textLight} onChangeText={(v) => set({ coScholastic: d.coScholastic.map((y: any) => (y.id === a.id ? { ...y, label: v } : y)) })} accessibilityLabel="Area" />
+                <TextInput text="title" style={[x.input, x.cell, { flex: 1 }]} value={a.label} maxLength={40} placeholder="e.g. Art Education" placeholderTextColor={Colors.textLight} onChangeText={(v) => set({ coScholastic: d.coScholastic.map((y: any) => (y.id === a.id ? { ...y, label: v } : y)) })} accessibilityLabel="Area" />
                 <Mini icon="trash-outline" danger onPress={() => set({ coScholastic: d.coScholastic.filter((y: any) => y.id !== a.id) })} />
               </View>
             ))}

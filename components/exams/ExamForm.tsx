@@ -162,12 +162,12 @@ export default function ExamForm({ visible, side, exam, onClose, onSaved }: {
         </View>
       ))}
 
-      <Input label="Date (YYYY-MM-DD)" value={f.examDate} onChange={(v) => setF(x => ({ ...x, examDate: v }))} placeholder="2026-09-25" />
-      <Input label="Start time (HH:MM, 24-hour)" value={f.startTime} onChange={(v) => setF(x => ({ ...x, startTime: v }))} placeholder="10:00" />
-      <Input label="Duration (minutes)" value={f.duration} onChange={(v) => setF(x => ({ ...x, duration: v }))} keyboardType="numeric" />
-      <Input label="Total questions" value={f.totalQuestions} onChange={(v) => setF(x => ({ ...x, totalQuestions: v }))} keyboardType="numeric" />
-      <Input label="Total marks" value={f.totalMarks} onChange={(v) => setF(x => ({ ...x, totalMarks: v }))} keyboardType="numeric" />
-      <Input label="Allowed app switches before auto-submit" value={f.maxViolations} onChange={(v) => setF(x => ({ ...x, maxViolations: v }))} keyboardType="numeric" />
+      <Input text="date" label="Date (YYYY-MM-DD)" value={f.examDate} onChange={(v) => setF(x => ({ ...x, examDate: v }))} placeholder="2026-09-25" />
+      <Input text="time" label="Start time (HH:MM, 24-hour)" value={f.startTime} onChange={(v) => setF(x => ({ ...x, startTime: v }))} placeholder="10:00" />
+      <Input text="digits" label="Duration (minutes)" value={f.duration} onChange={(v) => setF(x => ({ ...x, duration: v }))} keyboardType="numeric" />
+      <Input text="digits" label="Total questions" value={f.totalQuestions} onChange={(v) => setF(x => ({ ...x, totalQuestions: v }))} keyboardType="numeric" />
+      <Input text="digits" label="Total marks" value={f.totalMarks} onChange={(v) => setF(x => ({ ...x, totalMarks: v }))} keyboardType="numeric" />
+      <Input text="digits" label="Allowed app switches before auto-submit" value={f.maxViolations} onChange={(v) => setF(x => ({ ...x, maxViolations: v }))} keyboardType="numeric" />
       <Text style={s.hint}>
         To publish, the exam needs exactly {plural(Number(f.totalQuestions) || 0, 'question')} whose marks add up to {Number(f.totalMarks) || 0}.
       </Text>

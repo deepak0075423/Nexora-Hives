@@ -356,7 +356,7 @@ export default function FeesScreen() {
           </>
         )}
         <Select label="Payment Mode" value={payForm.paymentMode} onChange={v => setPayForm(f => ({ ...f, paymentMode: v }))} options={MODE_OPTIONS} />
-        <Input label="Transaction Reference" value={payForm.transactionRef} onChange={v => setPayForm(f => ({ ...f, transactionRef: v }))} placeholder="UPI ref / cheque no. (optional)" />
+        <Input text="code" label="Transaction Reference" value={payForm.transactionRef} onChange={v => setPayForm(f => ({ ...f, transactionRef: v }))} placeholder="UPI ref / cheque no. (optional)" />
         <Input label="Remarks" value={payForm.remarks} onChange={v => setPayForm(f => ({ ...f, remarks: v }))} placeholder="Optional" multiline />
       </FormModal>
     </>

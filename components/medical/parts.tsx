@@ -14,8 +14,9 @@
  */
 import React from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Image, Linking, Platform, Switch,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Image, Linking, Platform, Switch,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius } from '@/constants/theme';

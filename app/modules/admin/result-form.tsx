@@ -17,7 +17,8 @@
  * themselves are set up on the web.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -210,7 +211,7 @@ export default function ResultFormScreen() {
                 options={(meta.examTypes || []).map((t: any) => ({ value: t.value, label: t.label }))} />
             )}
             <Text style={x.label}>Code (optional)</Text>
-            <TextInput style={x.input} value={f.code} autoCapitalize="characters" onChangeText={(v) => set({ code: v.toUpperCase().slice(0, 20) })} placeholder="e.g. HY2026" placeholderTextColor={Colors.textLight} />
+            <TextInput text="code" style={x.input} value={f.code} autoCapitalize="characters" onChangeText={(v) => set({ code: v.toUpperCase().slice(0, 20) })} placeholder="e.g. HY2026" placeholderTextColor={Colors.textLight} />
             {meta.terms?.length ? (
               <Select label="Term" value={f.term} onChange={(v) => set({ term: v })} options={[{ value: '', label: 'No term' }, ...meta.terms.map((t: any) => ({ value: t.key, label: t.label }))]} />
             ) : null}

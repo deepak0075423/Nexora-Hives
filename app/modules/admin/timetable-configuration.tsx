@@ -16,7 +16,8 @@
  * sections keep their own period structure until a school-wide grid exists.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert} from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -222,11 +223,11 @@ export default function TimetableConfigurationScreen() {
             <Card>
               <View style={c.pair}>
                 <View style={{ flex: 1 }}>
-                  <Input label="School starts at" value={cfg.dayStartsAt || '08:00'}
+                  <Input text="time" label="School starts at" value={cfg.dayStartsAt || '08:00'}
                     onChange={(v) => set('dayStartsAt', v)} placeholder="08:00" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Input label="School ends at" value={cfg.dayEndsAt || '14:00'}
+                  <Input text="time" label="School ends at" value={cfg.dayEndsAt || '14:00'}
                     onChange={(v) => set('dayEndsAt', v)} placeholder="14:00" />
                 </View>
               </View>
@@ -236,11 +237,11 @@ export default function TimetableConfigurationScreen() {
             <Card>
               <View style={c.pair}>
                 <View style={{ flex: 1 }}>
-                  <Input label="Lunch after period" keyboardType="numeric"
+                  <Input text="digits" label="Lunch after period" keyboardType="numeric"
                     value={String(cfg.lunchAfterPeriod ?? 4)} onChange={(v) => set('lunchAfterPeriod', Number(v) || 0)} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Input label="Lunch (minutes)" keyboardType="numeric"
+                  <Input text="digits" label="Lunch (minutes)" keyboardType="numeric"
                     value={String(cfg.lunchMinutes ?? 30)} onChange={(v) => set('lunchMinutes', Number(v) || 0)} />
                 </View>
               </View>
@@ -279,7 +280,7 @@ export default function TimetableConfigurationScreen() {
           <>
             <View style={c.pair}>
               <View style={{ flex: 1 }}>
-                <Input label="Periods to lay out" keyboardType="numeric"
+                <Input text="digits" label="Periods to lay out" keyboardType="numeric"
                   value={autoPeriods} onChange={setAutoPeriods} />
               </View>
             </View>
@@ -387,12 +388,12 @@ export default function TimetableConfigurationScreen() {
           <>
             <SectionTitle>Solver budget</SectionTitle>
             <Card>
-              <Input label="Time budget (seconds)" keyboardType="numeric"
+              <Input text="digits" label="Time budget (seconds)" keyboardType="numeric"
                 value={String(Math.round((cfg.solver?.timeBudgetMs ?? 20000) / 1000))}
                 onChange={(v) => setSolver('timeBudgetMs', (Number(v) || 20) * 1000)} />
-              <Input label="Restarts on failure" keyboardType="numeric"
+              <Input text="digits" label="Restarts on failure" keyboardType="numeric"
                 value={String(cfg.solver?.maxRestarts ?? 3)} onChange={(v) => setSolver('maxRestarts', Number(v) || 1)} />
-              <Input label="Optimisation rounds" keyboardType="numeric"
+              <Input text="digits" label="Optimisation rounds" keyboardType="numeric"
                 value={String(cfg.solver?.optimiseRounds ?? 2000)} onChange={(v) => setSolver('optimiseRounds', Number(v) || 0)} />
             </Card>
 
@@ -419,7 +420,7 @@ export default function TimetableConfigurationScreen() {
                     onPress={() => set('ruleTemplates', cfg.ruleTemplates.filter((_: any, k: number) => k !== i))} />
                 </View>
               ))}
-              <Input label="Save the current settings as" value={templateName}
+              <Input text="title" label="Save the current settings as" value={templateName}
                 onChange={setTemplateName} placeholder="e.g. Exam term" />
               <ActionBtn label="Add rule set" small disabled={!templateName.trim()} onPress={() => {
                 set('ruleTemplates', [...cfg.ruleTemplates, {
@@ -475,12 +476,12 @@ function Limits({ cfg, setDefault, set }: { cfg: any; setDefault: (k: string, v:
     <>
       <View style={c.pair}>
         <View style={{ flex: 1 }}>
-          <Input label="Max periods / day" keyboardType="numeric"
+          <Input text="digits" label="Max periods / day" keyboardType="numeric"
             value={String(cfg.defaults.maxTeacherPeriodsPerDay ?? '')}
             onChange={(v) => setDefault('maxTeacherPeriodsPerDay', Number(v) || 0)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Input label="Max periods / week" keyboardType="numeric"
+          <Input text="digits" label="Max periods / week" keyboardType="numeric"
             value={String(cfg.defaults.maxTeacherPeriodsPerWeek ?? '')}
             onChange={(v) => setDefault('maxTeacherPeriodsPerWeek', Number(v) || 0)} />
         </View>
@@ -566,7 +567,7 @@ function GridEditor({ title, hint, rows, onAuto, onChange, onRemove, onAdd }: {
                 <Text style={c.muted}>to</Text>
                 <TimeField value={p.endTime} onChange={(v) => onChange(i, { endTime: v })} />
                 {!teaching && (
-                  <TextInput style={[c.timeInput, { flex: 1 }]} value={p.label || ''}
+                  <TextInput text="title" style={[c.timeInput, { flex: 1 }]} value={p.label || ''}
                     placeholder={p.periodType} placeholderTextColor={Colors.textLight}
                     onChangeText={(v) => onChange(i, { label: v })} />
                 )}
@@ -593,7 +594,7 @@ function GridEditor({ title, hint, rows, onAuto, onChange, onRemove, onAdd }: {
 function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const bad = !!value && !isTime(value);
   return (
-    <TextInput style={[c.timeInput, bad && { borderColor: Colors.danger }]} value={value || ''}
+    <TextInput text="time" style={[c.timeInput, bad && { borderColor: Colors.danger }]} value={value || ''}
       onChangeText={onChange} placeholder="08:00" placeholderTextColor={Colors.textLight}
       keyboardType="numbers-and-punctuation" maxLength={5} />
   );

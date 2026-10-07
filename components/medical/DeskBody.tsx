@@ -216,10 +216,10 @@ function MedicineField({ m, onChange, medicines }: { m: MedLine; onChange: (m: M
                 options={stock.map((x) => ({ value: x._id, label: `${x.name}${x.strength ? ` ${x.strength}` : ''}`, sub: `${count(x.usable)} ${x.unit} in date` }))} />
             </Field>
           ) : (
-            <Field label="Medicine" required><Box value={m.medicineName} onChange={(v) => onChange({ ...m, medicineName: v })} placeholder="Name of the family’s medicine" /></Field>
+            <Field label="Medicine" required><Box text="title" value={m.medicineName} onChange={(v) => onChange({ ...m, medicineName: v })} placeholder="Name of the family’s medicine" /></Field>
           )}
           <View style={st.pair}>
-            <View style={{ flex: 2 }}><Field label="Dosage" required><Box value={m.dosage} onChange={(v) => onChange({ ...m, dosage: v })} placeholder="e.g. 1 tablet" /></Field></View>
+            <View style={{ flex: 2 }}><Field label="Dosage" required><Box text="title" value={m.dosage} onChange={(v) => onChange({ ...m, dosage: v })} placeholder="e.g. 1 tablet" /></Field></View>
             {m.source === 'school' ? <View style={{ flex: 1 }}><Field label="From stock"><Box value={m.quantity} onChange={(v) => onChange({ ...m, quantity: v })} keyboardType="decimal-pad" /></Field></View> : null}
           </View>
         </>
@@ -326,7 +326,7 @@ function VisitSheet({ seed, meta, onClose, onDone }: { seed: any; meta: any; onC
           <Pick label="Bed" value={bed} onChange={setBed} placeholder="No bed" options={[{ value: '', label: 'No bed' }, ...freeBeds.map((b: any) => ({ value: b._id, label: b.label }))]} />
         </Field>
       ) : null}
-      {status === 'referred' ? <Field label="Hospital" required><Box value={hospital} onChange={setHospital} placeholder="e.g. City Hospital" /></Field> : null}
+      {status === 'referred' ? <Field label="Hospital" required><Box text="title" value={hospital} onChange={setHospital} placeholder="e.g. City Hospital" /></Field> : null}
       {departed ? <Field label="Note for the teacher" hint="Shown on the teacher's request"><Box value={outcomeNote} onChange={setOutcomeNote} multiline /></Field> : null}
       <SwitchRow label="Parent contacted" value={parentContacted} onChange={setParentContacted} />
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
@@ -467,7 +467,7 @@ function StatusSheet({ visit, meta, onClose, onDone }: { visit: any; meta: any; 
       ) : null}
       {status === 'referred' ? (
         <>
-          <Field label="Hospital" required><Box value={hospital} onChange={setHospital} /></Field>
+          <Field label="Hospital" required><Box text="title" value={hospital} onChange={setHospital} /></Field>
           <Field label="Why"><Box value={why} onChange={setWhy} multiline /></Field>
         </>
       ) : null}
@@ -480,7 +480,7 @@ function StatusSheet({ visit, meta, onClose, onDone }: { visit: any; meta: any; 
             <Pick label="Must stay off school" value={offRule} onChange={setOffRule} placeholder="No — back when well"
               options={[{ value: '', label: 'No — back when well' }, ...Object.entries(rules?.rules || {}).map(([value, r]: [string, any]) => ({ value, label: r.label }))]} />
           </Field>
-          {offRule === 'other' ? <Field label="Can come back on" required><Box value={offUntil} onChange={setOffUntil} placeholder="YYYY-MM-DD" /></Field> : null}
+          {offRule === 'other' ? <Field label="Can come back on" required><Box text="date" value={offUntil} onChange={setOffUntil} placeholder="YYYY-MM-DD" /></Field> : null}
           {offRule && rules?.rules?.[offRule] ? <Note tone="indigo" icon="calendar-outline">{`${rules.rules[offRule].text}${rules.rules[offRule].needsCertificate ? ' A doctor’s fitness certificate is needed.' : ''}`}</Note> : null}
         </>
       ) : null}
@@ -597,7 +597,7 @@ function GiveSheet({ plan, onClose, onDone }: { plan: any; onClose: () => void; 
       {plan && !guard.stop ? <DoseCheckLines student={plan.studentId || plan.student} plan={plan._id} /> : null}
       {guard.view}
       {plan?.instructions ? <Note tone="indigo" icon="information-circle-outline">{plan.instructions}</Note> : null}
-      <Field label="Dosage" required><Box value={dosage} onChange={setDosage} /></Field>
+      <Field label="Dosage" required><Box text="title" value={dosage} onChange={setDosage} /></Field>
       {plan?.source === 'school' ? <Field label="Units from stock" hint="0 when a dose does not use a unit up, such as puffs from an inhaler"><Box value={quantity} onChange={setQuantity} keyboardType="decimal-pad" /></Field> : null}
       <Field label="Note"><Box value={note} onChange={setNote} /></Field>
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
@@ -637,7 +637,7 @@ function CollectorPicker({ visitId, value, onChange }: { visitId: string; value:
         <>
           <Note tone="amber" icon="warning-outline">Only with a parent’s permission — say who gave it. The parents are told at once.</Note>
           <Field label="Name" required><Box text="name" value={value.name || ''} onChange={(v) => set({ name: v })} /></Field>
-          <Field label="Relation"><Box value={value.relation || ''} onChange={(v) => set({ relation: v })} placeholder="e.g. Neighbour, driver" /></Field>
+          <Field label="Relation"><Box text="letters" value={value.relation || ''} onChange={(v) => set({ relation: v })} placeholder="e.g. Neighbour, driver" /></Field>
           <Field label="Phone"><Box value={value.phone || ''} onChange={(v) => set({ phone: v })} phone /></Field>
           <Field label="Who allowed it" required><Box value={value.note || ''} onChange={(v) => set({ note: v })} placeholder="e.g. Mother, by phone at 11:40" /></Field>
         </>
@@ -824,7 +824,7 @@ function StepUpSheet({ open, onDone }: { open: boolean; onDone: () => void }) {
       footer={sentTo ? <Btn kind="primary" onPress={verify} disabled={busy || code.replace(/\D/g, '').length !== 6} block>{busy ? 'Checking…' : 'Confirm'}</Btn>
         : <Btn kind="primary" onPress={send} disabled={busy} block>{busy ? 'Sending…' : 'Email me a code'}</Btn>}>
       <Note tone="indigo" icon="information-circle-outline">Before the Medical Room&rsquo;s records open, a code is emailed to you.</Note>
-      {sentTo ? <Field label={`The code sent to ${sentTo}`} required><Box value={code} onChange={setCode} keyboardType="number-pad" placeholder="6 digits" maxLength={7} /></Field> : null}
+      {sentTo ? <Field label={`The code sent to ${sentTo}`} required><Box text="otp" value={code} onChange={setCode} keyboardType="number-pad" placeholder="6 digits" maxLength={7} /></Field> : null}
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
     </Sheet>
   );

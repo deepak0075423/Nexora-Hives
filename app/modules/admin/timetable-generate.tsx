@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -550,7 +551,7 @@ export default function TimetableGenerateScreen() {
                       <Text style={g.subjectWarn}>Not taught in every selected section</Text>
                     )}
                   </View>
-                  <TextInput
+                  <TextInput text="digits"
                     style={g.periodInput}
                     value={String(rules[sub._id]?.weeklyPeriods ?? 0)}
                     onChangeText={(v) => setPeriods(sub._id, v)}
@@ -823,7 +824,7 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, perSectionT
       onSubmit={onClose}
       submitLabel="Done">
 
-      <Input label="Periods per week" value={String(rule.weeklyPeriods ?? 0)} keyboardType="numeric"
+      <Input text="digits" label="Periods per week" value={String(rule.weeklyPeriods ?? 0)} keyboardType="numeric"
         onChange={(v) => onChange({ weeklyPeriods: Math.max(0, Math.min(60, Number(v.replace(/[^0-9]/g, '')) || 0)) })} />
 
       {perSectionTeachers ? (
@@ -841,7 +842,7 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, perSectionT
         options={SUBJECT_TYPES.map((t) => ({ label: t, value: t }))}
         onChange={(v) => onChange({ subjectType: v })} />
 
-      <Input label="Max periods per day" value={String(rule.maxPerDay ?? 1)} keyboardType="numeric"
+      <Input text="digits" label="Max periods per day" value={String(rule.maxPerDay ?? 1)} keyboardType="numeric"
         onChange={(v) => onChange({ maxPerDay: Math.max(1, Number(v.replace(/[^0-9]/g, '')) || 1) })} />
       {minPerDay > (rule.maxPerDay || 1) && (
         <Text style={g.ruleHint}>
@@ -850,13 +851,13 @@ function SubjectRules({ subject, rule, teachers, rooms, workingDays, perSectionT
         </Text>
       )}
 
-      <Input label="Consecutive periods per block" value={String(rule.consecutivePeriods ?? 1)} keyboardType="numeric"
+      <Input text="digits" label="Consecutive periods per block" value={String(rule.consecutivePeriods ?? 1)} keyboardType="numeric"
         onChange={(v) => onChange({ consecutivePeriods: Math.max(1, Math.min(4, Number(v.replace(/[^0-9]/g, '')) || 1)) })} />
 
-      <Input label="Difficulty (1–5)" value={String(rule.difficulty ?? 3)} keyboardType="numeric"
+      <Input text="digits" label="Difficulty (1–5)" value={String(rule.difficulty ?? 3)} keyboardType="numeric"
         onChange={(v) => onChange({ difficulty: Math.max(1, Math.min(5, Number(v.replace(/[^0-9]/g, '')) || 3)) })} />
 
-      <Input label="Minimum gap between blocks" value={String(rule.minGapPeriods ?? 0)} keyboardType="numeric"
+      <Input text="digits" label="Minimum gap between blocks" value={String(rule.minGapPeriods ?? 0)} keyboardType="numeric"
         onChange={(v) => onChange({ minGapPeriods: Math.max(0, Number(v.replace(/[^0-9]/g, '')) || 0) })} />
 
       <Toggle label="Max per day is a hard rule" value={rule.hardMaxPerDay !== false}

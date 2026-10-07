@@ -543,7 +543,7 @@ function Results({ exam, reload }: { exam: any; reload: () => void }) {
                     : 'Waiting for the class teacher of this exam’s section'}>
             {p.canFinalApprove && (
               <View style={{ gap: 8, width: '100%' }}>
-                <Input label="Publish on (optional, YYYY-MM-DD)" value={publishDate} onChange={setPublishDate} placeholder="Leave empty to publish now" />
+                <Input text="date" label="Publish on (optional, YYYY-MM-DD)" value={publishDate} onChange={setPublishDate} placeholder="Leave empty to publish now" />
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <ActionBtn label="Approve & publish" tone="success" disabled={busy}
                     onPress={() => act(() => teacherApi.approveResults(exam._id, { action: 'approve', resultPublishDate: publishDate || undefined }), 'Results published')} />
@@ -617,7 +617,7 @@ function OfficeResults({ exam, reload }: { exam: any; reload: () => void }) {
 
         {r.state !== 'released' && (
           <View style={{ marginTop: Spacing.md, gap: 8 }}>
-            <Input label="Publish on (optional, YYYY-MM-DD)" value={publishDate} onChange={setPublishDate} placeholder="Leave empty to release now" />
+            <Input text="date" label="Publish on (optional, YYYY-MM-DD)" value={publishDate} onChange={setPublishDate} placeholder="Leave empty to release now" />
             {r.state !== 'withheld' && (
               <Input label="Reason if withholding (optional)" value={reason} onChange={setReason} placeholder="e.g. Re-checking question 4" />
             )}

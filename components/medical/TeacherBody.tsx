@@ -96,7 +96,7 @@ function SendTab({ meta, onSent }: { meta: any; onSent: () => void }) {
           <View style={{ marginTop: 8, alignSelf: 'flex-start' }}><Btn kind="danger" icon="call" onPress={() => call(meta.roomPhone)}>{`Call ${meta.roomPhone}`}</Btn></View>
         </Note>
       ) : null}
-      <Field label="Coming with (optional)"><Box value={escortedBy} onChange={setEscortedBy} placeholder="e.g. Class monitor" /></Field>
+      <Field label="Coming with (optional)"><Box text="name" value={escortedBy} onChange={setEscortedBy} placeholder="e.g. Class monitor" /></Field>
       <Field label="Remarks (optional)"><Box value={remarks} onChange={setRemarks} multiline /></Field>
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
       <Btn kind="primary" icon="paper-plane" onPress={send} disabled={busy}>{busy ? 'Sending…' : 'Send to Medical Room'}</Btn>
@@ -523,7 +523,7 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
       <Field label="Allergies">
         {(v.allergies || []).map((a: any, i: number) => (
           <View key={i} style={st.editRow}>
-            <Box value={a.allergen} onChange={(x) => setRow('allergies', i, { allergen: x })} placeholder="e.g. Penicillin" maxLength={80} />
+            <Box text="title" value={a.allergen} onChange={(x) => setRow('allergies', i, { allergen: x })} placeholder="e.g. Penicillin" maxLength={80} />
             <Seg value={a.severity} onChange={(x) => setRow('allergies', i, { severity: x })} options={[{ value: 'mild', label: 'Mild' }, { value: 'moderate', label: 'Moderate' }, { value: 'severe', label: 'Severe', tone: 'red' }]} />
             <Box value={a.reaction} onChange={(x) => setRow('allergies', i, { reaction: x })} placeholder="Reaction" maxLength={200} />
             <Text style={st.link} onPress={() => dropRow('allergies', i)}>Remove</Text>
@@ -534,7 +534,7 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
       <Field label="Conditions">
         {(v.conditions || []).map((c: any, i: number) => (
           <View key={i} style={st.editRow}>
-            <Box value={c.condition} onChange={(x) => setRow('conditions', i, { condition: x })} placeholder="e.g. Asthma" maxLength={120} />
+            <Box text="title" value={c.condition} onChange={(x) => setRow('conditions', i, { condition: x })} placeholder="e.g. Asthma" maxLength={120} />
             <Box value={c.notes} onChange={(x) => setRow('conditions', i, { notes: x })} placeholder="What helps, what to do" maxLength={300} />
             <Text style={st.link} onPress={() => dropRow('conditions', i)}>Remove</Text>
           </View>
@@ -543,7 +543,7 @@ function MyHealthSheet({ open, health, onClose, onSaved }: { open: boolean; heal
       </Field>
       <Field label="Medicines taken regularly"><Box value={v.medications || ''} onChange={(x) => setV({ ...v, medications: x })} maxLength={600} /></Field>
       <Field label="Person to call"><Box text="name" value={v.emergencyContact?.name || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, name: x } })} placeholder="Name" maxLength={120} /></Field>
-      <Field label="Relation"><Box value={v.emergencyContact?.relation || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: x } })} maxLength={60} /></Field>
+      <Field label="Relation"><Box text="letters" value={v.emergencyContact?.relation || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, relation: x } })} maxLength={60} /></Field>
       <Field label="Their phone"><Box value={v.emergencyContact?.phone || ''} onChange={(x) => setV({ ...v, emergencyContact: { ...v.emergencyContact, phone: x } })} phone /></Field>
       {fail ? <Note tone="red" icon="alert-circle-outline">{fail}</Note> : null}
     </Sheet>

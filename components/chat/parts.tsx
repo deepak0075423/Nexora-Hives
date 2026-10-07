@@ -6,9 +6,10 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, TextInput, Modal, Image, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Pressable, ScrollView, Modal, Image, Platform,
   KeyboardAvoidingView, ActivityIndicator, type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedEmoji from './AnimatedEmoji';

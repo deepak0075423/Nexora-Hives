@@ -258,11 +258,11 @@ export default function TimetableRoomsScreen() {
       >
         {form && (
           <>
-            <Input label="Room name" value={form.roomName} onChange={(v) => set('roomName', v)} placeholder="Computer Lab" />
-            <Input label="Room number" value={form.roomNumber} onChange={(v) => set('roomNumber', v)} placeholder="L-101" />
+            <Input text="title" label="Room name" value={form.roomName} onChange={(v) => set('roomName', v)} placeholder="Computer Lab" />
+            <Input text="code" label="Room number" value={form.roomNumber} onChange={(v) => set('roomNumber', v)} placeholder="L-101" />
             <Select label="Room type" value={form.roomType} options={ROOM_TYPES.map((t) => ({ label: t, value: t }))} onChange={(v) => set('roomType', v)} />
-            <Input label="Capacity" value={form.capacity} onChange={(v) => set('capacity', v)} keyboardType="numeric" />
-            <Input label="Building / Campus" value={form.building} onChange={(v) => set('building', v)} placeholder="Main Block" />
+            <Input text="digits" label="Capacity" value={form.capacity} onChange={(v) => set('capacity', v)} keyboardType="numeric" />
+            <Input text="title" label="Building / Campus" value={form.building} onChange={(v) => set('building', v)} placeholder="Main Block" />
             <Select label="Home class (optional)" value={form.homeSection} placeholder="Not a dedicated classroom"
               options={[{ label: 'Not a dedicated classroom', value: '' }, ...sections]}
               onChange={(v) => set('homeSection', v)} />

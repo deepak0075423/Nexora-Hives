@@ -180,14 +180,14 @@ export function ReferralSheet({ ask, onClose, onDone }: { ask: { referral: any; 
       footer={<><Btn onPress={onClose} block>Cancel</Btn><Btn kind="primary" onPress={send} disabled={busy} block>{busy ? 'Sending…' : 'Send to the school'}</Btn></>}>
       {mode === 'booked' ? (
         <>
-          <Field label="Date of the appointment" required hint="YYYY-MM-DD"><Box value={v.appointmentOn || ''} onChange={(x) => setV({ ...v, appointmentOn: x })} placeholder={todayStr()} maxLength={10} /></Field>
-          <Field label="With"><Box value={v.appointmentWith || ''} onChange={(x) => setV({ ...v, appointmentWith: x })} placeholder="Doctor or clinic" maxLength={160} /></Field>
+          <Field label="Date of the appointment" required hint="YYYY-MM-DD"><Box text="date" value={v.appointmentOn || ''} onChange={(x) => setV({ ...v, appointmentOn: x })} placeholder={todayStr()} maxLength={10} /></Field>
+          <Field label="With"><Box text="title" value={v.appointmentWith || ''} onChange={(x) => setV({ ...v, appointmentWith: x })} placeholder="Doctor or clinic" maxLength={160} /></Field>
         </>
       ) : null}
       {mode === 'seen' ? (
         <>
-          <Field label="Seen on" hint="YYYY-MM-DD"><Box value={v.seenOn || ''} onChange={(x) => setV({ ...v, seenOn: x })} maxLength={10} /></Field>
-          <Field label="Doctor / clinic"><Box value={v.seenBy || ''} onChange={(x) => setV({ ...v, seenBy: x })} maxLength={160} /></Field>
+          <Field label="Seen on" hint="YYYY-MM-DD"><Box text="date" value={v.seenOn || ''} onChange={(x) => setV({ ...v, seenOn: x })} maxLength={10} /></Field>
+          <Field label="Doctor / clinic"><Box text="title" value={v.seenBy || ''} onChange={(x) => setV({ ...v, seenBy: x })} maxLength={160} /></Field>
           <Field label="What the doctor found" required><Box value={v.diagnosis || ''} onChange={(x) => setV({ ...v, diagnosis: x })} multiline maxLength={600} /></Field>
           <Field label="Advice or treatment"><Box value={v.advice || ''} onChange={(x) => setV({ ...v, advice: x })} multiline maxLength={1500} /></Field>
           {r.specialty === 'eye' ? <Field label="Glasses"><Seg value={v.glasses} onChange={(x) => setV({ ...v, glasses: x })} options={[{ value: 'yes', label: 'Needed' }, { value: 'no', label: 'Not needed' }, { value: '', label: 'Not said' }]} /></Field> : null}
@@ -259,8 +259,8 @@ export function IllnessSheet({ open, child, name, symptoms, onClose, onDone }: {
     <Sheet visible={open} icon="thermometer-outline" tone="amber" title={`${name} is unwell`} subtitle="The school nurse reads this" onClose={onClose} busy={busy}
       footer={<><Btn onPress={onClose} block>Cancel</Btn><Btn kind="primary" onPress={send} disabled={busy} block>{busy ? 'Sending…' : 'Tell the school'}</Btn></>}>
       <Muted>It helps the school notice when an illness is going round a class. No child is ever named to other families.</Muted>
-      <Field label="Unwell since" required hint="YYYY-MM-DD"><Box value={v.from} onChange={(x) => setV({ ...v, from: x })} maxLength={10} /></Field>
-      <Field label="Expected back" hint="YYYY-MM-DD — leave empty if you do not know"><Box value={v.to} onChange={(x) => setV({ ...v, to: x })} maxLength={10} /></Field>
+      <Field label="Unwell since" required hint="YYYY-MM-DD"><Box text="date" value={v.from} onChange={(x) => setV({ ...v, from: x })} maxLength={10} /></Field>
+      <Field label="Expected back" hint="YYYY-MM-DD — leave empty if you do not know"><Box text="date" value={v.to} onChange={(x) => setV({ ...v, to: x })} maxLength={10} /></Field>
       <Field label="Signs" required>
         <View style={st.chips}>
           {Object.entries(symptoms || {}).map(([k, label]) => {

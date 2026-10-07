@@ -546,7 +546,7 @@ export default function AdminHostelScreen() {
 
       {/* ── The gate ────────────────────────────────────────────────────── */}
       <FormModal visible={gateOpen} title="Gate Verification" onClose={() => { setGateOpen(false); setGateFound(null); }}>
-        <Input label="Pass token" value={gateToken} onChange={setGateToken}
+        <Input text="token" label="Pass token" value={gateToken} onChange={setGateToken}
           placeholder="Scan or type the token from the student's pass" />
         <TouchableOpacity style={s.primaryBtn} onPress={lookupPass}>
           <Text style={s.primaryBtnText}>Look up</Text>

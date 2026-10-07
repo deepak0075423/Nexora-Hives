@@ -76,10 +76,10 @@ export default function AppLockScreen() {
 
         <SectionTitle>{pinSet ? 'Change PIN' : 'Set a 4-digit PIN'}</SectionTitle>
         {pinSet && (
-          <Input label="Current PIN" value={currentPin} onChange={setCurrentPin} keyboardType="numeric" secure placeholder="••••" />
+          <Input text="digits" label="Current PIN" value={currentPin} onChange={setCurrentPin} keyboardType="numeric" secure placeholder="••••" />
         )}
-        <Input label="New PIN" value={newPin} onChange={setNewPin} keyboardType="numeric" secure placeholder="4 digits" />
-        <Input label="Confirm New PIN" value={confirmPin} onChange={setConfirmPin} keyboardType="numeric" secure placeholder="4 digits" />
+        <Input text="digits" label="New PIN" value={newPin} onChange={setNewPin} keyboardType="numeric" secure placeholder="4 digits" />
+        <Input text="digits" label="Confirm New PIN" value={confirmPin} onChange={setConfirmPin} keyboardType="numeric" secure placeholder="4 digits" />
         <ActionBtn label={saving ? 'Saving…' : pinSet ? 'Change PIN' : 'Set PIN'} tone="success" onPress={savePin} />
 
         <SectionTitle>Locks</SectionTitle>

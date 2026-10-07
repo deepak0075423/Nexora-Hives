@@ -139,7 +139,7 @@ export default function AdminLeavePoliciesScreen() {
                     onChange={() => set({ eligibleRoles: toggleIn(form.eligibleRoles, 'school_admin') })} />
                   <Select label="Gender restriction" value={form.gender ?? 'any'}
                     options={GENDERS} onChange={(v: string) => set({ gender: v })} />
-                  <Input label="Minimum service (days)" value={numVal('minServiceDays')}
+                  <Input text="digits" label="Minimum service (days)" value={numVal('minServiceDays')}
                     onChange={numSet('minServiceDays')} keyboardType="numeric" />
                 </Card>
 
@@ -150,23 +150,23 @@ export default function AdminLeavePoliciesScreen() {
                     onChange={numSet('minDaysPerApplication')} keyboardType="numeric" />
                   <Input label="Max consecutive days" value={numVal('maxConsecutiveDays')}
                     onChange={numSet('maxConsecutiveDays')} keyboardType="numeric" />
-                  <Input label="Advance notice (days)" value={numVal('advanceNoticeDays')}
+                  <Input text="digits" label="Advance notice (days)" value={numVal('advanceNoticeDays')}
                     onChange={numSet('advanceNoticeDays')} keyboardType="numeric" />
                   <Toggle label="Allow back-dated applications" value={form.allowBackdated}
                     onChange={(v: boolean) => set({ allowBackdated: v })} />
                   {form.allowBackdated ? (
-                    <Input label="Back-dated within (days, 0 = no limit)" value={numVal('backdatedWithinDays')}
+                    <Input text="digits" label="Back-dated within (days, 0 = no limit)" value={numVal('backdatedWithinDays')}
                       onChange={numSet('backdatedWithinDays')} keyboardType="numeric" />
                   ) : null}
                 </Card>
 
                 <Text style={s.group}>How often</Text>
                 <Card>
-                  <Input label="Max applications per month" value={numVal('maxApplicationsPerMonth')}
+                  <Input text="digits" label="Max applications per month" value={numVal('maxApplicationsPerMonth')}
                     onChange={numSet('maxApplicationsPerMonth')} keyboardType="numeric" />
                   <Input label="Max days per month" value={numVal('maxDaysPerMonth')}
                     onChange={numSet('maxDaysPerMonth')} keyboardType="numeric" />
-                  <Input label="Max applications per year" value={numVal('maxApplicationsPerYear')}
+                  <Input text="digits" label="Max applications per year" value={numVal('maxApplicationsPerYear')}
                     onChange={numSet('maxApplicationsPerYear')} keyboardType="numeric" />
                 </Card>
 

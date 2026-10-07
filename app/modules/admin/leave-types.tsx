@@ -142,9 +142,9 @@ export default function AdminLeaveTypesScreen() {
         onSubmit={save}
         submitting={saving}
       >
-        <Input label="Name" value={form.name}
+        <Input text="title" label="Name" value={form.name}
           onChange={(v: string) => setForm((f: any) => ({ ...f, name: v }))} placeholder="e.g. Casual Leave" />
-        <Input label="Code" value={form.code}
+        <Input text="code" label="Code" value={form.code}
           onChange={(v: string) => setForm((f: any) => ({ ...f, code: v.toUpperCase() }))} placeholder="e.g. CL" />
         <Select label="Category" value={form.category}
           onChange={(v: string) => setForm((f: any) => ({ ...f, category: v }))}

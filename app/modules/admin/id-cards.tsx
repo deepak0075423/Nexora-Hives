@@ -6,7 +6,8 @@
  * GET /admin/id-cards/overview, /lookup, /activity — the same as the web.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';

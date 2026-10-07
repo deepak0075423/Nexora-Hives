@@ -9,7 +9,8 @@
  * An attendance alert links here naming the section and flagging the student.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import * as teacherApi from '@/api/teacher.api';
 import { FocusRow } from '@/components/FocusHighlight';

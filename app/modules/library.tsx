@@ -14,8 +14,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert, TextInput,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';

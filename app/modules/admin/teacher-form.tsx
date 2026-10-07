@@ -323,7 +323,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       {step === 1 && (
         <>
           <Input text="name" label="Full Name *" value={form.name} onChange={set('name')} placeholder="Anita Sharma" />
-          <Input label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
+          <Input text="date" label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
           <Select label="Gender *" value={form.gender} onChange={set('gender')}
             options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
@@ -342,9 +342,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
 
           <SectionTitle>Current Residential Address</SectionTitle>
           <Input label="Address *" value={form.currentAddress} onChange={set('currentAddress')} multiline />
-          <Input label={pinBusy === 'current' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
+          <Input text="pincode" label={pinBusy === 'current' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
             value={form.currentPincode} onChange={onPincode('current')} keyboardType="numeric" />
-          <Input label="City / District *" value={form.currentCity} onChange={set('currentCity')} />
+          <Input text="place" label="City / District *" value={form.currentCity} onChange={set('currentCity')} />
           <Select label="State / UT *" value={form.currentState} onChange={set('currentState')} options={stateOptions} />
 
           <View style={s.sameRow}>
@@ -368,9 +368,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
             <>
               <SectionTitle>Permanent Home Address</SectionTitle>
               <Input label="Address *" value={form.permanentAddress} onChange={set('permanentAddress')} multiline />
-              <Input label={pinBusy === 'permanent' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
+              <Input text="pincode" label={pinBusy === 'permanent' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
                 value={form.permanentPincode} onChange={onPincode('permanent')} keyboardType="numeric" />
-              <Input label="City / District *" value={form.permanentCity} onChange={set('permanentCity')} />
+              <Input text="place" label="City / District *" value={form.permanentCity} onChange={set('permanentCity')} />
               <Select label="State / UT *" value={form.permanentState} onChange={set('permanentState')} options={stateOptions} />
             </>
           )}
@@ -379,12 +379,12 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
 
       {step === 3 && (
         <>
-          <Input label="Aadhaar Card Number *" value={form.aadhaarNumber} onChange={set('aadhaarNumber')} keyboardType="numeric" placeholder="12 digits" />
+          <Input text="aadhaar" label="Aadhaar Card Number *" value={form.aadhaarNumber} onChange={set('aadhaarNumber')} keyboardType="numeric" placeholder="12 digits" />
           <DocField label="Aadhaar — Front" required value={files.aadhaarFront} existing={onFile.aadhaarFront} onChange={file('aadhaarFront')} />
           <DocField label="Aadhaar — Back" required value={files.aadhaarBack} existing={onFile.aadhaarBack} onChange={file('aadhaarBack')} />
-          <Input label="PAN Card Number *" value={form.panNumber} onChange={v => set('panNumber')(v.toUpperCase())} placeholder="ABCDE1234F" />
+          <Input text="pan" label="PAN Card Number *" value={form.panNumber} onChange={v => set('panNumber')(v.toUpperCase())} placeholder="ABCDE1234F" />
           <DocField label="PAN Card" required value={files.panCard} existing={onFile.panCard} onChange={file('panCard')} />
-          <Input label="UAN / PF Account Number" value={form.uanNumber} onChange={set('uanNumber')} placeholder="Optional" />
+          <Input text="uan" label="UAN / PF Account Number" value={form.uanNumber} onChange={set('uanNumber')} placeholder="Optional" />
         </>
       )}
 
@@ -393,12 +393,12 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
           <Select label="Highest Qualification *" value={form.qualification} onChange={set('qualification')}
             options={QUALIFICATIONS.map(q => ({ label: q, value: q }))} />
           {form.qualification === 'Other' && (
-            <Input label="Other Qualification *" value={form.qualificationOther} onChange={set('qualificationOther')} />
+            <Input text="title" label="Other Qualification *" value={form.qualificationOther} onChange={set('qualificationOther')} />
           )}
           <Select label="Professional Teaching Degree" value={form.teachingDegree} onChange={set('teachingDegree')}
             options={TEACHING_DEGREES.map(d => ({ label: d, value: d }))} placeholder="None / not applicable" />
           {form.teachingDegree === 'Other' && (
-            <Input label="Other Teaching Degree *" value={form.teachingDegreeOther} onChange={set('teachingDegreeOther')} />
+            <Input text="title" label="Other Teaching Degree *" value={form.teachingDegreeOther} onChange={set('teachingDegreeOther')} />
           )}
         </>
       )}
@@ -409,9 +409,9 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
             options={[{ label: 'Fresher', value: 'fresher' }, { label: 'Experienced', value: 'experienced' }]} />
           {form.employmentType === 'experienced' && (
             <>
-              <Input label="Total Years of Experience *" value={form.totalExperience} onChange={set('totalExperience')} placeholder="e.g. 5 years" />
-              <Input label="Name of Previous School *" value={form.previousSchool} onChange={set('previousSchool')} />
-              <Input label="Last Job Designation *" value={form.lastDesignation} onChange={set('lastDesignation')} />
+              <Input text="decimal" label="Total Years of Experience *" value={form.totalExperience} onChange={set('totalExperience')} placeholder="e.g. 5" />
+              <Input text="title" label="Name of Previous School *" value={form.previousSchool} onChange={set('previousSchool')} />
+              <Input text="title" label="Last Job Designation *" value={form.lastDesignation} onChange={set('lastDesignation')} />
               <DocField label="Resignation Letter" required value={files.resignationLetter} existing={onFile.resignationLetter} onChange={file('resignationLetter')} />
               <DocField label="Experience Certificate" hint="Optional" value={files.experienceCertificate} existing={onFile.experienceCertificate} onChange={file('experienceCertificate')} />
               <DocField label="Joining Letter" hint="Optional" value={files.joiningLetter} existing={onFile.joiningLetter} onChange={file('joiningLetter')} />
@@ -423,18 +423,18 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       {step === 6 && (
         <>
           <Input text="name" label="Bank Account Holder Name *" value={form.bankAccountHolder} onChange={set('bankAccountHolder')} />
-          <Input label="Bank Account Number *" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} keyboardType="numeric" />
-          <Input label="IFSC Code *" value={form.bankIfsc} onChange={v => set('bankIfsc')(v.toUpperCase())} placeholder="HDFC0001234" />
-          <Input label="Bank Branch Name *" value={form.bankBranch} onChange={set('bankBranch')} />
+          <Input text="account" label="Bank Account Number *" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} keyboardType="numeric" />
+          <Input text="ifsc" label="IFSC Code *" value={form.bankIfsc} onChange={v => set('bankIfsc')(v.toUpperCase())} placeholder="HDFC0001234" />
+          <Input text="title" label="Bank Branch Name *" value={form.bankBranch} onChange={set('bankBranch')} />
         </>
       )}
 
       {step === 7 && (
         <>
-          <Input label="Date of Joining *" value={form.joiningDate} onChange={set('joiningDate')} placeholder="YYYY-MM-DD" />
+          <Input text="date" label="Date of Joining *" value={form.joiningDate} onChange={set('joiningDate')} placeholder="YYYY-MM-DD" />
           <Select label="Designation" value={form.designation} onChange={set('designation')}
             options={designations.map(d => ({ label: d, value: d }))} placeholder="Select designation" />
-          <Input label="Employee ID / Teacher ID" value={form.employeeId} onChange={set('employeeId')}
+          <Input text="code" label="Employee ID / Teacher ID" value={form.employeeId} onChange={set('employeeId')}
             placeholder="Auto-generated if left blank" />
           <Text style={s.note}>
             Follows the Employee ID format set in School Settings. A one-time password is emailed to the teacher.

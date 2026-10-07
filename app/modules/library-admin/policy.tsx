@@ -101,15 +101,15 @@ export default function LibraryPolicyScreen() {
       >
         {loading ? <LoaderView /> : (
           <>
-            <Input label="Max books per member" value={form.maxBooksPerUser} onChange={v => setForm(f => ({ ...f, maxBooksPerUser: v }))} keyboardType="numeric" />
-            <Input label="Issue duration (days)" value={form.issueDurationDays} onChange={v => setForm(f => ({ ...f, issueDurationDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Max books per member" value={form.maxBooksPerUser} onChange={v => setForm(f => ({ ...f, maxBooksPerUser: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Issue duration (days)" value={form.issueDurationDays} onChange={v => setForm(f => ({ ...f, issueDurationDays: v }))} keyboardType="numeric" />
             <Input label="Fine per day (₹)" value={form.finePerDay} onChange={v => setForm(f => ({ ...f, finePerDay: v }))} keyboardType="numeric" />
-            <Input label="Grace period (days)" value={form.gracePeriodDays} onChange={v => setForm(f => ({ ...f, gracePeriodDays: v }))} keyboardType="numeric" />
-            <Input label="Max renewals" value={form.maxRenewals} onChange={v => setForm(f => ({ ...f, maxRenewals: v }))} keyboardType="numeric" />
-            <Input label="Reservation expiry (days)" value={form.reservationExpiryDays} onChange={v => setForm(f => ({ ...f, reservationExpiryDays: v }))} keyboardType="numeric" />
-            <Input label="Max reservations per member" value={form.maxReservationsPerUser} onChange={v => setForm(f => ({ ...f, maxReservationsPerUser: v }))} keyboardType="numeric" />
-            <Input label="Lost book charge (days of fine)" value={form.lostBookFineDays} onChange={v => setForm(f => ({ ...f, lostBookFineDays: v }))} keyboardType="numeric" />
-            <Input label="Damaged book charge (days of fine)" value={form.damagedBookFineDays} onChange={v => setForm(f => ({ ...f, damagedBookFineDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Grace period (days)" value={form.gracePeriodDays} onChange={v => setForm(f => ({ ...f, gracePeriodDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Max renewals" value={form.maxRenewals} onChange={v => setForm(f => ({ ...f, maxRenewals: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Reservation expiry (days)" value={form.reservationExpiryDays} onChange={v => setForm(f => ({ ...f, reservationExpiryDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Max reservations per member" value={form.maxReservationsPerUser} onChange={v => setForm(f => ({ ...f, maxReservationsPerUser: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Lost book charge (days of fine)" value={form.lostBookFineDays} onChange={v => setForm(f => ({ ...f, lostBookFineDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Damaged book charge (days of fine)" value={form.damagedBookFineDays} onChange={v => setForm(f => ({ ...f, damagedBookFineDays: v }))} keyboardType="numeric" />
             <Toggle label="Late fines apply to teachers" sub="When off, teachers are exempt from late fines. Lost and damaged books are still charged"
               value={form.teacherFinesEnabled} onChange={v => setForm(f => ({ ...f, teacherFinesEnabled: v }))} />
             <Toggle label="Allow two copies of one title per member"

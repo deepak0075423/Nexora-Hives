@@ -348,7 +348,7 @@ export default function AdminClassesScreen() {
       <FormModal visible={showForm} title={editCls ? 'Edit Class' : 'Add Class'}
         onClose={() => { setShowForm(false); setEditCls(null); }}
         onSubmit={submitClass} submitting={saving} submitLabel={editCls ? 'Save Changes' : 'Create Class'}>
-        <Input label="Class Name *" value={form.className} onChange={v => setForm(f => ({ ...f, className: v }))} placeholder="e.g. Class 10" />
+        <Input text="title" label="Class Name *" value={form.className} onChange={v => setForm(f => ({ ...f, className: v }))} placeholder="e.g. Class 10" />
       </FormModal>
 
       <FormModal
@@ -361,10 +361,10 @@ export default function AdminClassesScreen() {
           ? `Create ${bulkPlan.classesToCreate} classes · ${bulkPlan.sectionsToCreate} sections`
           : 'Create'}
       >
-        <Input label="From class" value={bulk.fromClass} onChange={v => setBulkField('fromClass', v)} keyboardType="numeric" />
-        <Input label="To class" value={bulk.toClass} onChange={v => setBulkField('toClass', v)} keyboardType="numeric" />
-        <Input label="Sections per class" value={bulk.sectionsPerClass} onChange={v => setBulkField('sectionsPerClass', v)} keyboardType="numeric" />
-        <Input label="Seats per section" value={bulk.capacity} onChange={v => setBulkField('capacity', v)} keyboardType="numeric" />
+        <Input text="digits" label="From class" value={bulk.fromClass} onChange={v => setBulkField('fromClass', v)} keyboardType="numeric" />
+        <Input text="digits" label="To class" value={bulk.toClass} onChange={v => setBulkField('toClass', v)} keyboardType="numeric" />
+        <Input text="digits" label="Sections per class" value={bulk.sectionsPerClass} onChange={v => setBulkField('sectionsPerClass', v)} keyboardType="numeric" />
+        <Input text="digits" label="Seats per section" value={bulk.capacity} onChange={v => setBulkField('capacity', v)} keyboardType="numeric" />
 
         <Text style={cs.bulkNote}>
           Sections are named A, B, C… in order. Classes already in this academic year keep their name,
@@ -406,8 +406,8 @@ export default function AdminClassesScreen() {
         submitting={saving}
         submitLabel={multiPlan && !multiErr ? `Add ${multiPlan.toCreate.join(', ')}` : 'Add'}
       >
-        <Input label="How many to add" value={multi.count} onChange={v => setMultiField('count', v)} keyboardType="numeric" />
-        <Input label="Seats per section" value={multi.capacity} onChange={v => setMultiField('capacity', v)} keyboardType="numeric" />
+        <Input text="digits" label="How many to add" value={multi.count} onChange={v => setMultiField('count', v)} keyboardType="numeric" />
+        <Input text="digits" label="Seats per section" value={multi.capacity} onChange={v => setMultiField('capacity', v)} keyboardType="numeric" />
 
         {multiErr ? (
           <Text style={cs.bulkErr}>{multiErr}</Text>
@@ -424,8 +424,8 @@ export default function AdminClassesScreen() {
       </FormModal>
 
       <FormModal visible={!!sectionForm} title="Add Section" onClose={() => setSectionForm(null)} onSubmit={submitSection} submitting={saving} submitLabel="Create Section">
-        <Input label="Section Name *" value={sectionForm?.name ?? ''} onChange={v => setSectionForm(f => f ? { ...f, name: v } : f)} placeholder="e.g. A" />
-        <Input label="Capacity" value={sectionForm?.capacity ?? ''} onChange={v => setSectionForm(f => f ? { ...f, capacity: v } : f)} placeholder="40" keyboardType="numeric" />
+        <Input text="title" label="Section Name *" value={sectionForm?.name ?? ''} onChange={v => setSectionForm(f => f ? { ...f, name: v } : f)} placeholder="e.g. A" />
+        <Input text="digits" label="Capacity" value={sectionForm?.capacity ?? ''} onChange={v => setSectionForm(f => f ? { ...f, capacity: v } : f)} placeholder="40" keyboardType="numeric" />
       </FormModal>
     </>
   );

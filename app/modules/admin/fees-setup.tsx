@@ -169,7 +169,7 @@ export default function AdminFeesSetupScreen() {
         onClose={() => setActing(null)} onDone={load} />
 
       <FormModal visible={showForm} title={`Add ${TABS.find(t => t.key === tab)?.label ?? ''}`} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
-        <Input label="Name *" value={form.name ?? ''} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Name" />
+        <Input text="title" label="Name *" value={form.name ?? ''} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="Name" />
         {tab === 'structures' && (
           <>
             <Select label="Level" value={form.level ?? 'class'} onChange={v => setForm(f => ({ ...f, level: v }))}
@@ -178,7 +178,7 @@ export default function AdminFeesSetupScreen() {
             {form.level === 'section' && (
               <Select label="Section *" value={form.sectionId ?? ''} onChange={v => setForm(f => ({ ...f, sectionId: v }))} options={sectionOptions} />
             )}
-            <Input label="Due day of month" value={form.dueDay ?? ''} onChange={v => setForm(f => ({ ...f, dueDay: v }))} keyboardType="numeric" placeholder="e.g. 10" />
+            <Input text="digits" label="Due day of month" value={form.dueDay ?? ''} onChange={v => setForm(f => ({ ...f, dueDay: v }))} keyboardType="numeric" placeholder="e.g. 10" />
 
             <SectionTitle>Fee items</SectionTitle>
             {(data.heads ?? []).length === 0 && (
@@ -229,7 +229,7 @@ export default function AdminFeesSetupScreen() {
               options={[{ label: 'Flat', value: 'flat' }, { label: 'Per Day', value: 'per_day' }, { label: 'Flat + Per Day', value: 'flat_plus_per_day' }]} />
             <Input label="Flat Amount (₹)" value={form.flatAmount ?? ''} onChange={v => setForm(f => ({ ...f, flatAmount: v }))} keyboardType="numeric" />
             <Input label="Per-day Amount (₹)" value={form.perDayAmount ?? ''} onChange={v => setForm(f => ({ ...f, perDayAmount: v }))} keyboardType="numeric" />
-            <Input label="Grace Period (days)" value={form.gracePeriodDays ?? ''} onChange={v => setForm(f => ({ ...f, gracePeriodDays: v }))} keyboardType="numeric" />
+            <Input text="digits" label="Grace Period (days)" value={form.gracePeriodDays ?? ''} onChange={v => setForm(f => ({ ...f, gracePeriodDays: v }))} keyboardType="numeric" />
             <Input label="Max Cap (₹, 0 = none)" value={form.maxCap ?? ''} onChange={v => setForm(f => ({ ...f, maxCap: v }))} keyboardType="numeric" />
           </>
         )}

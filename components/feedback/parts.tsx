@@ -16,9 +16,11 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, Image,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Image,
   ActivityIndicator, KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
+import type { TextKind } from '@/utils/textRules';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BASE_URL } from '@/api/axios';
@@ -646,15 +648,17 @@ export function Field({ label, hint, error, required, count, children }: {
   );
 }
 
-export function TextBox({ value, onChange, placeholder, multiline, maxLength, editable = true, keyboardType, rows = 3 }: {
+export function TextBox({ value, onChange, placeholder, multiline, maxLength, editable = true, keyboardType, rows = 3, text }: {
   value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean; maxLength?: number;
   editable?: boolean; keyboardType?: 'default' | 'numeric'; rows?: number;
+  /** What the box takes (utils/textRules), e.g. 'date' or 'title'. */
+  text?: TextKind;
 }) {
   return (
     <TextInput
       style={[s.input, multiline && { minHeight: 22 * rows, textAlignVertical: 'top' }, !editable && s.inputOff]}
       value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={Colors.textLight}
-      multiline={multiline} maxLength={maxLength} editable={editable} keyboardType={keyboardType}
+      multiline={multiline} maxLength={maxLength} editable={editable} keyboardType={keyboardType} text={text}
     />
   );
 }
@@ -669,7 +673,7 @@ export function Stepper({ value, onChange, min = 0, max = 999, suffix, disabled 
       <TouchableOpacity style={s.stepBtn} onPress={() => onChange(clamp(n - 1))} disabled={disabled || n <= min} accessibilityLabel="Decrease">
         <Ionicons name="remove" size={16} color={Colors.text} />
       </TouchableOpacity>
-      <TextInput style={s.stepIn} value={String(value)} keyboardType="numeric" editable={!disabled}
+      <TextInput text="digits" style={s.stepIn} value={String(value)} keyboardType="numeric" editable={!disabled}
         onChangeText={(t) => { const v = parseInt(t.replace(/\D/g, ''), 10); onChange(Number.isNaN(v) ? min : clamp(v)); }} />
       <TouchableOpacity style={s.stepBtn} onPress={() => onChange(clamp(n + 1))} disabled={disabled || n >= max} accessibilityLabel="Increase">
         <Ionicons name="add" size={16} color={Colors.text} />

@@ -310,7 +310,7 @@ export default function LibraryCirculationScreen() {
 
       <FormModal visible={showScan} title="Scan a copy" onClose={() => { setShowScan(false); setScanned(null); }}
         onSubmit={runScan} submitting={false} submitLabel="Look up">
-        <Input label="Copy code" value={scanCode} onChange={setScanCode}
+        <Input text="code" label="Copy code" value={scanCode} onChange={setScanCode}
           placeholder="Scan the spine label, or type LIB-COPY-000042" />
         {scanned && (
           <View style={{ marginTop: 12 }}>

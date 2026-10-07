@@ -281,7 +281,7 @@ export function CampaignSheet({ form, setForm, saving, error, onClose, onSave }:
 
           <FormSection title="About this campaign">
             <Field label="Campaign name" required error={errors.name} count={`${form.name.length} / 150`}>
-              <TextBox value={form.name} maxLength={150} placeholder="e.g. Term 1 Teacher Feedback"
+              <TextBox text="title" value={form.name} maxLength={150} placeholder="e.g. Term 1 Teacher Feedback"
                 onChange={(v) => { set('name', v); setErrors((x) => ({ ...x, name: '' })); }} />
             </Field>
             <Field label="Term" hint="Labels this campaign on every trend chart.">
@@ -362,10 +362,10 @@ export function CampaignSheet({ form, setForm, saving, error, onClose, onSave }:
           <FormSection title="When it runs" hint="Students can submit on every day of the window, both ends included.">
             <Field label="Opens" required error={errors.startDate}
               hint={live ? 'Fixed — the campaign has started.' : form.startDate > todayIso() ? 'Starting it early schedules it for this date.' : 'YYYY-MM-DD'}>
-              <TextBox value={form.startDate} editable={!live} placeholder="YYYY-MM-DD" maxLength={10} onChange={(v) => set('startDate', v.trim())} />
+              <TextBox text="date" value={form.startDate} editable={!live} placeholder="YYYY-MM-DD" maxLength={10} onChange={(v) => set('startDate', v.trim())} />
             </Field>
             <Field label="Closes" required error={errors.endDate} hint="YYYY-MM-DD">
-              <TextBox value={form.endDate} placeholder="YYYY-MM-DD" maxLength={10} onChange={(v) => set('endDate', v.trim())} />
+              <TextBox text="date" value={form.endDate} placeholder="YYYY-MM-DD" maxLength={10} onChange={(v) => set('endDate', v.trim())} />
             </Field>
             <View style={st.quick}>
               <Text style={st.quickLabel}>Length:</Text>

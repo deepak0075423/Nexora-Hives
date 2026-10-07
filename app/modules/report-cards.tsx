@@ -12,8 +12,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, ActivityIndicator, KeyboardAvoidingView, Platform, TextInput,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Modal, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';

@@ -304,10 +304,10 @@ export default function AdminSchoolSettingsScreen() {
 
             {/* ── Profile ── */}
             <SectionTitle>Profile</SectionTitle>
-            <Input label="School Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
+            <Input text="title" label="School Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
             <Input label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" />
             <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} phone />
-            <Input label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
+            <Input text="token" label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
 
             {/* ── Admission number format ── */}
             <SectionTitle>Admission Number Format</SectionTitle>
@@ -390,8 +390,8 @@ export default function AdminSchoolSettingsScreen() {
                 />
               </View>
             </Card>
-            <Input label="SMTP Host" value={smtp.host} onChange={v => setSmtp(s => ({ ...s, host: v }))} placeholder="smtp.gmail.com" />
-            <Input label="Port" value={smtp.port} onChange={v => setSmtp(s => ({ ...s, port: v }))} keyboardType="numeric" placeholder="587" />
+            <Input text="token" label="SMTP Host" value={smtp.host} onChange={v => setSmtp(s => ({ ...s, host: v }))} placeholder="smtp.gmail.com" />
+            <Input text="digits" label="Port" value={smtp.port} onChange={v => setSmtp(s => ({ ...s, port: v }))} keyboardType="numeric" placeholder="587" />
             <Card>
               <View style={ls.switchRow}>
                 <View style={{ flex: 1, paddingRight: 10 }}>
@@ -405,7 +405,7 @@ export default function AdminSchoolSettingsScreen() {
                 />
               </View>
             </Card>
-            <Input label="Username" value={smtp.user} onChange={v => setSmtp(s => ({ ...s, user: v }))} keyboardType="email-address" placeholder="mail@yourschool.edu" />
+            <Input text="token" label="Username" value={smtp.user} onChange={v => setSmtp(s => ({ ...s, user: v }))} keyboardType="email-address" placeholder="mail@yourschool.edu" />
             <Input
               label={smtp.hasPassword && !smtp.pass ? 'Password (saved — leave blank to keep)' : 'Password'}
               value={smtp.pass}
@@ -413,7 +413,7 @@ export default function AdminSchoolSettingsScreen() {
               placeholder={smtp.hasPassword ? '••••••••' : 'App password'}
               secure
             />
-            <Input label="From Name" value={smtp.fromName} onChange={v => setSmtp(s => ({ ...s, fromName: v }))} placeholder={form.name || 'School name'} />
+            <Input text="title" label="From Name" value={smtp.fromName} onChange={v => setSmtp(s => ({ ...s, fromName: v }))} placeholder={form.name || 'School name'} />
             <Input label="From Email" value={smtp.fromEmail} onChange={v => setSmtp(s => ({ ...s, fromEmail: v }))} keyboardType="email-address" placeholder="Defaults to username" />
             <ActionBtn label={smtpSaving ? 'Saving…' : 'Save SMTP Settings'} tone="success" onPress={saveSmtp} />
             <View style={{ height: 8 }} />
@@ -450,7 +450,7 @@ export default function AdminSchoolSettingsScreen() {
 
                     {gw.provider === 'razorpay' && (
                       <>
-                        <Input label="Key ID" value={gw.razorpayKeyId}
+                        <Input text="token" label="Key ID" value={gw.razorpayKeyId}
                           onChange={(v: string) => setGw((g: any) => ({ ...g, razorpayKeyId: v }))} placeholder="rzp_live_…" />
                         <Input
                           label={gw.hasRazorpaySecret && !gw.razorpayKeySecret ? 'Key Secret (saved — leave blank to keep)' : 'Key Secret'}
@@ -462,7 +462,7 @@ export default function AdminSchoolSettingsScreen() {
 
                     {gw.provider === 'stripe' && (
                       <>
-                        <Input label="Publishable key" value={gw.stripePublishableKey}
+                        <Input text="token" label="Publishable key" value={gw.stripePublishableKey}
                           onChange={(v: string) => setGw((g: any) => ({ ...g, stripePublishableKey: v }))} placeholder="pk_live_…" />
                         <Input
                           label={gw.hasStripeSecret && !gw.stripeSecretKey ? 'Secret key (saved — leave blank to keep)' : 'Secret key'}
@@ -525,7 +525,7 @@ export default function AdminSchoolSettingsScreen() {
                       onChange={(v: any) => setTpl((t: any) => ({ ...t, notes: v }))} placeholder="Fees once paid are not refundable." />
                     <Input label="Footer" value={tpl.footerText}
                       onChange={(v: any) => setTpl((t: any) => ({ ...t, footerText: v }))} />
-                    <Input label="Signatory" value={tpl.signatoryName}
+                    <Input text="name" label="Signatory" value={tpl.signatoryName}
                       onChange={(v: any) => setTpl((t: any) => ({ ...t, signatoryName: v }))} placeholder="Accounts Officer" />
                     <Toggle label="School logo" value={!!tpl.showLogo}
                       onChange={(v: any) => setTpl((t: any) => ({ ...t, showLogo: v }))} />

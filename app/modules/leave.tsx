@@ -280,13 +280,13 @@ export default function LeaveScreen() {
 
         <LeavePreviewPanel preview={preview} loading={previewLoading} />
 
-        <Input label="From (YYYY-MM-DD)" value={form.fromDate} placeholder={todayStr()}
+        <Input text="date" label="From (YYYY-MM-DD)" value={form.fromDate} placeholder={todayStr()}
           onChange={(v: string) => setForm(f => ({
             ...f, fromDate: v,
             // Carry a now-earlier To along rather than leave an impossible range
             toDate: f.toDate && f.toDate < v ? v : (f.leaveMode === 'half_day' ? v : f.toDate),
           }))} />
-        <Input label="To (YYYY-MM-DD)" value={form.toDate} placeholder={todayStr()}
+        <Input text="date" label="To (YYYY-MM-DD)" value={form.toDate} placeholder={todayStr()}
           editable={form.leaveMode !== 'half_day'}
           onChange={(v: string) => setForm(f => ({ ...f, toDate: v }))} />
         {dateError ? <Text style={s.applyErr}>{dateError}</Text> : null}

@@ -6,7 +6,8 @@
  * (services/classGroupService) — these only offer what it would allow.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Switch, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import * as chatApi from '@/api/chat.api';
 import { unwrap } from '@/components/ui/kit';
@@ -299,7 +300,7 @@ function ClassGroupForm({ pick, onClose, onBack, onCreated, onOpenExisting }: {
             </TouchableOpacity>
           )}
           <Field label="Group name">
-            <TextInput style={s.input} value={form.name} maxLength={80} onChangeText={(v) => { setForm((f) => ({ ...f, name: v })); setErr(''); }} accessibilityLabel="Group name" />
+            <TextInput text="any" style={s.input} value={form.name} maxLength={80} onChangeText={(v) => { setForm((f) => ({ ...f, name: v })); setErr(''); }} accessibilityLabel="Group name" />
           </Field>
           <Field label="Description" hint="(optional)">
             <TextInput style={[s.input, { minHeight: 64, textAlignVertical: 'top' }]} multiline maxLength={300} value={form.description}
@@ -380,7 +381,7 @@ function StaffGroupForm({ onClose, onBack, myRole, staffOnly, onCreated }: {
         <Btn label={saving ? 'Creating…' : `Create${picked.length ? ` · ${picked.length + 1} people` : ''}`} onPress={submit} disabled={saving} style={{ flex: 1.4 }} />
       </>}>
       <Field label="Group name">
-        <TextInput style={s.input} value={form.name} maxLength={80} placeholder="e.g. Science Dept." placeholderTextColor={C.faint}
+        <TextInput text="any" style={s.input} value={form.name} maxLength={80} placeholder="e.g. Science Dept." placeholderTextColor={C.faint}
           onChangeText={(v) => { setForm((f) => ({ ...f, name: v })); setErr(''); }} accessibilityLabel="Group name" />
       </Field>
       <Field label="Description" hint="(optional)">
@@ -480,7 +481,7 @@ export function EditGroupSheet({ visible, onClose, chat, onSaved }: { visible: b
         <Btn label={saving ? 'Saving…' : 'Save'} onPress={submit} disabled={saving} style={{ flex: 1.4 }} />
       </>}>
       <Field label="Group name">
-        <TextInput style={s.input} value={form.name} maxLength={80} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} accessibilityLabel="Group name" />
+        <TextInput text="any" style={s.input} value={form.name} maxLength={80} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} accessibilityLabel="Group name" />
       </Field>
       <Field label="Description" hint="(optional)">
         <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]} multiline maxLength={300} value={form.description}

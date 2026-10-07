@@ -274,10 +274,10 @@ function RegularizeSheet({ visible, date, onClose, onSaved }: { visible: boolean
       ) : null) : null}
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View style={{ flex: 1 }}>
-          <Field label="Clock-in (HH:MM)"><Box value={form.checkIn} onChange={(v) => setForm((f) => ({ ...f, checkIn: v }))} placeholder="08:05" keyboardType="numbers-and-punctuation" maxLength={5} label="Clock-in time" /></Field>
+          <Field label="Clock-in (HH:MM)"><Box text="time" value={form.checkIn} onChange={(v) => setForm((f) => ({ ...f, checkIn: v }))} placeholder="08:05" keyboardType="numbers-and-punctuation" maxLength={5} label="Clock-in time" /></Field>
         </View>
         <View style={{ flex: 1 }}>
-          <Field label="Clock-out (HH:MM)"><Box value={form.checkOut} onChange={(v) => setForm((f) => ({ ...f, checkOut: v }))} placeholder="15:30" keyboardType="numbers-and-punctuation" maxLength={5} label="Clock-out time" /></Field>
+          <Field label="Clock-out (HH:MM)"><Box text="time" value={form.checkOut} onChange={(v) => setForm((f) => ({ ...f, checkOut: v }))} placeholder="15:30" keyboardType="numbers-and-punctuation" maxLength={5} label="Clock-out time" /></Field>
         </View>
       </View>
       <Field label="Reason" required>

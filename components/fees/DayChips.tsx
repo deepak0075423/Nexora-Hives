@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 
@@ -40,7 +41,7 @@ export default function DayChips({
             </Pressable>
           </View>
         ))}
-        <TextInput
+        <TextInput text="digits"
           style={s.input}
           value={draft}
           onChangeText={setDraft}

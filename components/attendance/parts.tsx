@@ -13,9 +13,11 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Platform,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform,
   KeyboardAvoidingView, ActivityIndicator, Linking,
 } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
+import type { TextKind } from '@/utils/textRules';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -626,11 +628,13 @@ export function Field({ label, required, hint, children }: { label: string; requ
   );
 }
 
-export function Box({ value, onChange, placeholder, multiline, maxLength = 500, keyboardType, label }: {
+export function Box({ value, onChange, placeholder, multiline, maxLength = 500, keyboardType, label, text }: {
   value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean; maxLength?: number; keyboardType?: any; label?: string;
+  /** What the box takes (utils/textRules), e.g. 'time'. */
+  text?: TextKind;
 }) {
   return (
-    <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#94A3B8"
+    <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#94A3B8" text={text}
       multiline={multiline} maxLength={maxLength} keyboardType={keyboardType} accessibilityLabel={label || placeholder}
       style={[s.box, multiline && { minHeight: 84, textAlignVertical: 'top' }]} />
   );

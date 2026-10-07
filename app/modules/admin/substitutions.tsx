@@ -513,7 +513,7 @@ export default function AdminSubstitutionsScreen() {
                   : 'The Leave module is not enabled for this school.'}
                 value={!!settings.useLeave && !!flags.leave}
                 onChange={(v) => flags.leave && setSettings((p: any) => ({ ...p, useLeave: v }))} />
-              <Input label="Treat unmarked attendance as absent after (HH:mm)"
+              <Input text="time" label="Treat unmarked attendance as absent after (HH:mm)"
                 value={settings.unmarkedAbsentAfter ?? '09:30'}
                 onChange={(v) => setSettings((p: any) => ({ ...p, unmarkedAbsentAfter: v }))} />
               <Toggle label="Skip periods that already started"
@@ -536,7 +536,7 @@ export default function AdminSubstitutionsScreen() {
                 sub="Off by default — a strict filter can leave periods with nobody at all."
                 value={!!settings.requireSubjectMatch}
                 onChange={(v) => setSettings((p: any) => ({ ...p, requireSubjectMatch: v }))} />
-              <Input label="Max substitutions per teacher per day (0 = no limit)"
+              <Input text="digits" label="Max substitutions per teacher per day (0 = no limit)"
                 keyboardType="numeric" value={String(settings.maxSubstitutionsPerDay ?? 0)}
                 onChange={(v) => setSettings((p: any) => ({ ...p, maxSubstitutionsPerDay: Number(v) || 0 }))} />
             </Card>

@@ -342,7 +342,7 @@ export default function AdminDesignationsScreen() {
         <Text style={s.modalHint}>
           Starts with normal access to every enabled module. Open it in the list to grant admin access or withdraw modules.
         </Text>
-        <Input label="Name" value={newName} onChange={setNewName} placeholder="e.g. Head of Science" />
+        <Input text="title" label="Name" value={newName} onChange={setNewName} placeholder="e.g. Head of Science" />
       </FormModal>
 
       <FormModal
@@ -386,7 +386,7 @@ export default function AdminDesignationsScreen() {
         <Text style={s.modalHint}>
           Every teacher holding this designation moves to the new name, so nobody loses their permissions.
         </Text>
-        <Input label="Name" value={renameText} onChange={setRenameText} />
+        <Input text="title" label="Name" value={renameText} onChange={setRenameText} />
       </FormModal>
     </>
   );

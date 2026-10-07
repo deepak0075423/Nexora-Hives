@@ -150,7 +150,7 @@ export default function AdminHolidaysScreen() {
         <Text style={{ fontSize: 11, color: Colors.textSecondary, marginBottom: 10 }}>
           These options appear in the Type dropdown when adding or editing a holiday.
         </Text>
-        <Input label="New type" value={newType} onChange={setNewType} placeholder="e.g. Regional Festival" />
+        <Input text="title" label="New type" value={newType} onChange={setNewType} placeholder="e.g. Regional Festival" />
         <ActionBtn label={typeSaving ? 'Saving…' : 'Add Type'} tone="success" onPress={addType} />
         <View style={{ marginTop: Spacing.md }}>
           {types.map(t => (
@@ -161,9 +161,9 @@ export default function AdminHolidaysScreen() {
       </FormModal>
 
       <FormModal visible={showForm} title={editing ? 'Edit Holiday' : 'Add Holiday'} onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving}>
-        <Input label="Holiday Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="e.g. Diwali" />
-        <Input label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-10-20" />
-        <Input label="End Date * (YYYY-MM-DD)" value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))} placeholder="2026-10-22" />
+        <Input text="title" label="Holiday Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="e.g. Diwali" />
+        <Input text="date" label="Start Date * (YYYY-MM-DD)" value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))} placeholder="2026-10-20" />
+        <Input text="date" label="End Date * (YYYY-MM-DD)" value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))} placeholder="2026-10-22" />
         <Select label="Type *" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
           options={types.map(t => ({ label: t, value: t }))} />
         <Input label="Description" value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Optional" multiline />

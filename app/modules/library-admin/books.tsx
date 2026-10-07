@@ -141,10 +141,10 @@ export default function LibraryBooksScreen() {
 
       <FormModal visible={showForm} title="Add Book" onClose={() => setShowForm(false)} onSubmit={submit} submitting={saving} submitLabel="Add Book">
         <Input label="Title *" value={form.title} onChange={v => setForm(f => ({ ...f, title: v }))} placeholder="Book title" />
-        <Input label="ISBN" value={form.isbn} onChange={v => setForm(f => ({ ...f, isbn: v }))} placeholder="Optional" />
-        <Input label="Authors (comma separated)" value={form.authors} onChange={v => setForm(f => ({ ...f, authors: v }))} placeholder="e.g. R.K. Narayan" />
-        <Input label="Publisher" value={form.publisher} onChange={v => setForm(f => ({ ...f, publisher: v }))} placeholder="Optional" />
-        <Input label="Category" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} placeholder="e.g. Fiction" />
+        <Input text="code" label="ISBN" value={form.isbn} onChange={v => setForm(f => ({ ...f, isbn: v }))} placeholder="Optional" />
+        <Input text="title" label="Authors (comma separated)" value={form.authors} onChange={v => setForm(f => ({ ...f, authors: v }))} placeholder="e.g. R.K. Narayan" />
+        <Input text="title" label="Publisher" value={form.publisher} onChange={v => setForm(f => ({ ...f, publisher: v }))} placeholder="Optional" />
+        <Input text="title" label="Category" value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} placeholder="e.g. Fiction" />
       </FormModal>
     </>
   );

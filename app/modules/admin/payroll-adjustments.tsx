@@ -222,11 +222,11 @@ export default function AdminPayrollAdjustmentsScreen() {
           options={[{ label: 'Advance', value: 'advance' }, { label: 'Loan', value: 'loan' }]} />
         <Input label="Amount" value={advForm.amount} keyboardType="numeric"
           onChange={(v: string) => setAdvForm((f: any) => ({ ...f, amount: v }))} />
-        <Input label="Instalments" value={advForm.instalments} keyboardType="numeric"
+        <Input text="digits" label="Instalments" value={advForm.instalments} keyboardType="numeric"
           onChange={(v: string) => setAdvForm((f: any) => ({ ...f, instalments: v }))} />
         <Select label="Recovery starts" value={advForm.startMonth} onChange={(v: string) => setAdvForm((f: any) => ({ ...f, startMonth: v }))}
           options={MONTHS.map((m, i) => ({ label: m, value: String(i + 1) }))} />
-        <Input label="Year" value={advForm.startYear} keyboardType="numeric"
+        <Input text="digits" label="Year" value={advForm.startYear} keyboardType="numeric"
           onChange={(v: string) => setAdvForm((f: any) => ({ ...f, startYear: v }))} />
         <Input label="Reason" value={advForm.reason}
           onChange={(v: string) => setAdvForm((f: any) => ({ ...f, reason: v }))} />

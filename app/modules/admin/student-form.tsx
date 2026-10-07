@@ -491,22 +491,22 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
 
       {step === 2 && (
         <>
-          <Input label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
+          <Input text="date" label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
           <Select label="Gender *" value={form.gender} onChange={set('gender')}
             options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
           <Select label="Category *" value={form.category} onChange={set('category')}
             options={CATEGORIES.map(c => ({ label: c, value: c }))} />
-          <Input label="Religion" value={form.religion} onChange={set('religion')} placeholder="Optional" />
-          <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} placeholder="Indian" />
+          <Input text="letters" label="Religion" value={form.religion} onChange={set('religion')} placeholder="Optional" />
+          <Input text="letters" label="Nationality *" value={form.nationality} onChange={set('nationality')} placeholder="Indian" />
 
           <SectionTitle>Emergency Contact</SectionTitle>
           <Input text="name" label="Contact Name *" value={form.emergencyContactName} onChange={set('emergencyContactName')}
             placeholder="Who should the school call first?" />
           <Input label="Contact Phone *" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')}
             phone placeholder="9876543210" />
-          <Input label="Relation with the Student *" value={form.emergencyContactRelation}
+          <Input text="letters" label="Relation with the Student *" value={form.emergencyContactRelation}
             onChange={set('emergencyContactRelation')} placeholder="e.g. Uncle, Neighbour" />
         </>
       )}
@@ -515,11 +515,11 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         <>
           <SectionTitle>Current Address</SectionTitle>
           <Input label="Address *" value={form.address} onChange={set('address')} multiline placeholder="House / street / locality" />
-          <Input label={pinBusy === 'current' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
+          <Input text="pincode" label={pinBusy === 'current' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
             value={form.pincode} onChange={onPincode('')} keyboardType="numeric" placeholder="411001" />
-          <Input label="City / District *" value={form.city} onChange={set('city')} placeholder="Pune" />
+          <Input text="place" label="City / District *" value={form.city} onChange={set('city')} placeholder="Pune" />
           <Select label="State / UT *" value={form.state} onChange={set('state')} options={stateOptions} />
-          <Input label="Country *" value={form.country} onChange={set('country')} placeholder="India" />
+          <Input text="place" label="Country *" value={form.country} onChange={set('country')} placeholder="India" />
 
           <Toggle label="Permanent address is the same as current" value={form.sameAsCurrent}
             onChange={(v: boolean) => setForm((f: any) => ({
@@ -536,11 +536,11 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
             <>
               <SectionTitle>Permanent Address</SectionTitle>
               <Input label="Address *" value={form.permanentAddress} onChange={set('permanentAddress')} multiline />
-              <Input label={pinBusy === 'permanent' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
+              <Input text="pincode" label={pinBusy === 'permanent' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
                 value={form.permanentPincode} onChange={onPincode('permanent')} keyboardType="numeric" />
-              <Input label="City / District *" value={form.permanentCity} onChange={set('permanentCity')} />
+              <Input text="place" label="City / District *" value={form.permanentCity} onChange={set('permanentCity')} />
               <Select label="State / UT *" value={form.permanentState} onChange={set('permanentState')} options={stateOptions} />
-              <Input label="Country *" value={form.permanentCountry} onChange={set('permanentCountry')} placeholder="India" />
+              <Input text="place" label="Country *" value={form.permanentCountry} onChange={set('permanentCountry')} placeholder="India" />
             </>
           )}
         </>
@@ -551,7 +551,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <DocField label="Student Passport Size Photo" required value={files.photo}
             existing={docs?.photoFile} onChange={setFile('photo')}
             hint="Also used as the student's profile picture" />
-          <Input label="Aadhaar Card Number *" value={form.aadhaarNumber}
+          <Input text="aadhaar" label="Aadhaar Card Number *" value={form.aadhaarNumber}
             onChange={v => set('aadhaarNumber')(v.replace(/[^\d\s]/g, ''))}
             keyboardType="numeric" placeholder="12 digits" />
           <DocField label="Aadhaar — Front" required value={files.aadhaarFront}
@@ -580,16 +580,16 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
             </Text>
           ) : (
             <>
-              <Input label="Previous School Name *" value={form.previousSchoolName} onChange={set('previousSchoolName')} />
+              <Input text="title" label="Previous School Name *" value={form.previousSchoolName} onChange={set('previousSchoolName')} />
 
               <SectionTitle>Previous School Address</SectionTitle>
               <Input label="Address *" value={form.previousSchoolAddress}
                 onChange={set('previousSchoolAddress')} multiline placeholder="Building / street / locality" />
-              <Input label={pinBusy === 'previousSchool' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
+              <Input text="pincode" label={pinBusy === 'previousSchool' ? 'PIN Code * (looking up…)' : 'PIN Code *'}
                 value={form.previousSchoolPincode} onChange={onPincode('previousSchool')} keyboardType="numeric" />
-              <Input label="City / District *" value={form.previousSchoolCity} onChange={set('previousSchoolCity')} />
+              <Input text="place" label="City / District *" value={form.previousSchoolCity} onChange={set('previousSchoolCity')} />
               <Select label="State / UT *" value={form.previousSchoolState} onChange={set('previousSchoolState')} options={stateOptions} />
-              <Input label="Country *" value={form.previousSchoolCountry} onChange={set('previousSchoolCountry')} placeholder="India" />
+              <Input text="place" label="Country *" value={form.previousSchoolCountry} onChange={set('previousSchoolCountry')} placeholder="India" />
               <SelectOrOther label="Previous School Medium" options={MEDIUMS}
                 value={form.previousSchoolMedium} otherValue={form.previousSchoolMediumOther}
                 onChange={set('previousSchoolMedium')} onOtherChange={set('previousSchoolMediumOther')} />
@@ -597,21 +597,21 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
                 value={form.previousSchoolBoard} otherValue={form.previousSchoolBoardOther}
                 onChange={set('previousSchoolBoard')} onOtherChange={set('previousSchoolBoardOther')} />
               {form.previousSchoolBoard === 'State Board' && (
-                <Input label="Name of the State Board *" value={form.previousSchoolStateBoardName}
+                <Input text="title" label="Name of the State Board *" value={form.previousSchoolStateBoardName}
                   onChange={set('previousSchoolStateBoardName')}
                   placeholder="e.g. Maharashtra State Board of Secondary and Higher Secondary Education" />
               )}
-              <Input label="Previous Class *" value={form.previousClass} onChange={set('previousClass')} placeholder="e.g. Class 5" />
-              <Input label="Previous Academic Year *" value={form.previousAcademicYear}
+              <Input text="title" label="Previous Class *" value={form.previousClass} onChange={set('previousClass')} placeholder="e.g. Class 5" />
+              <Input text="code" label="Previous Academic Year *" value={form.previousAcademicYear}
                 onChange={set('previousAcademicYear')} placeholder="e.g. 2025-26" />
-              <Input label="School Leaving Date *" value={form.previousSchoolLeavingDate}
+              <Input text="date" label="School Leaving Date *" value={form.previousSchoolLeavingDate}
                 onChange={set('previousSchoolLeavingDate')} placeholder="YYYY-MM-DD" />
               <Input label="Previous School Contact *" value={form.previousSchoolContact}
                 onChange={set('previousSchoolContact')} phone />
 
               <SectionTitle>Transfer Certificate</SectionTitle>
-              <Input label="TC Number *" value={form.tcNumber} onChange={set('tcNumber')} />
-              <Input label="TC Date *" value={form.tcDate} onChange={set('tcDate')} placeholder="YYYY-MM-DD" />
+              <Input text="code" label="TC Number *" value={form.tcNumber} onChange={set('tcNumber')} />
+              <Input text="date" label="TC Date *" value={form.tcDate} onChange={set('tcDate')} placeholder="YYYY-MM-DD" />
               <DocField label="Transfer Certificate (TC)" required value={files.tc}
                 existing={docs?.tcFile} onChange={setFile('tc')} />
               <DocField label="Migration Certificate" hint="Optional — usually only on a board change"
@@ -628,9 +628,9 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
             onChange={v => setForm((f: any) => ({ ...f, classId: v, currentSection: '' }))} options={classOptions} />
           <Select label="Section" value={form.currentSection} onChange={set('currentSection')}
             options={sectionOptions} placeholder="Assign later" />
-          <Input label="Roll Number" value={form.rollNumber} onChange={set('rollNumber')}
+          <Input text="code" label="Roll Number" value={form.rollNumber} onChange={set('rollNumber')}
             placeholder="Assigned from the section later" />
-          <Input label="Admission Number" value={form.admissionNumber} onChange={set('admissionNumber')}
+          <Input text="code" label="Admission Number" value={form.admissionNumber} onChange={set('admissionNumber')}
             placeholder="Auto-generated if left blank" />
         </>
       )}
@@ -692,18 +692,18 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
                       placeholder={isOwner ? 'name@email.com' : 'Optional'} />
                     <Input label="Mobile Number *" value={newParent[role].phone}
                       onChange={v => setBlock(role, 'phone', v)} phone />
-                    <Input label="Occupation *" value={newParent[role].occupation} onChange={v => setBlock(role, 'occupation', v)} />
-                    <Input label="Organization" value={newParent[role].organization} onChange={v => setBlock(role, 'organization', v)}
+                    <Input text="title" label="Occupation *" value={newParent[role].occupation} onChange={v => setBlock(role, 'occupation', v)} />
+                    <Input text="title" label="Organization" value={newParent[role].organization} onChange={v => setBlock(role, 'organization', v)}
                       placeholder="Company / employer" />
-                    <Input label="Designation" value={newParent[role].designation} onChange={v => setBlock(role, 'designation', v)} />
-                    <Input label="Qualification" value={newParent[role].qualification} onChange={v => setBlock(role, 'qualification', v)}
+                    <Input text="title" label="Designation" value={newParent[role].designation} onChange={v => setBlock(role, 'designation', v)} />
+                    <Input text="title" label="Qualification" value={newParent[role].qualification} onChange={v => setBlock(role, 'qualification', v)}
                       placeholder="e.g. B.Com." />
-                    <Input label="Annual Income" value={newParent[role].annualIncome} onChange={v => setBlock(role, 'annualIncome', v)}
+                    <Input text="digits" label="Annual Income" value={newParent[role].annualIncome} onChange={v => setBlock(role, 'annualIncome', v)}
                       keyboardType="numeric" placeholder="e.g. 600000" />
-                    <Input label="Aadhaar Card Number *" value={newParent[role].aadhaarNumber}
+                    <Input text="aadhaar" label="Aadhaar Card Number *" value={newParent[role].aadhaarNumber}
                       onChange={v => setBlock(role, 'aadhaarNumber', v.replace(/[^\d\s]/g, ''))} keyboardType="numeric"
                       placeholder="12 digits" />
-                    <Input label="PAN Card Number" value={newParent[role].panNumber}
+                    <Input text="pan" label="PAN Card Number" value={newParent[role].panNumber}
                       onChange={v => setBlock(role, 'panNumber', v.toUpperCase())} placeholder="ABCDE1234F" />
                     <DocField label="Aadhaar — Front" hint="Optional" value={files[`${role}AadhaarFront`]}
                       existing={existingParent?.[role]?.aadhaarFrontFile} onChange={setFile(`${role}AadhaarFront`)} />
@@ -732,7 +732,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <SectionTitle>Allergies</SectionTitle>
           {health.allergies.map((a: any, i: number) => (
             <View key={`a${i}`} style={{ marginBottom: 6 }}>
-              <Input label={`Allergy ${i + 1}`} value={a.allergen} onChange={(v) => setRow('allergies', i, { allergen: v })} placeholder="e.g. Peanuts" />
+              <Input text="title" label={`Allergy ${i + 1}`} value={a.allergen} onChange={(v) => setRow('allergies', i, { allergen: v })} placeholder="e.g. Peanuts" />
               <Select label="Kind" value={a.category} options={optionsOf(ALLERGY_CATEGORY)} onChange={(v) => setRow('allergies', i, { category: v })} />
               <Select label="How severe" value={a.severity} options={optionsOf(ALLERGY_SEVERITY)} onChange={(v) => setRow('allergies', i, { severity: v })} />
               <Input label="What happens (optional)" value={a.reaction} onChange={(v) => setRow('allergies', i, { reaction: v })} />
@@ -744,7 +744,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           {health.conditions.map((c: any, i: number) => (
             <View key={`c${i}`} style={{ marginBottom: 6 }}>
               <Select label={`Condition ${i + 1}`} value={c.type} options={optionsOf(CONDITION_TYPE)} onChange={(v) => setRow('conditions', i, { type: v })} />
-              <Input label="Name (if not in the list)" value={c.condition} onChange={(v) => setRow('conditions', i, { condition: v })} />
+              <Input text="title" label="Name (if not in the list)" value={c.condition} onChange={(v) => setRow('conditions', i, { condition: v })} />
               <Select label="Severity" value={c.severity} options={optionsOf(CONDITION_SEVERITY)} onChange={(v) => setRow('conditions', i, { severity: v })} />
               <ActionBtn label="Remove" tone="neutral" small onPress={() => setHealth((h) => ({ ...h, conditions: h.conditions.filter((_: any, j: number) => j !== i) }))} />
             </View>

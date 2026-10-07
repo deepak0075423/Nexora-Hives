@@ -356,8 +356,8 @@ export default function Insights({ onBlocked, initialView = 'teachers' }: { onBl
             <Field label="Term"><TextBox value={draft.term} placeholder="e.g. Term 1" onChange={(v) => setDraft({ ...draft, term: v })} /></Field>
             <Field label="Campaign start between" hint="YYYY-MM-DD — filters on the campaign’s start date.">
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ flex: 1 }}><TextBox value={draft.dateFrom} placeholder="From" maxLength={10} onChange={(v) => setDraft({ ...draft, dateFrom: v.trim() })} /></View>
-                <View style={{ flex: 1 }}><TextBox value={draft.dateTo} placeholder="To" maxLength={10} onChange={(v) => setDraft({ ...draft, dateTo: v.trim() })} /></View>
+                <View style={{ flex: 1 }}><TextBox text="date" value={draft.dateFrom} placeholder="From" maxLength={10} onChange={(v) => setDraft({ ...draft, dateFrom: v.trim() })} /></View>
+                <View style={{ flex: 1 }}><TextBox text="date" value={draft.dateTo} placeholder="To" maxLength={10} onChange={(v) => setDraft({ ...draft, dateTo: v.trim() })} /></View>
               </View>
             </Field>
             <Text style={[st.sub, JSON.stringify(draft) !== JSON.stringify(applied) && { color: '#B45309', fontWeight: '700' }]}>

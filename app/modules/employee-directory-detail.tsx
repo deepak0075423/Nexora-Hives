@@ -14,6 +14,7 @@ import {
 import { Avatar } from './employee-directory';
 import { withFileToken } from '@/utils/fileAccess';
 import { fatherOrHusbandLabel } from '@/utils/fatherOrHusband';
+import { experienceText } from '@/utils/validators';
 
 // One employee, assembled from the modules the school already runs. The tabs
 // shown are decided by the payload: a block the caller has no permission for is
@@ -327,7 +328,7 @@ export default function EmployeeDirectoryDetailScreen() {
             {data.employment?.employmentType !== undefined && (
               <KV label="Fresher / Experienced" value={dash(data.employment.employmentType === 'fresher' ? 'Fresher' : data.employment.employmentType ? 'Experienced' : '')} />
             )}
-            {data.employment?.totalExperience !== undefined && <KV label="Total Experience" value={dash(data.employment.totalExperience)} />}
+            {data.employment?.totalExperience !== undefined && <KV label="Total Experience" value={dash(experienceText(data.employment.totalExperience))} />}
             {data.employment?.previousSchool !== undefined && <KV label="Previous School" value={dash(data.employment.previousSchool)} />}
             {data.employment?.lastDesignation !== undefined && <KV label="Previous Designation" value={dash(data.employment.lastDesignation)} />}
             <KV label="Reporting Manager" value={dash(data.employment?.reportingManager?.name)} />

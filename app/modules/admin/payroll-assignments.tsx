@@ -294,7 +294,7 @@ export default function AdminPayrollAssignmentsScreen() {
           options={structures.map(s2 => ({ label: `${s2.name}${s2.isDefault ? ' (Default)' : ''}`, value: s2._id }))} />
         <Input label="Annual CTC" value={form.annualCtc} keyboardType="numeric"
           onChange={(v: string) => setForm((f: any) => ({ ...f, annualCtc: v }))} />
-        <Input label="Start date (YYYY-MM-DD)" value={form.effectiveDate}
+        <Input text="date" label="Start date (YYYY-MM-DD)" value={form.effectiveDate}
           onChange={(v: string) => setForm((f: any) => ({ ...f, effectiveDate: v }))} />
         <Select label="Payment mode" value={form.paymentMode} onChange={(v: string) => setForm((f: any) => ({ ...f, paymentMode: v }))}
           options={Object.entries(PAYMENT_MODE).map(([value, label]) => ({ label, value }))} />
@@ -323,7 +323,7 @@ export default function AdminPayrollAssignmentsScreen() {
         )}
         <Select label="Effective from" value={ctcForm.effectiveMonth} onChange={(v: string) => setCtcForm((f: any) => ({ ...f, effectiveMonth: v }))}
           options={MONTHS.map((m, i) => ({ label: m, value: String(i + 1) }))} />
-        <Input label="Year" value={ctcForm.effectiveYear} keyboardType="numeric"
+        <Input text="digits" label="Year" value={ctcForm.effectiveYear} keyboardType="numeric"
           onChange={(v: string) => setCtcForm((f: any) => ({ ...f, effectiveYear: v }))} />
         <Input label="Note" value={ctcForm.note}
           onChange={(v: string) => setCtcForm((f: any) => ({ ...f, note: v }))} />
@@ -338,7 +338,7 @@ export default function AdminPayrollAssignmentsScreen() {
         onSubmit={applySettle} submitting={saving} submitLabel="Apply to run">
         {!settlement ? <LoaderView /> : (
           <>
-            <Input label="Last working day (YYYY-MM-DD)" value={settleForm.lastDay}
+            <Input text="date" label="Last working day (YYYY-MM-DD)" value={settleForm.lastDay}
               onChange={async (v: string) => {
                 setSettleForm((f: any) => ({ ...f, lastDay: v }));
                 if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {

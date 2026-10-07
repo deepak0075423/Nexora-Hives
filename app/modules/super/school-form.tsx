@@ -79,7 +79,7 @@ export default function SuperSchoolFormScreen() {
     }
     if (!isPincode(form.pincode)) return Alert.alert('Invalid', 'Pincode must be 6 digits');
     if (!STATES_AND_UTS.includes(form.state)) return Alert.alert('Invalid', 'Select a valid state or union territory');
-    const cityErr = textError(form.city, 'City', 'name');
+    const cityErr = textError(form.city, 'City', 'place');
     if (cityErr) return Alert.alert('Invalid', cityErr);
     if (form.name.trim().length < 3) return Alert.alert('Invalid', 'School name must be at least 3 characters');
     if (!/^[A-Za-z0-9_-]{2,20}$/.test(form.code.trim())) return Alert.alert('Invalid', 'Code must be 2-20 letters, numbers, hyphens or underscores');
@@ -109,8 +109,8 @@ export default function SuperSchoolFormScreen() {
         {loading ? <LoaderView /> : (
           <>
             <SectionTitle>School</SectionTitle>
-            <Input label="School Name *" value={form.name} onChange={set('name')} placeholder="e.g. Sunrise Public School" />
-            <Input label="School Code *" value={form.code} onChange={set('code')} placeholder="e.g. SPS01" editable={!editing} />
+            <Input text="title" label="School Name *" value={form.name} onChange={set('name')} placeholder="e.g. Sunrise Public School" />
+            <Input text="code" label="School Code *" value={form.code} onChange={set('code')} placeholder="e.g. SPS01" editable={!editing} />
             <Select label="School Board *" value={form.board} onChange={set('board')} placeholder="Select board…"
               options={SCHOOL_BOARDS.map(b => ({ label: b, value: b }))} />
             {NAMED_BOARDS[form.board] && (
@@ -119,15 +119,15 @@ export default function SuperSchoolFormScreen() {
             )}
             <Input label="Email *" value={form.email} onChange={set('email')} keyboardType="email-address" />
             <Input label="Phone *" value={form.phone} onChange={set('phone')} phone />
-            <Input label="Website" value={form.website} onChange={set('website')} placeholder="https://…" />
+            <Input text="token" label="Website" value={form.website} onChange={set('website')} placeholder="https://…" />
 
             <SectionTitle>Address</SectionTitle>
             <Input label="Address *" value={form.address} onChange={set('address')} multiline />
-            <Input label={pinBusy ? 'Pincode * (looking up…)' : 'Pincode *'} value={form.pincode} onChange={onPincode} keyboardType="number-pad" placeholder="411001" />
-            <Input label="City *" value={form.city} onChange={set('city')} text="name" />
+            <Input text="pincode" label={pinBusy ? 'Pincode * (looking up…)' : 'Pincode *'} value={form.pincode} onChange={onPincode} keyboardType="number-pad" placeholder="411001" />
+            <Input label="City *" value={form.city} onChange={set('city')} text="place" />
             <Select label="State *" value={form.state} onChange={set('state')} placeholder="Select state…"
               options={STATES_AND_UTS.map(s => ({ label: s, value: s }))} />
-            <Input label="Country *" value={form.country} onChange={set('country')} />
+            <Input text="place" label="Country *" value={form.country} onChange={set('country')} />
 
             <ActionBtn label={saving ? 'Saving…' : editing ? 'Update School' : 'Create School'} tone="success" onPress={save} />
           </>

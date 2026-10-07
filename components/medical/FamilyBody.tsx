@@ -276,7 +276,7 @@ function UpdateSheet({ preset, record, onClose, onDone }: { preset: any; record:
             value={!!p.emergencyMedication?.required} onChange={(v) => setMed('required', v)} />
           {p.emergencyMedication?.required ? (
             <>
-              <Field label="Medicine"><Box value={p.emergencyMedication.name || ''} onChange={(v) => setMed('name', v)} /></Field>
+              <Field label="Medicine"><Box text="title" value={p.emergencyMedication.name || ''} onChange={(v) => setMed('name', v)} /></Field>
               <Field label="Kept where"><Box value={p.emergencyMedication.location || ''} onChange={(v) => setMed('location', v)} /></Field>
               <Field label="How to give it"><Box value={p.emergencyMedication.instructions || ''} onChange={(v) => setMed('instructions', v)} multiline /></Field>
             </>

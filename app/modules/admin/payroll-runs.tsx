@@ -112,8 +112,8 @@ export default function AdminPayrollRunsScreen() {
         onSubmit={submit} submitting={saving} submitLabel="Create Run">
         <Select label="Month" value={form.month} onChange={v => setForm(f => ({ ...f, month: v }))}
           options={MONTHS.map((m, i) => ({ label: m, value: String(i + 1) }))} />
-        <Input label="Year" value={form.year} onChange={v => setForm(f => ({ ...f, year: v }))} keyboardType="numeric" />
-        <Input label="Run name (optional)" value={form.runName} onChange={v => setForm(f => ({ ...f, runName: v }))}
+        <Input text="digits" label="Year" value={form.year} onChange={v => setForm(f => ({ ...f, year: v }))} keyboardType="numeric" />
+        <Input text="title" label="Run name (optional)" value={form.runName} onChange={v => setForm(f => ({ ...f, runName: v }))}
           placeholder={`${MONTHS[Number(form.month) - 1] || ''} ${form.year} Payroll`} />
         <View style={st.hint}>
           <NoteBox tone="slate" icon="information-circle">

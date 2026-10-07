@@ -371,7 +371,7 @@ export function SettingsExtra({ settings, flags, set }: {
     <>
       <Card>
         <Text style={k.cardTitle}>Absence detection</Text>
-        <Input label="Consider half-day absent if absent after (HH:mm)"
+        <Input text="time" label="Consider half-day absent if absent after (HH:mm)"
           value={settings.halfDayAbsentAfter ?? '12:00'} onChange={(v) => set('halfDayAbsentAfter', v)} />
         <Text style={k.muted}>
           Where the register says “half day” without saying which half, periods from this time on are
@@ -406,12 +406,12 @@ export function SettingsExtra({ settings, flags, set }: {
           bonuses lift somebody who already knows the subject or the class.
         </Text>
         <View style={k.grid2}>
-          <View style={k.half}><Input label="Covers today" keyboardType="numeric" value={String(settings.weightSubsToday ?? 100)} onChange={num('weightSubsToday')} /></View>
-          <View style={k.half}><Input label="Covers this week" keyboardType="numeric" value={String(settings.weightSubsWeek ?? 20)} onChange={num('weightSubsWeek')} /></View>
-          <View style={k.half}><Input label="Covers this month" keyboardType="numeric" value={String(settings.weightSubsMonth ?? 5)} onChange={num('weightSubsMonth')} /></View>
-          <View style={k.half}><Input label="Normal periods today" keyboardType="numeric" value={String(settings.weightNormalToday ?? 8)} onChange={num('weightNormalToday')} /></View>
-          <View style={k.half}><Input label="Bonus: teaches subject" keyboardType="numeric" value={String(settings.bonusSubjectMatch ?? 30)} onChange={num('bonusSubjectMatch')} /></View>
-          <View style={k.half}><Input label="Bonus: teaches class" keyboardType="numeric" value={String(settings.bonusSameSection ?? 10)} onChange={num('bonusSameSection')} /></View>
+          <View style={k.half}><Input text="digits" label="Covers today" keyboardType="numeric" value={String(settings.weightSubsToday ?? 100)} onChange={num('weightSubsToday')} /></View>
+          <View style={k.half}><Input text="digits" label="Covers this week" keyboardType="numeric" value={String(settings.weightSubsWeek ?? 20)} onChange={num('weightSubsWeek')} /></View>
+          <View style={k.half}><Input text="digits" label="Covers this month" keyboardType="numeric" value={String(settings.weightSubsMonth ?? 5)} onChange={num('weightSubsMonth')} /></View>
+          <View style={k.half}><Input text="digits" label="Normal periods today" keyboardType="numeric" value={String(settings.weightNormalToday ?? 8)} onChange={num('weightNormalToday')} /></View>
+          <View style={k.half}><Input text="digits" label="Bonus: teaches subject" keyboardType="numeric" value={String(settings.bonusSubjectMatch ?? 30)} onChange={num('bonusSubjectMatch')} /></View>
+          <View style={k.half}><Input text="digits" label="Bonus: teaches class" keyboardType="numeric" value={String(settings.bonusSameSection ?? 10)} onChange={num('bonusSameSection')} /></View>
         </View>
       </Card>
 

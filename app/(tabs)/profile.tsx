@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { logout } from '@/api/auth.api';
 import { getProfile } from '@/api/profile.api';
 import { FormModal } from '@/components/ui/kit';
+import { experienceText } from '@/utils/validators';
 
 interface ProfileData {
   user: { name: string; email: string; phone?: string; role: string; profileImage?: string };
@@ -83,7 +84,7 @@ function RoleInfoBlock({ role, p }: { role: string; p: Record<string, any> }) {
       <InfoItem icon="business-outline"     label="Department"    value={p.department} />
       <InfoItem icon="card-outline"         label="Employee ID"   value={p.employeeId} />
       <InfoItem icon="school-outline"       label="Qualification" value={p.qualification} />
-      <InfoItem icon="time-outline"         label="Experience"    value={p.experience} />
+      <InfoItem icon="time-outline"         label="Experience"    value={experienceText(p.experience)} />
       <InfoItem icon="person-outline"       label="Gender"        value={p.gender} />
       <InfoItem icon="calendar-outline"     label="Date of Birth" value={fmtDate(p.dob)} />
     </>
