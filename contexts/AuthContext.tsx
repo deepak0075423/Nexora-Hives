@@ -5,7 +5,9 @@ import { unregisterPush } from '@/utils/pushNotifications';
 import { getMe, switchAccount as switchAccountApi } from '@/api/auth.api';
 import { startFileAccess, stopFileAccess } from '@/utils/fileAccess';
 
-export type UserRole = 'student' | 'teacher' | 'parent' | 'admin' | 'super-admin';
+// 'guest': an admission applicant — their pages are the school's admission
+// portal on the web; the app shows them app/modules/applicant only.
+export type UserRole = 'student' | 'teacher' | 'parent' | 'admin' | 'super-admin' | 'guest';
 
 export interface User {
   _id: string;
@@ -140,9 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Private uploads open with a file token while someone is signed in (utils/fileAccess).
   useEffect(() => {
-    if (user?._id) startFileAccess();
+    // An applicant has no private files here (the server refuses them a token).
+    if (user?._id && user.role !== 'guest') startFileAccess();
     else if (!loading) stopFileAccess();
-  }, [user?._id, loading]);
+  }, [user?._id, user?.role, loading]);
 
   /** Upsert an entry in the saved-accounts registry */
   const upsertAccount = async (u: User, token: string, refreshToken: string) => {

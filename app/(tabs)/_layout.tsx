@@ -45,6 +45,11 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const role = user?.role;
 
+  // An admission applicant never sees the tabs: the root guard sends them to
+  // the applicant screens. Mounting them first would load a student's home and
+  // be refused by the server for every call.
+  if (role === 'guest') return null;
+
   const tabs =
     role === 'teacher' ? TEACHER_TABS :
     role === 'parent'  ? PARENT_TABS  :

@@ -36,6 +36,11 @@ function RootGuard() {
 
     if (!user && !inAuth && !inNotifLink) {
       router.replace('/(auth)/login' as any);
+    } else if (user && user.role === 'guest') {
+      // An admission applicant: the applicant screens (their applications, each
+      // one's progress) and the school's admission portal on the web for the
+      // rest. The tabs are a student's and parent's, and would only meet refusals.
+      if (!(inModules && String(segments[1] || '').startsWith('applicant'))) router.replace('/modules/applicant' as any);
     } else if (user && inAuth) {
       router.replace(user.isFirstLogin ? ('/modules/change-password' as any) : ('/(tabs)' as any));
     } else if (user && user.isFirstLogin && !inChangePassword) {
@@ -47,7 +52,7 @@ function RootGuard() {
   // is replayed the moment there is somewhere to take it. Not for a first
   // login — that has to finish changing the password first.
   useEffect(() => {
-    if (loading || !user || user.isFirstLogin) return;
+    if (loading || !user || user.isFirstLogin || user.role === 'guest') return;
     let cancelled = false;
     takePendingNotification().then(receiptId => {
       if (receiptId && !cancelled) router.replace(`/notification/${receiptId}` as any);
@@ -58,8 +63,8 @@ function RootGuard() {
   // This phone shows the signed-in person's notifications as the OS's own —
   // registered again after switching account, so it follows whoever is signed in.
   useEffect(() => {
-    if (user?._id) registerForPushNotifications();
-  }, [user?._id]);
+    if (user?._id && user.role !== 'guest') registerForPushNotifications();
+  }, [user?._id, user?.role]);
 
   return null;
 }

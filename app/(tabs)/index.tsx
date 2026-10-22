@@ -67,6 +67,7 @@ const TEACHER_MODULES = [
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
   { key: 'manageLib',  label: 'Manage Lib', icon: 'albums',           route: '/modules/library-admin', moduleFlag: 'library', requires: 'isLibrarian' },
   { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/inventory-requests', moduleFlag: 'inventory' },
+  { key: 'admDuties',  label: 'Adm. Duties', icon: 'clipboard',       route: '/modules/admission-duties', moduleFlag: 'admission' },
   // A teacher who lives in the hostel (hostelResident), and one posted to a hostel as its
   // warden or on its staff (hostelDuty) — two different things; a teacher can be either, both or neither.
   { key: 'hostel',     label: 'My Hostel',  icon: 'business',         route: '/modules/hostel-teacher', requires: 'hostelResident' },
@@ -100,6 +101,7 @@ const ADMIN_MODULES = [
   { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/admin/inventory',   moduleFlag: 'inventory' },
   { key: 'transport',  label: 'Transport',  icon: 'bus',              route: '/modules/admin/transport',   moduleFlag: 'transport' },
   { key: 'hostel',     label: 'Hostel',     icon: 'business',         route: '/modules/admin/hostel',      moduleFlag: 'hostel' },
+  { key: 'admission',  label: 'Admissions', icon: 'school',           route: '/modules/admin/admission',   moduleFlag: 'admission' },
   { key: 'medical',    label: 'Medical Room', icon: 'medkit',         route: '/modules/admin/medical',     moduleFlag: 'medical' },
   { key: 'videos',     label: 'Videos',     icon: 'play-circle',      route: '/modules/admin-videos',      moduleFlag: 'videoLibrary' },
   { key: 'feedback',   label: 'Feedback',   icon: 'star',             route: '/modules/admin/feedback',    moduleFlag: 'feedback' },
@@ -118,6 +120,7 @@ const SUPER_ADMIN_MODULES = [
   { key: 'schools',    label: 'Schools',    icon: 'business',         route: '/modules/super/schools' },
   { key: 'users',      label: 'Users',      icon: 'people',           route: '/modules/super/users' },
   { key: 'permissions',label: 'Permissions',icon: 'key',              route: '/modules/super/permissions' },
+  { key: 'admGroups',  label: 'Adm. Groups', icon: 'git-branch',      route: '/modules/super/admission-groups' },
   { key: 'logs',       label: 'Logs',       icon: 'list',             route: '/modules/super/logs' },
   { key: 'sendAlert',  label: 'Send Alert', icon: 'megaphone',        route: '/modules/send-notification' },
   { key: 'alerts',     label: 'Alerts',     icon: 'notifications',    route: '/modules/alerts' },
@@ -160,6 +163,7 @@ const TEACHER_ADMIN_MODULES = [
   { key: 'inventory',  label: 'Inventory*',  icon: 'cube',            route: '/modules/admin/inventory',  adminOf: 'inventory' },
   { key: 'transport',  label: 'Transport*',  icon: 'bus',             route: '/modules/admin/transport',  adminOf: 'transport' },
   { key: 'hostel',     label: 'Hostel*',     icon: 'business',        route: '/modules/admin/hostel',     adminOf: 'hostel' },
+  { key: 'admission',  label: 'Admissions*', icon: 'school',          route: '/modules/admin/admission',  adminOf: 'admission' },
   { key: 'videos',     label: 'Videos*',     icon: 'film',            route: '/modules/admin-videos',     adminOf: 'videoLibrary' },
   { key: 'leave',      label: 'Leave*',      icon: 'airplane',        route: '/modules/admin/leave',      adminOf: 'leave' },
   { key: 'documents',  label: 'Documents*',  icon: 'folder-open',     route: '/modules/admin/documents',  adminOf: 'document' },

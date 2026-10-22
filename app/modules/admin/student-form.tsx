@@ -60,6 +60,8 @@ export const EMPTY_STUDENT: any = {
   permanentAddress: '', permanentCity: '', permanentState: '', permanentPincode: '', permanentCountry: 'India',
   sameAsCurrent: true,
   aadhaarNumber: '',
+  // Government education IDs (Oct 2026, as the web form): PEN 11 digits, APAAR 12, the previous school's UDISE+ 11.
+  penNumber: '', apaarId: '', previousSchoolUdise: '',
   isTransferStudent: false,
   previousSchoolName: '', previousSchoolContact: '',
   previousSchoolAddress: '', previousSchoolCity: '', previousSchoolState: '',
@@ -213,6 +215,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         permanentCountry: p.permanentCountry || 'India',
         sameAsCurrent: !!p.sameAsCurrent,
         aadhaarNumber: p.aadhaarNumber ?? '',
+        penNumber: p.penNumber ?? '', apaarId: p.apaarId ?? '', previousSchoolUdise: p.previousSchoolUdise ?? '',
         isTransferStudent: !!p.isTransferStudent,
         previousSchoolName: p.previousSchoolName ?? '', previousSchoolContact: p.previousSchoolContact ?? '',
         previousSchoolAddress: p.previousSchoolAddress ?? '', previousSchoolCity: p.previousSchoolCity ?? '',
@@ -311,6 +314,8 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       return (!files.photo && !docs?.photoFile ? "Student's passport size photo is required" : null)
         || need('aadhaarNumber', 'Aadhaar number')
         || (!AADHAAR_RE.test(String(form.aadhaarNumber).replace(/\s/g, '')) ? 'Aadhaar number must be 12 digits' : null)
+        || (form.penNumber && !/^\d{11}$/.test(form.penNumber) ? 'PEN (Permanent Education Number) must be 11 digits' : null)
+        || (form.apaarId && !/^\d{12}$/.test(form.apaarId) ? 'APAAR ID must be 12 digits' : null)
         || (!files.aadhaarFront && !docs?.aadhaarFrontFile ? 'Aadhaar front image is required' : null)
         || (!files.aadhaarBack && !docs?.aadhaarBackFile ? 'Aadhaar back image is required' : null)
         || (!files.birthCertificate && !docs?.birthCertificateFile ? 'Birth certificate is required' : null);
@@ -329,6 +334,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.previousSchoolLeavingDate) ? 'Leaving date must be YYYY-MM-DD' : null)
         || need('previousSchoolContact', 'Previous school contact')
         || (!isPhone(form.previousSchoolContact) ? 'Previous school contact must be a valid 10-digit mobile number' : null)
+        || (form.previousSchoolUdise && !/^\d{11}$/.test(form.previousSchoolUdise) ? "The previous school's UDISE+ code must be 11 digits" : null)
         || need('tcNumber', 'TC number')
         || need('tcDate', 'TC date')
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.tcDate) ? 'TC date must be YYYY-MM-DD' : null)
@@ -401,7 +407,9 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       permanentCountry: form.permanentCountry || 'India',
       sameAsCurrent: form.sameAsCurrent,
       aadhaarNumber: form.aadhaarNumber,
+      penNumber: form.penNumber, apaarId: form.apaarId,
       isTransferStudent: form.isTransferStudent,
+      previousSchoolUdise: form.isTransferStudent ? form.previousSchoolUdise : '',
       previousSchoolName: form.previousSchoolName,
       previousSchoolAddress: form.previousSchoolAddress,
       previousSchoolCity: form.previousSchoolCity,
@@ -554,6 +562,10 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
           <Input text="aadhaar" label="Aadhaar Card Number *" value={form.aadhaarNumber}
             onChange={v => set('aadhaarNumber')(v.replace(/[^\d\s]/g, ''))}
             keyboardType="numeric" placeholder="12 digits" />
+          <Input text="digits" label="PEN (Permanent Education Number)" value={form.penNumber}
+            onChange={v => set('penNumber')(v.replace(/\D/g, '').slice(0, 11))} keyboardType="numeric" placeholder="11 digits — optional" />
+          <Input text="digits" label="APAAR ID" value={form.apaarId}
+            onChange={v => set('apaarId')(v.replace(/\D/g, '').slice(0, 12))} keyboardType="numeric" placeholder="12 digits — optional" />
           <DocField label="Aadhaar — Front" required value={files.aadhaarFront}
             existing={docs?.aadhaarFrontFile} onChange={setFile('aadhaarFront')} />
           <DocField label="Aadhaar — Back" required value={files.aadhaarBack}
@@ -610,6 +622,8 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
                 onChange={set('previousSchoolContact')} phone />
 
               <SectionTitle>Transfer Certificate</SectionTitle>
+              <Input text="digits" label="Previous School UDISE+ Code" value={form.previousSchoolUdise}
+                onChange={v => set('previousSchoolUdise')(v.replace(/\D/g, '').slice(0, 11))} keyboardType="numeric" placeholder="11 digits — optional" />
               <Input text="code" label="TC Number *" value={form.tcNumber} onChange={set('tcNumber')} />
               <Input text="date" label="TC Date *" value={form.tcDate} onChange={set('tcDate')} placeholder="YYYY-MM-DD" />
               <DocField label="Transfer Certificate (TC)" required value={files.tc}

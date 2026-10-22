@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, RefreshControl, Alert, Switch, TouchableOpacity, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { schoolLogoUrl } from '@/utils/branding';
 import { isEmail, isPhone, isURL } from '@/utils/validators';
 import {
-  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV, confirmAsync, Select, Toggle,
+  unwrap, LoaderView, Input, ActionBtn, SectionTitle, Card, KV, confirmAsync, Select, Toggle, RowItem,
 } from '@/components/ui/kit';
 
 interface SmtpForm {
@@ -24,6 +24,7 @@ const EMPTY_SMTP: SmtpForm = {
 
 export default function AdminSchoolSettingsScreen() {
   const { user: me, reload } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -308,6 +309,13 @@ export default function AdminSchoolSettingsScreen() {
             <Input label="Email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} keyboardType="email-address" />
             <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} phone />
             <Input text="token" label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
+
+            {/* ── Privacy & cookies (Oct 2026): the school's own cookie policy, on its own screen ── */}
+            <SectionTitle>Privacy & cookies</SectionTitle>
+            <Card>
+              <RowItem icon="shield-checkmark-outline" title="Cookie policy" sub="The banner on the admission portal, optional cookies, what is stored, the policy's words"
+                onPress={() => router.push('/modules/admin/cookie-policy' as any)} />
+            </Card>
 
             {/* ── Admission number format ── */}
             <SectionTitle>Admission Number Format</SectionTitle>

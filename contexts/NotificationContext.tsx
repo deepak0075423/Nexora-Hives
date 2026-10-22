@@ -66,7 +66,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    if (!user?._id) {
+    // An applicant (guest) gets no in-app notifications — their updates are
+    // emailed and shown on the admission portal.
+    if (!user?._id || user.role === 'guest') {
       disconnectSocket();
       connectedFor.current = null;
       setUnreadCount(0);
@@ -102,7 +104,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     })();
 
     return () => { cancelled = true; };
-  }, [user?._id, refreshUnread]);
+  }, [user?._id, user?.role, refreshUnread]);
 
   const dismissLast = useCallback(() => setLastNotification(null), []);
 
