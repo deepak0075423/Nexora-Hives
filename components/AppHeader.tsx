@@ -12,14 +12,17 @@ import { schoolLogoUrl } from '@/utils/branding';
  * Brand header shown at the top of the tab screens:
  * logo + app name + school on the left, notification bell on the right.
  */
-export default function AppHeader({ unreadCount, title }: { unreadCount?: number; title?: string }) {
+export default function AppHeader({ title }: { title?: string }) {
   const router = useRouter();
   const { user } = useAuth();
   const { unreadCount: liveUnread } = useNotifications();
   const insets = useSafeAreaInsets();
 
-  // Live socket count wins over the prop (prop kept for backwards compat)
-  const badgeCount = liveUnread || unreadCount || 0;
+  // One count for the whole app (contexts/NotificationContext): pushed by the
+  // gateway, read from the server when the socket is down. A screen's own copy
+  // used to stand in whenever this was 0 — so reading everything left the old
+  // number on the bell.
+  const badgeCount = liveUnread;
   const logoUri = schoolLogoUrl(user?.school as any);
 
   return (
@@ -38,7 +41,9 @@ export default function AppHeader({ unreadCount, title }: { unreadCount?: number
             <Text style={s.school}>Aksharum</Text>
           )}
         </View>
-        <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/modules/alerts' as any)}>
+        <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/modules/alerts' as any)}
+          accessibilityRole="button"
+          accessibilityLabel={badgeCount > 0 ? `Notifications, ${badgeCount} unread` : 'Notifications'}>
           <Ionicons name="notifications-outline" size={20} color={Colors.text} />
           {badgeCount > 0 && (
             <View style={s.badge}>

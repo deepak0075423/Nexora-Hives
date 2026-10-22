@@ -12,7 +12,6 @@ import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import * as adminApi from '@/api/admin.api';
 import * as superApi from '@/api/superadmin.api';
-import * as notifApi from '@/api/notifications.api';
 import { useModules } from '@/hooks/useModules';
 import AppHeader from '@/components/AppHeader';
 import {
@@ -898,7 +897,6 @@ export default function DashboardScreen() {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   // Which child a parent is looking at. Empty means "whichever the server picks".
   const [childId, setChildId] = useState('');
 
@@ -937,13 +935,6 @@ export default function DashboardScreen() {
       .catch(() => setHolidays([]));
   }, [user?.role]);
 
-  useEffect(() => {
-    if (!user) return;
-    notifApi.getUnreadCount()
-      .then((r: any) => setUnreadCount(r?.count ?? 0))
-      .catch(() => {});
-  }, [user?._id]);
-
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
   // The tiles are drawn from the module map, which pulling to refresh did not
@@ -967,7 +958,7 @@ export default function DashboardScreen() {
   return (
     <View style={s.root}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
-      <AppHeader unreadCount={unreadCount} />
+      <AppHeader />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[s.scroll, { paddingBottom: 100 }]}
