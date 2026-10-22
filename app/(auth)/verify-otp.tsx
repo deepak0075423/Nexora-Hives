@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
@@ -7,15 +7,56 @@ import { TextInput } from '@/components/ui/TextInput';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import { verifyOtp } from '@/api/auth.api';
+import { forgotPassword, verifyOtp } from '@/api/auth.api';
+import { clock, codeState, codeStateFromParams, opensAt, type CodeState } from '@/utils/authWait';
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const params = useLocalSearchParams<{ email: string; resendAt?: string; sendsLeft?: string; maxSends?: string; availableAt?: string }>();
+  const email = String(params.email || '');
   const [otp, setOtp]       = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
+  const [notice, setNotice] = useState('');
   const inputs = useRef<(TextInput | null)[]>([]);
+
+  // Asking for another code: 60 seconds after the last one, three in a row,
+  // then not for a day. The server decides (services/resetCodeLimit); this
+  // screen shows where the person stands.
+  const [codes, setCodes]         = useState<CodeState>(() => codeStateFromParams(params));
+  const [resending, setResending] = useState(false);
+  const [now, setNow]             = useState(Date.now());
+  const wait = Math.max(0, Math.ceil((codes.resendAt - now) / 1000));
+  const counting = wait > 0;
+  useEffect(() => {
+    if (!counting) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [counting]);
+
+  const take = (d: any) => { setCodes(codeState(d)); setNow(Date.now()); };
+
+  // Right here — the screen used to send the person back to the email form.
+  const resend = async () => {
+    setError(''); setNotice('');
+    setResending(true);
+    try {
+      const d: any = await forgotPassword({ email });
+      take(d);
+      setOtp(['', '', '', '', '', '']);
+      setNotice('A new code is on its way. Use the newest one — earlier codes no longer work.');
+      inputs.current[0]?.focus();
+    } catch (err: any) {
+      const d = err?.data || {};
+      if (d.code === 'OTP_WAIT' || d.code === 'OTP_LIMIT') take(d);
+      else setError(err?.message || 'Could not send a new code.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const usedUp = codes.sendsLeft === 0;
+  const until  = usedUp ? opensAt(codes.availableAt) : null;
 
   const handleChange = (val: string, idx: number) => {
     setError('');
@@ -41,7 +82,7 @@ export default function VerifyOtpScreen() {
     }
     setLoading(true);
     try {
-      const res: any = await verifyOtp({ email: email!, otp: code });
+      const res: any = await verifyOtp({ email, otp: code });
       router.push({ pathname: '/(auth)/new-password' as any, params: { email, resetToken: res?.resetToken ?? '' } });
     } catch (err: any) {
       setError(err?.message || 'Code is incorrect or expired. Try again.');
@@ -76,6 +117,13 @@ export default function VerifyOtpScreen() {
           </View>
         )}
 
+        {!!notice && !error && (
+          <View style={s.noticeBox}>
+            <Ionicons name="mail-outline" size={16} color={Colors.success} />
+            <Text style={s.noticeText}>{notice}</Text>
+          </View>
+        )}
+
         <View style={s.otpRow}>
           {otp.map((digit, idx) => (
             <TextInput
@@ -104,11 +152,29 @@ export default function VerifyOtpScreen() {
           }
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.resendBtn} onPress={() => router.back()}>
-          <Text style={s.resendText}>
-            Didn't receive it? <Text style={s.resendLink}>Go back</Text>
-          </Text>
-        </TouchableOpacity>
+        <View style={s.resendBox}>
+          {usedUp ? (
+            <Text style={s.resendText}>
+              You have asked for all {codes.maxSends} codes.
+              {until ? <> You can ask for a new one after <Text style={s.resendStrong}>{until}</Text>.</> : ' You can ask for a new one in 24 hours.'}
+            </Text>
+          ) : counting ? (
+            <Text style={s.resendText}>
+              Didn’t get it? Resend in <Text style={s.resendStrong}>{clock(wait)}</Text>
+            </Text>
+          ) : (
+            <TouchableOpacity onPress={resend} disabled={resending} hitSlop={8}>
+              <Text style={s.resendText}>
+                Didn’t get it? <Text style={s.resendLink}>{resending ? 'Sending…' : 'Resend code'}</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!usedUp && codes.sendsLeft != null && (
+            <Text style={s.resendLeft}>
+              You can ask for {codes.sendsLeft} more {codes.sendsLeft === 1 ? 'code' : 'codes'}.
+            </Text>
+          )}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -150,7 +216,17 @@ const s = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.7 },
   btnText:     { ...Typography.h4, color: '#fff' },
-  resendBtn:   { alignItems: 'center' },
-  resendText:  { ...Typography.body, color: Colors.textSecondary },
+  resendBox:   { alignItems: 'center', gap: 6 },
+  resendText:  { ...Typography.body, color: Colors.textSecondary, textAlign: 'center' },
   resendLink:  { color: Colors.accent, fontWeight: '600' },
+  resendStrong:{ color: Colors.text, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  resendLeft:  { ...Typography.bodySmall, color: Colors.textLight },
+
+  noticeBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: Colors.successLight, borderRadius: Radius.sm,
+    padding: Spacing.sm, marginBottom: Spacing.md,
+    borderWidth: 1, borderColor: Colors.success + '40',
+  },
+  noticeText: { ...Typography.bodySmall, color: Colors.success, flex: 1, lineHeight: 18 },
 });

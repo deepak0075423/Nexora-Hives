@@ -11,21 +11,10 @@ import { login } from '@/api/auth.api';
 import { useAuth } from '@/contexts/AuthContext';
 import { isEmail } from '@/utils/validators';
 import { schoolLogoUrl } from '@/utils/branding';
+import { opensAt } from '@/utils/authWait';
 
 /** What the server said about the last wrong password (school-backend services/loginLockout). */
 type Guard = { failed: number; max: number; left: number; lockHours: number; locked: boolean; until: string | null };
-
-/** "2:15 pm tomorrow" — when a lock lifts, in the phone's own clock. */
-function opensAt(iso: string | null) {
-  const at = iso ? new Date(iso) : null;
-  if (!at || Number.isNaN(at.getTime())) return null;
-  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - today.getTime()) / 86400000);
-  if (days === 0) return `${time} today`;
-  if (days === 1) return `${time} tomorrow`;
-  return `${time} on ${at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}`;
-}
 
 /**
  * Five wrong passwords lock an account for a day. After each wrong one this

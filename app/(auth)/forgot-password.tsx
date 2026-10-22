@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { forgotPassword } from '@/api/auth.api';
 import { isEmail } from '@/utils/validators';
+import { codeParams } from '@/utils/authWait';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -30,11 +31,20 @@ export default function ForgotPasswordScreen() {
       return;
     }
     setLoading(true);
+    const address = email.trim().toLowerCase();
     try {
-      await forgotPassword({ email: email.trim().toLowerCase() });
+      const d: any = await forgotPassword({ email: address });
       setSent(true);
-      router.push({ pathname: '/(auth)/verify-otp' as any, params: { email: email.trim().toLowerCase() } });
+      router.push({ pathname: '/(auth)/verify-otp' as any, params: codeParams(address, d) });
     } catch (err: any) {
+      const d = err?.data || {};
+      // A code went out under a minute ago and is still good — go and use it.
+      if (d.code === 'OTP_WAIT') {
+        router.push({ pathname: '/(auth)/verify-otp' as any, params: codeParams(address, d) });
+        return;
+      }
+      // No account with this address, an account that cannot sign in, or all
+      // three codes asked for — the server's sentence says which.
       setError(err?.message || 'Could not send OTP. Try again.');
     } finally {
       setLoading(false);
