@@ -18,9 +18,13 @@ import * as teacherApi from '@/api/teacher.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { unwrap, LoaderView, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { Hero, Figures, Panel, Pill, Blank, TONES, shortDate, type Tone } from '@/components/library/parts';
+import { levelOf, shortOf } from '@/utils/classLevels';
 
 const chipFor = (row: any) => {
-  if (row?.classNumber != null) return `C${row.classNumber}`;
+  const n = Number(row?.classNumber);
+  if (row?.classNumber != null && Number.isInteger(n) && n >= 1) return `C${n}`;
+  // Pre-primary sits at 0 and below (utils/classLevels) — its short name, never "C-1".
+  if (row?.classNumber != null && levelOf(n)) return shortOf(row).slice(0, 3).toUpperCase();
   const d = String(row?.className ?? '').match(/\d+/);
   if (d) return `C${d[0]}`;
   return String(row?.className || row?.sectionName || '?').slice(0, 2).toUpperCase();

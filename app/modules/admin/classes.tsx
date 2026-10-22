@@ -5,9 +5,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import {
-  unwrap, LoaderView, Empty, RowItem, FAB, FormModal, Input, Select,
+  unwrap, LoaderView, Empty, RowItem, FAB, FormModal, Input, Select, SegTabs,
   confirmAsync, Badge,
 } from '@/components/ui/kit';
+import { CLASS_LEVELS, PRE_PRIMARY, levelOf } from '@/utils/classLevels';
+
+/**
+ * Which of its two names a pre-primary class goes by — Playgroup or
+ * Pre-Nursery, LKG or KG1, UKG or KG2 (utils/classLevels). Nothing for a class
+ * with one name.
+ */
+function NameChoice({ number, value, onChange, label = 'Name it' }: {
+  number: number; value: string; onChange: (name: string) => void; label?: string;
+}) {
+  const lvl = levelOf(number);
+  if (!lvl || lvl.names.length < 2) return null;
+  return (
+    <View>
+      <Text style={cs.choiceLabel}>{label}</Text>
+      <SegTabs tabs={lvl.names.map((n) => ({ key: n, label: n }))} active={value || lvl.names[0]} onChange={onChange} />
+    </View>
+  );
+}
+
+const FRESH_BULK = { fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40', names: {} as Record<string, string> };
 
 export default function AdminClassesScreen() {
   const router = useRouter();
@@ -21,7 +42,9 @@ export default function AdminClassesScreen() {
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ className: '' });
+  // Adding: one of the standard classes (`level`, its number) and its name;
+  // editing: the name only.
+  const [form, setForm] = useState({ className: '', level: '' });
   const [editCls, setEditCls] = useState<any>(null);   // class being renamed
   const [busyClass, setBusyClass] = useState('');      // id being shuffled / locked
   const [sectionForm, setSectionForm] = useState<{ classId: string; name: string; capacity: string } | null>(null);
@@ -38,7 +61,7 @@ export default function AdminClassesScreen() {
   const [multiErr, setMultiErr] = useState('');
 
   const [showBulk, setShowBulk] = useState(false);
-  const [bulk, setBulk] = useState({ fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40' });
+  const [bulk, setBulk] = useState(FRESH_BULK);
   const [bulkPlan, setBulkPlan] = useState<any>(null);
   const [bulkErr, setBulkErr] = useState('');
 
@@ -78,13 +101,14 @@ export default function AdminClassesScreen() {
     catch (err: any) { Alert.alert('Error', err.message); }
   };
 
-  const openCreate = () => { setEditCls(null); setForm({ className: '' }); setShowForm(true); };
+  const openCreate = () => { setEditCls(null); setForm({ className: '', level: '' }); setShowForm(true); };
 
   const bulkPayload = (b = bulk) => ({
     fromClass: Number(b.fromClass),
     toClass: Number(b.toClass),
     sectionsPerClass: Number(b.sectionsPerClass),
     capacity: Number(b.capacity),
+    names: b.names,
     ...(yearId ? { academicYear: yearId } : {}),
   });
 
@@ -98,17 +122,35 @@ export default function AdminClassesScreen() {
   };
 
   const openBulk = () => {
-    const fresh = { fromClass: '1', toClass: '12', sectionsPerClass: '4', capacity: '40' };
-    setBulk(fresh); setBulkPlan(null); setBulkErr('');
+    setBulk(FRESH_BULK); setBulkPlan(null); setBulkErr('');
     setShowBulk(true);
-    previewBulk(fresh);
+    previewBulk(FRESH_BULK);
   };
 
-  const setBulkField = (key: keyof typeof bulk, v: string) => {
+  const setBulkField = (key: 'fromClass' | 'toClass' | 'sectionsPerClass' | 'capacity', v: string) => {
     const next = { ...bulk, [key]: v };
     setBulk(next);
     previewBulk(next);
   };
+  const setBulkName = (number: number, name: string) => {
+    const next = { ...bulk, names: { ...bulk.names, [number]: name } };
+    setBulk(next);
+    previewBulk(next);
+  };
+  // The two-name pre-primary classes inside the range — each needs its name picked.
+  const bulkLo = Math.min(Number(bulk.fromClass), Number(bulk.toClass));
+  const bulkHi = Math.max(Number(bulk.fromClass), Number(bulk.toClass));
+  // …unless the year already has it (it keeps the name it has).
+  const bulkThere = new Set(((bulkPlan?.plan ?? []) as any[]).filter((r) => r.classExists).map((r) => Number(r.classNumber)));
+  const bulkTwoNames = PRE_PRIMARY.filter((l) => l.names.length > 1 && l.number >= bulkLo && l.number <= bulkHi && !bulkThere.has(l.number));
+  // Pre-primary first, then Class 1 to 12 — the same list as the web and the server.
+  const levelOptions = CLASS_LEVELS.map((l) => ({ value: String(l.number), label: l.label }));
+  const takenAt = new Map(classes.map((c: any) => [Number(c.classNumber), c]));
+  const createOptions = CLASS_LEVELS.map((l) => {
+    const have = takenAt.get(l.number);
+    return { value: String(l.number), label: have ? `${l.label} · added${have.className !== l.label ? ` as ${have.className}` : ''}` : l.label };
+  });
+  const formLevel = levelOf(form.level);
 
   const previewMulti = async (classId: string, m: typeof multi) => {
     try {
@@ -167,24 +209,30 @@ export default function AdminClassesScreen() {
     } catch (err: any) { setBulkErr(err.message ?? 'Could not create these classes'); }
     finally { setSaving(false); }
   };
-  const openEdit = (cls: any) => { setEditCls(cls); setForm({ className: cls.className }); setShowForm(true); };
+  const openEdit = (cls: any) => { setEditCls(cls); setForm({ className: cls.className, level: '' }); setShowForm(true); };
 
   const submitClass = async () => {
-    if (!form.className.trim()) return Alert.alert('Required', 'Class name is required');
+    if (editCls && !form.className.trim()) return Alert.alert('Required', 'Class name is required');
+    if (!editCls) {
+      if (!formLevel) return Alert.alert('Required', 'Pick the class to add.');
+      const have = takenAt.get(formLevel.number);
+      if (have) return Alert.alert('Already added', `${formLevel.label} is already in this year, as "${have.className}".`);
+    }
     setSaving(true);
     try {
       if (editCls) {
         await adminApi.updateClass(editCls._id, { className: form.className.trim() });
-      } else {
-        // Grade is derived server-side from the class name
+      } else if (formLevel) {
+        // One of the standard classes, by its number, and the name picked for it.
         await adminApi.createClass({
-          className: form.className.trim(),
+          className: form.className || formLevel.names[0],
+          classNumber: formLevel.number,
           ...(yearId ? { academicYear: yearId } : {}),
         });
       }
       setShowForm(false);
       setEditCls(null);
-      setForm({ className: '' });
+      setForm({ className: '', level: '' });
       load();
     } catch (err: any) { Alert.alert('Error', err.message); }
     finally { setSaving(false); }
@@ -342,13 +390,27 @@ export default function AdminClassesScreen() {
             ))
           )}
         </ScrollView>
-        <FAB onPress={openCreate} />
+        <FAB onPress={openCreate} label="Add class" />
       </View>
 
       <FormModal visible={showForm} title={editCls ? 'Edit Class' : 'Add Class'}
         onClose={() => { setShowForm(false); setEditCls(null); }}
         onSubmit={submitClass} submitting={saving} submitLabel={editCls ? 'Save Changes' : 'Create Class'}>
-        <Input text="title" label="Class Name *" value={form.className} onChange={v => setForm(f => ({ ...f, className: v }))} placeholder="e.g. Class 10" />
+        {editCls ? (
+          <Input text="title" label="Class Name *" value={form.className} onChange={v => setForm(f => ({ ...f, className: v }))} placeholder="e.g. Class 10" />
+        ) : (
+          <>
+            <Select label="Class *" value={form.level} options={createOptions} placeholder="Select a class"
+              onChange={v => setForm({ level: v, className: levelOf(v)?.names[0] ?? '' })} />
+            {formLevel && (
+              <NameChoice number={formLevel.number} value={form.className}
+                onChange={(name) => setForm(f => ({ ...f, className: name }))} />
+            )}
+            <Text style={cs.bulkNote}>
+              Pre-primary first, then Class 1 to 12 — classes are listed and promoted in this order.
+            </Text>
+          </>
+        )}
       </FormModal>
 
       <FormModal
@@ -361,8 +423,12 @@ export default function AdminClassesScreen() {
           ? `Create ${bulkPlan.classesToCreate} classes · ${bulkPlan.sectionsToCreate} sections`
           : 'Create'}
       >
-        <Input text="digits" label="From class" value={bulk.fromClass} onChange={v => setBulkField('fromClass', v)} keyboardType="numeric" />
-        <Input text="digits" label="To class" value={bulk.toClass} onChange={v => setBulkField('toClass', v)} keyboardType="numeric" />
+        <Select label="From class" value={bulk.fromClass} options={levelOptions} onChange={v => setBulkField('fromClass', v)} />
+        <Select label="To class" value={bulk.toClass} options={levelOptions} onChange={v => setBulkField('toClass', v)} />
+        {bulkTwoNames.map((l) => (
+          <NameChoice key={l.number} number={l.number} label={l.label} value={bulk.names[l.number] ?? ''}
+            onChange={(name) => setBulkName(l.number, name)} />
+        ))}
         <Input text="digits" label="Sections per class" value={bulk.sectionsPerClass} onChange={v => setBulkField('sectionsPerClass', v)} keyboardType="numeric" />
         <Input text="digits" label="Seats per section" value={bulk.capacity} onChange={v => setBulkField('capacity', v)} keyboardType="numeric" />
 
@@ -432,6 +498,7 @@ export default function AdminClassesScreen() {
 }
 
 const cs = StyleSheet.create({
+  choiceLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, marginBottom: 6 },
   bulkNote:    { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginBottom: Spacing.sm },
   bulkErr:     { fontSize: 12, color: Colors.danger, lineHeight: 18, marginBottom: Spacing.sm },
   bulkSummary: { fontSize: 12, color: Colors.text, lineHeight: 18, marginBottom: Spacing.sm, fontWeight: '600' },

@@ -15,7 +15,7 @@ import * as superAdminApi from '@/api/superadmin.api';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface TargetOption { value: string; label: string; needsClass?: boolean; needsSection?: boolean; needsSchools?: boolean; }
-interface ClassItem  { _id: string; classNumber: number; sections: { _id: string; name?: string }[] }
+interface ClassItem  { _id: string; classNumber: number; className?: string; sections: { _id: string; name?: string }[] }
 interface SchoolItem { _id: string; name: string; }
 
 // ── Target options per role ───────────────────────────────────────────────────
@@ -257,7 +257,7 @@ export default function SendNotificationScreen() {
                     onPress={() => setClassId(c._id)}
                   >
                     <Text style={[s.chipText, classId === c._id && s.chipTextActive]}>
-                      Class {c.classNumber}
+                      {c.className || `Class ${c.classNumber}`}
                     </Text>
                   </TouchableOpacity>
                 ))}

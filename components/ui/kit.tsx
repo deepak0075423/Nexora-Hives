@@ -340,9 +340,10 @@ export function SegTabs({ tabs, active, onChange }: {
 
 // ─── FAB & form modal ─────────────────────────────────────────────────────────
 
-export function FAB({ icon = 'add', onPress }: { icon?: string; onPress: () => void }) {
+export function FAB({ icon = 'add', onPress, label }: { icon?: string; onPress: () => void; label?: string }) {
   return (
-    <TouchableOpacity style={k.fab} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={k.fab} onPress={onPress} activeOpacity={0.85}
+      accessibilityRole="button" accessibilityLabel={label}>
       <Ionicons name={icon as any} size={26} color="#fff" />
     </TouchableOpacity>
   );
