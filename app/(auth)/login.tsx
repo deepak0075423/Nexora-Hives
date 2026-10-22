@@ -12,6 +12,65 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isEmail } from '@/utils/validators';
 import { schoolLogoUrl } from '@/utils/branding';
 
+/** What the server said about the last wrong password (school-backend services/loginLockout). */
+type Guard = { failed: number; max: number; left: number; lockHours: number; locked: boolean; until: string | null };
+
+/** "2:15 pm tomorrow" — when a lock lifts, in the phone's own clock. */
+function opensAt(iso: string | null) {
+  const at = iso ? new Date(iso) : null;
+  if (!at || Number.isNaN(at.getTime())) return null;
+  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(at).setHours(0, 0, 0, 0) - today.getTime()) / 86400000);
+  if (days === 0) return `${time} today`;
+  if (days === 1) return `${time} tomorrow`;
+  return `${time} on ${at.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}`;
+}
+
+/**
+ * Five wrong passwords lock an account for a day. After each wrong one this
+ * says how many tries are left; once locked, when it opens again and how to
+ * unlock it sooner.
+ */
+function AttemptNotice({ guard, onReset }: { guard: Guard; onReset: () => void }) {
+  if (guard.locked) {
+    const when = opensAt(guard.until);
+    return (
+      <View style={[s.guardBox, s.guardBoxLocked]} accessibilityRole="alert">
+        <Ionicons name="lock-closed" size={18} color={Colors.danger} style={s.guardIcon} />
+        <View style={{ flex: 1 }}>
+          <Text style={[s.guardTitle, { color: Colors.danger }]}>Account locked for {guard.lockHours} hours</Text>
+          <Text style={s.guardText}>
+            The password was entered wrong {guard.max} times.
+            {when ? ` You can sign in again after ${when}.` : ''}
+          </Text>
+          <TouchableOpacity onPress={onReset} hitSlop={8}>
+            <Text style={s.guardLink}>Reset your password to unlock it now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={s.guardBox} accessibilityRole="alert">
+      <Ionicons name="alert-circle" size={18} color={Colors.warning} style={s.guardIcon} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.guardTitle}>Wrong email or password</Text>
+        <Text style={s.guardText}>
+          Attempt {guard.failed} of {guard.max} —{' '}
+          <Text style={{ fontWeight: '700' }}>{guard.left} {guard.left === 1 ? 'attempt' : 'attempts'} left</Text>
+          {' '}before the account is locked for {guard.lockHours} hours.
+        </Text>
+        <View style={s.pips}>
+          {Array.from({ length: guard.max }, (_, i) => (
+            <View key={i} style={[s.pip, i < guard.failed && s.pipUsed]} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, accounts, switchAccount, removeAccount } = useAuth();
@@ -28,6 +87,8 @@ export default function LoginScreen() {
   const [loading, setLoading]         = useState(false);
   const [switching, setSwitching]     = useState('');
   const [error, setError]             = useState('');
+  // Tries left, or the lock — for the address typed, so a different one clears it.
+  const [guard, setGuard]             = useState<Guard | null>(null);
 
   const handleQuickLogin = async (accountId: string) => {
     setError('');
@@ -68,6 +129,11 @@ export default function LoginScreen() {
       }
       await signIn(data.token, data.refreshToken, data.user);
     } catch (err: any) {
+      const d = err?.data || {};
+      if (d.attempts && (d.code === 'INVALID_CREDENTIALS' || d.code === 'ACCOUNT_LOCKED')) {
+        setGuard({ ...d.attempts, locked: d.code === 'ACCOUNT_LOCKED', until: d.lockedUntil || null });
+        return;
+      }
       const isNetwork = err?.status === 0 || !err?.status;
       setError(
         isNetwork
@@ -136,6 +202,13 @@ export default function LoginScreen() {
           <Text style={s.title}>{accounts.length > 0 ? 'Another account' : 'Welcome back'}</Text>
           <Text style={s.subtitle}>Sign in to your account</Text>
 
+          {guard && (
+            <AttemptNotice
+              guard={guard}
+              onReset={() => router.push({ pathname: '/(auth)/forgot-password' as any, params: { email: email.trim().toLowerCase() } })}
+            />
+          )}
+
           {/* Inline error banner */}
           {!!error && (
             <View style={s.errorBox}>
@@ -146,14 +219,14 @@ export default function LoginScreen() {
 
           <View style={s.field}>
             <Text style={s.label}>Email</Text>
-            <View style={[s.inputRow, !!error && s.inputRowError]}>
+            <View style={[s.inputRow, (!!error || !!guard) && s.inputRowError]}>
               <Ionicons name="mail-outline" size={18} color={Colors.textLight} style={s.inputIcon} />
               <TextInput
                 style={s.input}
                 placeholder="you@school.com"
                 placeholderTextColor={Colors.textLight}
                 value={email}
-                onChangeText={v => { setEmail(v); setError(''); }}
+                onChangeText={v => { setEmail(v); setError(''); setGuard(null); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -163,7 +236,7 @@ export default function LoginScreen() {
 
           <View style={s.field}>
             <Text style={s.label}>Password</Text>
-            <View style={[s.inputRow, !!error && s.inputRowError]}>
+            <View style={[s.inputRow, (!!error || !!guard) && s.inputRowError]}>
               <Ionicons name="lock-closed-outline" size={18} color={Colors.textLight} style={s.inputIcon} />
               <TextInput
                 style={[s.input, s.inputFlex]}
@@ -237,6 +310,21 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.danger + '40',
   },
   errorText: { ...Typography.bodySmall, color: Colors.danger, flex: 1, lineHeight: 18 },
+
+  guardBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#FFF8EC', borderRadius: Radius.sm,
+    padding: Spacing.sm, marginBottom: Spacing.md,
+    borderWidth: 1, borderColor: Colors.warning + '55',
+  },
+  guardBoxLocked: { backgroundColor: Colors.dangerLight, borderColor: Colors.danger + '40' },
+  guardIcon:  { marginTop: 1 },
+  guardTitle: { ...Typography.label, color: '#7C2D12', marginBottom: 2 },
+  guardText:  { ...Typography.bodySmall, color: Colors.text, lineHeight: 18 },
+  guardLink:  { ...Typography.label, color: Colors.danger, marginTop: 6 },
+  pips:       { flexDirection: 'row', gap: 6, marginTop: 8 },
+  pip:        { width: 26, height: 5, borderRadius: 3, backgroundColor: '#F5DFC0' },
+  pipUsed:    { backgroundColor: '#EA580C' },
 
   field:    { marginBottom: Spacing.md },
   label:    { ...Typography.label, color: Colors.text, marginBottom: Spacing.xs },

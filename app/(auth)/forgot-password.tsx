@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { TextInput } from '@/components/ui/TextInput';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { forgotPassword } from '@/api/auth.api';
@@ -12,7 +12,9 @@ import { isEmail } from '@/utils/validators';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const [email, setEmail]   = useState('');
+  // Sent here from a locked sign-in, the address is already known.
+  const params = useLocalSearchParams<{ email?: string }>();
+  const [email, setEmail]   = useState(typeof params.email === 'string' ? params.email : '');
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
   const [sent, setSent]     = useState(false);
@@ -51,7 +53,7 @@ export default function ForgotPasswordScreen() {
         </View>
         <Text style={s.title}>Forgot Password?</Text>
         <Text style={s.subtitle}>
-          Enter your registered email and we'll send you a verification code.
+          Enter your registered email and we’ll send you a verification code.
         </Text>
 
         {!!error && (
