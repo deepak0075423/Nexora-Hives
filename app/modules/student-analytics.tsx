@@ -135,8 +135,11 @@ export default function StudentAnalyticsScreen() {
     sections.forEach((s: any) => { if (!map.has(s.classId)) map.set(s.classId, s.className); });
     return [...map].map(([value, label]) => ({ value, label }));
   }, [sections]);
-  const sectionChoices = (classId ? sections.filter((s: any) => s.classId === classId) : sections)
-    .map((s: any) => ({ value: s._id, label: `${s.className} — ${s.sectionName}` }));
+  // Sections follow the class: the picker appears once a class is chosen,
+  // with only that class's sections (the server sends this year's only).
+  const pickedClass = classes.find((c) => c.value === classId);
+  const sectionChoices = (classId ? sections.filter((s: any) => s.classId === classId) : [])
+    .map((s: any) => ({ value: s._id, label: `Section ${s.sectionName}` }));
 
   const modules = overview?.modules ?? scope?.modules ?? {};
 
@@ -213,11 +216,13 @@ export default function StudentAnalyticsScreen() {
             placeholder="All classes"
             options={[{ value: '', label: 'All classes' }, ...classes]}
             onChange={(v) => { setClassId(v); setSectionId(''); setPage(1); }} />
-          <Select label="Section" value={sectionId}
-            placeholder="All sections"
-            options={[{ value: '', label: 'All sections' }, ...sectionChoices]}
-            onChange={(v) => { setSectionId(v); setPage(1); }} />
-          <SearchBar value={search} onChange={setSearch} placeholder="Name, admission or roll no…" />
+          {pickedClass && (
+            <Select label="Section" value={sectionId}
+              placeholder={`All sections of ${pickedClass.label}`}
+              options={[{ value: '', label: `All sections of ${pickedClass.label}` }, ...sectionChoices]}
+              onChange={(v) => { setSectionId(v); setPage(1); }} />
+          )}
+          <SearchBar value={search} onChange={setSearch} placeholder="Name or admission no…" />
 
           <TouchableOpacity style={s.moreToggle} onPress={() => setShowMore(v => !v)} activeOpacity={0.7}>
             <Text style={s.moreToggleText}>
