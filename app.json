@@ -66,7 +66,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to scan student ID cards and medicine packs in the Medical Room.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to photograph your documents for the school office, and to scan ID cards and medicine packs in the Medical Room.",
           "recordAudioAndroid": false
         }
       ],

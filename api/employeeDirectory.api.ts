@@ -32,3 +32,17 @@ export const removeResponsibility = (id: string)      => api.delete(`${base}/res
 
 export const listReports = ()                              => api.get(`${base}/reports`);
 export const getReport   = (type: string, params?: object) => api.get(`${base}/reports/${type}`, { params });
+
+// Employee documents — the office reviews each one and chases what is owed.
+export const getDocumentDesk        = ()                                  => api.get(`${base}/document-desk`);
+export const reviewEmployeeDocument = (id: string, key: string, body: object) => api.put(`${base}/employees/${id}/documents/${key}/review`, body);
+export const sendDocumentReminders  = (body: object)                     => api.post(`${base}/document-reminders`, body);
+
+// My Documents — a member of staff's own paperwork. `file` is a FormData part
+// (components/admission/files.partOf: {uri,name,type} on a phone, a File in a browser).
+export const getMyDocuments   = ()                       => api.get(`${base}/me/documents`);
+export const uploadMyDocument = (key: string, file: any) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post(`${base}/me/documents/${key}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
+};
