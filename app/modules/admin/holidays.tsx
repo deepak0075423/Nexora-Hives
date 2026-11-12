@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
@@ -12,7 +12,12 @@ import {
 
 
 export default function AdminHolidaysScreen() {
-  const [list, setList] = useState<any[]>([]);
+  const [everyYear, setEveryYear] = useState<any[]>([]);
+  // Which academic year is listed (Nov 2026): this year to begin with, never all
+  // of them at once. The server names the school's years and the current one.
+  const [years, setYears] = useState<{ _id: string; name: string }[]>([]);
+  const [currentYear, setCurrentYear] = useState('');
+  const [year, setYear] = useState('current');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
@@ -28,14 +33,24 @@ export default function AdminHolidaysScreen() {
 
   const load = async () => {
     try {
-      const d = unwrap(await adminApi.getHolidays());
-      setList(Array.isArray(d) ? d : d?.holidays ?? d?.data ?? []);
+      const res: any = await adminApi.getHolidays();
+      const d = unwrap(res);
+      setEveryYear(Array.isArray(d) ? d : d?.holidays ?? d?.data ?? []);
+      setYears(Array.isArray(res?.years) ? res.years : []);
+      setCurrentYear(res?.currentYear ?? '');
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     } finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => { load(); }, []);
+
+  const yearId = year === 'current' ? currentYear : year;
+  // A holiday written before holidays carried a year counts as this year's.
+  const list = useMemo(() => (year === 'all' || !yearId ? everyYear : everyYear.filter((h: any) => {
+    const id = String(h.academicYear?._id ?? h.academicYear ?? '');
+    return id ? id === yearId : yearId === currentYear;
+  })), [everyYear, year, yearId, currentYear]);
 
   const loadTypes = async () => {
     try { setTypes(unwrap(await adminApi.getHolidayTypes()) ?? []); } catch { /* defaults apply */ }
@@ -121,6 +136,14 @@ export default function AdminHolidaysScreen() {
             onPress={() => setShowTypes(true)}>
             <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.accent }}>⚙️ Holiday Types</Text>
           </TouchableOpacity>
+
+          {years.length > 0 && (
+            <Select label="Academic year" value={yearId || 'all'} onChange={setYear}
+              options={[
+                ...years.map((y) => ({ label: y._id === currentYear ? `${y.name} (current)` : y.name, value: y._id })),
+                { label: 'All years', value: 'all' },
+              ]} />
+          )}
 
           {loading ? <LoaderView /> : list.length === 0 ? (
             <Empty icon="sunny-outline" text="No holidays declared" />
