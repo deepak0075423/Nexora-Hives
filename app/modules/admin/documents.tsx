@@ -1,18 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, Alert, Linking } from 'react-native';
-import { Stack } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { Text, ScrollView, RefreshControl } from 'react-native';
+import { Stack, router, useFocusEffect } from 'expo-router';
 import { Colors, Spacing } from '@/constants/theme';
-import { BASE_URL } from '@/api/axios';
 import * as adminApi from '@/api/admin.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
-  unwrap, LoaderView, Empty, RowItem, Badge, confirmAsync, fmtDate,
+  unwrap, LoaderView, Empty, RowItem, Badge, fmtDate,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
-import { withFileToken } from '@/utils/fileAccess';
-
-// Uploads live at the backend root, not under /api
-const FILE_BASE = BASE_URL.replace(/\/api\/?$/, '');
 
 export default function AdminDocumentsScreen() {
   const [list, setList] = useState<any[]>([]);
@@ -29,29 +24,8 @@ export default function AdminDocumentsScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { load(); }, []);
-
-  const openFile = (doc: any) => {
-    const url = doc.fileUrl ?? doc.filePath ?? doc.file;
-    if (!url) return Alert.alert('No file', 'This document has no attached file.');
-    // Stored paths can be the server's own disk path: the address is what follows `uploads/`.
-    const p = String(url).replace(/\\/g, '/');
-    const at = p.indexOf('uploads/');
-    const full = /^https?:/.test(p) ? p : `${FILE_BASE}/${at !== -1 ? p.slice(at) : p.replace(/^\//, '')}`;
-    Linking.openURL(withFileToken(full)).catch(() => Alert.alert('Error', 'Could not open the file'));
-  };
-
-  const archive = async (doc: any) => {
-    if (!(await confirmAsync('Archive Document', `Archive "${doc.title}"?`, 'Archive'))) return;
-    try { await adminApi.archiveDocument(doc._id); load(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
-  };
-
-  const remove = async (doc: any) => {
-    if (!(await confirmAsync('Delete Document', `Delete "${doc.title}"? This cannot be undone.`, 'Delete'))) return;
-    try { await adminApi.deleteDocument(doc._id); load(); }
-    catch (err: any) { Alert.alert('Error', err.message); }
-  };
+  // Again on coming back — a document archived or deleted on its own page.
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   if (disabled) return (
     <>
@@ -81,14 +55,9 @@ export default function AdminDocumentsScreen() {
               title={doc.title ?? doc.name ?? 'Document'}
               sub={`${doc.category?.name ?? doc.category ?? 'Uncategorised'} · ${fmtDate(doc.createdAt)}${doc.uploadedBy?.name ? ` · by ${doc.uploadedBy.name}` : ''}`}
               right={<Badge label={doc.status ?? 'active'} />}
-              onPress={() => {
-                Alert.alert(doc.title ?? 'Document', undefined, [
-                  { text: 'Close', style: 'cancel' },
-                  { text: 'Open File', onPress: () => openFile(doc) },
-                  { text: 'Archive', onPress: () => archive(doc) },
-                  { text: 'Delete', style: 'destructive', onPress: () => remove(doc) },
-                ]);
-              }}
+              // The document's own page: files, submissions, comments — and
+              // Archive / Delete, which used to sit in a pop-up menu here.
+              onPress={() => router.push({ pathname: '/modules/document-detail', params: { id: String(doc._id), as: 'admin' } })}
             />
           ))
         )}

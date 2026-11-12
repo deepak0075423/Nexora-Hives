@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Linking } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -78,7 +78,11 @@ export default function DocumentsScreen() {
           docs.map((doc: any, i: number) => {
             const cfg = TYPE_ICON[doc.type] ?? TYPE_ICON.default;
             return (
-              <View key={i} style={s.card}>
+              // The card opens the document — its files, details and comments;
+              // the download button still fetches the first file straight away.
+              <TouchableOpacity key={doc._id ?? i} style={s.card} activeOpacity={0.7}
+                onPress={() => doc._id && router.push({ pathname: '/modules/document-detail', params: { id: String(doc._id) } })}
+                accessibilityRole="button" accessibilityLabel={`Open ${doc.title ?? 'document'}`}>
                 <View style={[s.iconBox, { backgroundColor: cfg.bg }]}>
                   <Ionicons name={cfg.icon as any} size={20} color={cfg.color} />
                 </View>
@@ -96,7 +100,7 @@ export default function DocumentsScreen() {
                     <Ionicons name="download-outline" size={18} color={Colors.primary} />
                   </TouchableOpacity>
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })
         )}

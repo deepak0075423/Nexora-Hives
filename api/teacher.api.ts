@@ -75,6 +75,14 @@ export const getCompOffApprovals = (params?: object) => api.get('/teacher/leave/
 export const approveCompOff      = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/approve`, data ?? {});
 export const rejectCompOff       = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/reject`, data ?? {});
 export const getDocuments        = () => api.get('/teacher/documents');
+// One document opened — the same head and roster the office reads, behind
+// the teacher's access check. Comments: your own to edit and delete only.
+export const getAssignmentDetail   = (id: string, params?: object) => api.get(`/teacher/documents/${id}/assignment`, { params });
+export const getDocumentComments   = (id: string)       => api.get(`/teacher/documents/${id}/comments`);
+export const addDocumentComment    = (id: string, data: object) => api.post(`/teacher/documents/${id}/comments`, data);
+export const updateDocumentComment = (cid: string, data: object) => api.patch(`/teacher/documents/comments/${cid}`, data);
+export const deleteDocumentComment = (cid: string)      => api.delete(`/teacher/documents/comments/${cid}`);
+export const likeDocumentComment   = (cid: string)      => api.post(`/teacher/documents/comments/${cid}/like`);
 export const getHolidays         = () => api.get('/teacher/holidays');
 export const sendNotification    = (data: object) => api.post('/teacher/notifications/send', data);
 export const getNotifications    = () => api.get('/teacher/notifications');

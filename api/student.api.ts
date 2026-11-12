@@ -23,6 +23,11 @@ export const logViolation     = (id: string) => api.post(`/student/exams/${id}/v
 export const getExamResult    = (id: string) => api.get(`/student/exams/${id}/result`);
 export const getDocuments     = () => api.get('/student/documents');
 export const getDocument      = (id: string) => api.get(`/student/documents/${id}`);
+// The discussion under a document: read, ask, and edit or delete your own.
+export const getDocumentComments   = (id: string)       => api.get(`/student/documents/${id}/comments`);
+export const addDocumentComment    = (id: string, data: object) => api.post(`/student/documents/${id}/comments`, data);
+export const updateDocumentComment = (cid: string, data: object) => api.patch(`/student/documents/comments/${cid}`, data);
+export const deleteDocumentComment = (cid: string)      => api.delete(`/student/documents/comments/${cid}`);
 export const getHolidays      = () => api.get('/student/holidays');
 export const getResults       = () => api.get('/student/results');
 export const getResultDetail  = (id: string) => api.get(`/student/results/${id}`);
