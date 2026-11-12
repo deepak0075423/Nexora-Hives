@@ -264,6 +264,9 @@ export const getResultSectionSubjects = (sectionId: string) => api.get(`/admin/r
 // ── Notifications ────────────────────────────────────────────────────────────
 export const getNotifications = (page = 1)      => api.get('/admin/notifications', { params: { page, limit: 30 } });
 export const sendNotification = (data: object)  => api.post('/admin/notifications/send', data);
+// The composer's class → section picker, behind the Notifications module's own
+// guard — so a teacher who administers the module gets it too.
+export const getNotificationClasses = () => api.get('/admin/notifications/classes');
 
 // ── Attendance (staff) ───────────────────────────────────────────────────────
 export const getRegularizationRequests = (params?: object) => api.get('/admin/regularization-requests', { params });

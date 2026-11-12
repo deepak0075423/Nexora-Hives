@@ -8,6 +8,7 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModules } from '@/hooks/useModules';
 import * as adminApi     from '@/api/admin.api';
 import * as teacherApi   from '@/api/teacher.api';
 import * as superAdminApi from '@/api/superadmin.api';
@@ -20,22 +21,23 @@ interface SchoolItem { _id: string; name: string; }
 
 // ── Target options per role ───────────────────────────────────────────────────
 
+// Sending to students reaches their parents too (Nov 2026) — each parent reads
+// it under that child's name — so "Section — Everyone" would be the same
+// audience as "Section — Students" and is gone. The server still accepts it.
 const ADMIN_TARGETS: TargetOption[] = [
   { value: 'all',              label: 'Everyone in School' },
   { value: 'all_teachers',     label: 'All Teachers' },
-  { value: 'all_students',     label: 'All Students' },
+  { value: 'all_students',     label: 'All Students + their parents' },
   { value: 'all_parents',      label: 'All Parents' },
-  { value: 'class_students',   label: 'Class — Students',  needsClass: true },
+  { value: 'class_students',   label: 'Class — Students + parents', needsClass: true },
   { value: 'class_parents',    label: 'Class — Parents',   needsClass: true },
-  { value: 'section_students', label: 'Section — Students', needsClass: true, needsSection: true },
+  { value: 'section_students', label: 'Section — Students + parents', needsClass: true, needsSection: true },
   { value: 'section_parents',  label: 'Section — Parents',  needsClass: true, needsSection: true },
-  { value: 'section_all',      label: 'Section — Everyone', needsClass: true, needsSection: true },
 ];
 
 const TEACHER_TARGETS: TargetOption[] = [
-  { value: 'section_students', label: 'My Section — Students' },
+  { value: 'section_students', label: 'My Section — Students + parents' },
   { value: 'section_parents',  label: 'My Section — Parents'  },
-  { value: 'section_all',      label: 'My Section — Everyone' },
 ];
 
 const SUPERADMIN_TARGETS: TargetOption[] = [
@@ -48,7 +50,12 @@ const SUPERADMIN_TARGETS: TargetOption[] = [
 export default function SendNotificationScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isAdmin } = useModules();
   const role = user?.role ?? 'student';
+  // A teacher whose designation grants ADMIN on Notifications writes to the
+  // whole school, exactly as the school admin does — they were held to their
+  // own section here, though the server allowed the rest.
+  const side = role === 'teacher' && isAdmin('notification') ? 'admin' : role;
 
   // form state
   const [title, setTitle]     = useState('');
@@ -75,24 +82,26 @@ export default function SendNotificationScreen() {
 
   // targets for current role
   const targets: TargetOption[] =
-    role === 'admin'        ? ADMIN_TARGETS :
-    role === 'teacher'      ? TEACHER_TARGETS :
-    role === 'super-admin'  ? SUPERADMIN_TARGETS : [];
+    side === 'admin'        ? ADMIN_TARGETS :
+    side === 'teacher'      ? TEACHER_TARGETS :
+    side === 'super-admin'  ? SUPERADMIN_TARGETS : [];
 
   const currentTarget = targets.find(t => t.value === targetType);
 
   // ── Load role-specific data on mount ──────────────────────────────────────
 
   useEffect(() => {
-    if (role === 'admin') loadClasses();
-    if (role === 'super-admin') loadSchools();
-    if (role === 'teacher') loadTeacherSection();
-  }, [role]);
+    if (side === 'admin') loadClasses();
+    if (side === 'super-admin') loadSchools();
+    if (side === 'teacher') loadTeacherSection();
+  }, [side]);
 
   const loadClasses = async () => {
     setClassesLoading(true);
     try {
-      const res: any = await adminApi.getClassesWithSections();
+      // The module's own class list: a teacher who runs Notifications is
+      // refused the school-admin-only one.
+      const res: any = await adminApi.getNotificationClasses();
       setClasses((res as any)?.data ?? res ?? []);
     } catch { /* empty */ }
     finally { setClassesLoading(false); }
@@ -135,7 +144,7 @@ export default function SendNotificationScreen() {
     if (!body.trim())     { Alert.alert('Required', 'Please enter a message body.'); return; }
     if (!targetType)      { Alert.alert('Required', 'Please select a recipient group.'); return; }
     if (!inApp && !email) { Alert.alert('Required', 'Select at least one channel (In-App or Email).'); return; }
-    if (role === 'teacher' && !teacherSectionId) { Alert.alert('No Section', 'You are not assigned to any section.'); return; }
+    if (side === 'teacher' && !teacherSectionId) { Alert.alert('No Section', 'You are not assigned to any section.'); return; }
     if (currentTarget?.needsClass && !classId)          { Alert.alert('Required', 'Please select a class.'); return; }
     if (currentTarget?.needsSection && !sectionId)      { Alert.alert('Required', 'Please select a section.'); return; }
     if (currentTarget?.needsSchools && targetSchools.length === 0) { Alert.alert('Required', 'Please select at least one school.'); return; }
@@ -147,7 +156,7 @@ export default function SendNotificationScreen() {
       channels: { inApp, email },
     };
 
-    if (role === 'teacher') {
+    if (side === 'teacher') {
       payload.sectionId = teacherSectionId;
     } else {
       if (currentTarget?.needsClass)   payload.classId   = classId;
@@ -157,8 +166,8 @@ export default function SendNotificationScreen() {
 
     setSending(true);
     try {
-      if (role === 'admin')       await adminApi.sendNotification(payload);
-      else if (role === 'teacher') await teacherApi.sendNotification(payload);
+      if (side === 'admin')       await adminApi.sendNotification(payload);
+      else if (side === 'teacher') await teacherApi.sendNotification(payload);
       else                        await superAdminApi.sendNotification(payload);
 
       Alert.alert('Sent!', 'Notification delivered successfully.', [
@@ -235,7 +244,7 @@ export default function SendNotificationScreen() {
         </View>
 
         {/* Teacher auto-section info */}
-        {role === 'teacher' && teacherSectionLabel !== '' && targetType !== '' && (
+        {side === 'teacher' && teacherSectionLabel !== '' && targetType !== '' && (
           <View style={s.infoBox}>
             <Ionicons name="information-circle" size={16} color={Colors.info} />
             <Text style={s.infoText}>Sending to your assigned section ({teacherSectionLabel})</Text>
@@ -243,7 +252,7 @@ export default function SendNotificationScreen() {
         )}
 
         {/* Admin: Class selector */}
-        {role === 'admin' && currentTarget?.needsClass && (
+        {side === 'admin' && currentTarget?.needsClass && (
           <>
             <SectionLabel label="Select Class" required />
             {classesLoading ? (
@@ -267,7 +276,7 @@ export default function SendNotificationScreen() {
         )}
 
         {/* Admin: Section selector */}
-        {role === 'admin' && currentTarget?.needsSection && classId !== '' && (
+        {side === 'admin' && currentTarget?.needsSection && classId !== '' && (
           <>
             <SectionLabel label="Select Section" required />
             {sections.length === 0 ? (
@@ -291,7 +300,7 @@ export default function SendNotificationScreen() {
         )}
 
         {/* Super admin: Schools multi-select */}
-        {role === 'super-admin' && currentTarget?.needsSchools && (
+        {side === 'super-admin' && currentTarget?.needsSchools && (
           <>
             <SectionLabel label="Select Schools" required />
             {schoolsLoading ? (
