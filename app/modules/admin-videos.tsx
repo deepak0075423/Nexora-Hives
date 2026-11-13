@@ -1,136 +1,80 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
-import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, RefreshControl,
-} from 'react-native';
+/**
+ * Admin → Video Learning (phone): where the school stands — what it follows,
+ * what is released, how students are getting on — and its requests.
+ * Choosing the board, subjects and books is done on the web app (Setup).
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { ScrollView, RefreshControl, View } from 'react-native';
 import { Stack } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import * as videoApi from '@/api/video.api';
+import { Colors, Spacing } from '@/constants/theme';
+import { LoaderView, Empty, Card, RowItem, Badge, SegTabs, StatRow, StatTile, SectionTitle, unwrap, fmtDate, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import * as api from '@/api/video.api';
+import { Meter, Note, word, tone, spent } from '@/components/videos/parts';
 
-type Tab = 'library' | 'approvals';
-
-export default function AdminVideosScreen() {
-  const [tab, setTab] = useState<Tab>('library');
-  const [items, setItems] = useState<any[]>([]);
-  const [approvals, setApprovals] = useState<any[]>([]);
-  const [overview, setOverview] = useState<any>(null);
+export default function AdminVideos() {
+  const [tab, setTab] = useState('overview');
+  const [data, setData] = useState<any>(null);
+  const [reqs, setReqs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [disabled, setDisabled] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [br, ap, ov]: any[] = await Promise.all([
-        videoApi.adminBrowse({ limit: 30 }), videoApi.adminApprovals('pending'), videoApi.adminOverview(),
-      ]);
-      setItems(((br as any)?.data ?? br)?.items ?? []);
-      setApprovals((ap as any)?.data ?? ap ?? []);
-      setOverview((ov as any)?.data ?? ov);
-    } catch (err: any) {
-      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = () => { setRefreshing(true); load(); };
+      if (tab === 'overview') setData(unwrap(await api.schoolAnalytics()));
+      else setReqs(unwrap(await api.schoolRequests({ limit: 50 })) || []);
+      setError('');
+    } catch (e: any) { if (MODULE_BLOCKED_CODES.includes(e?.data?.code)) setBlocked(true); else setError(e?.message || 'Could not load'); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [tab]);
+  useEffect(() => { setLoading(true); load(); }, [load]);
 
-  const toggle = async (v: any) => {
-    try { await videoApi.adminEnable(v._id, { enabled: !v.enabled }); load(); }
-    catch (err: any) { Alert.alert('Error', err?.message || 'Could not update'); }
-  };
-  const approve = async (id: string) => { try { await videoApi.adminApprove(id); load(); } catch (e: any) { Alert.alert('Error', e?.message); } };
-  const reject = (id: string) => {
-    Alert.alert('Reject video?', 'The teacher will be notified.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Reject', style: 'destructive', onPress: async () => { try { await videoApi.adminReject(id, { reason: '' }); load(); } catch (e: any) { Alert.alert('Error', e?.message); } } },
-    ]);
-  };
-
-  if (disabled) return (<><Stack.Screen options={{ title: 'Video Learning' }} /><ModuleDisabled /></>);
-  if (loading) return (<><Stack.Screen options={{ title: 'Video Learning' }} /><View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View></>);
-
+  const head = <Stack.Screen options={{ title: 'Video Learning' }} />;
+  if (blocked) return <>{head}<ModuleDisabled /></>;
   return (
     <>
-      <Stack.Screen options={{ title: 'Video Learning' }} />
-      {overview ? (
-        <View style={s.statRow}>
-          <Stat label="Enabled" value={overview.counts?.enabledCount ?? 0} />
-          <Stat label="Assignments" value={overview.counts?.assignmentCount ?? 0} />
-          <Stat label="Pending" value={overview.counts?.pendingApprovals ?? 0} />
-        </View>
-      ) : null}
-
-      <View style={s.tabs}>
-        {(['library', 'approvals'] as Tab[]).map((t) => (
-          <TouchableOpacity key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
-            <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>
-              {t === 'library' ? 'Library' : `Approvals${approvals.length ? ` (${approvals.length})` : ''}`}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={s.screen} contentContainerStyle={{ padding: Spacing.md }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}>
-        {tab === 'library' ? (
-          items.length === 0 ? <Text style={s.muted}>No published master videos to show.</Text> : items.map((v) => (
-            <View key={v._id} style={s.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.rowTitle} numberOfLines={2}>{v.title}</Text>
-                <Text style={s.rowSub}>{(v.taxonomy?.board || []).slice(0, 2).join(', ')} · {String(v.category || '').replace(/_/g, ' ')}</Text>
-              </View>
-              <TouchableOpacity style={[s.toggleBtn, v.enabled ? s.on : s.off]} onPress={() => toggle(v)}>
-                <Ionicons name={v.enabled ? 'checkmark' : 'add'} size={14} color={v.enabled ? '#16A34A' : Colors.primary} />
-                <Text style={[s.toggleTxt, { color: v.enabled ? '#16A34A' : Colors.primary }]}>{v.enabled ? 'Enabled' : 'Enable'}</Text>
-              </TouchableOpacity>
-            </View>
-          ))
-        ) : (
-          approvals.length === 0 ? <Text style={s.muted}>Nothing pending approval.</Text> : approvals.map((v) => (
-            <View key={v._id} style={s.approvalCard}>
-              <Text style={s.rowTitle} numberOfLines={2}>{v.title}</Text>
-              <Text style={s.rowSub}>By {v.createdBy?.name || '—'} · {v.source}</Text>
-              <View style={s.approvalActions}>
-                <TouchableOpacity style={s.approveBtn} onPress={() => approve(v._id)}><Text style={s.approveTxt}>Approve</Text></TouchableOpacity>
-                <TouchableOpacity style={s.rejectBtn} onPress={() => reject(v._id)}><Text style={s.rejectTxt}>Reject</Text></TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
+      {head}
+      <ScrollView style={{ flex: 1, backgroundColor: Colors.background }} contentContainerStyle={{ padding: Spacing.md }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}>
+        <SegTabs tabs={[{ key: 'overview', label: 'Overview' }, { key: 'requests', label: 'Requests' }]} active={tab} onChange={setTab} />
+        {loading ? <LoaderView /> : error ? <Empty icon="alert-circle-outline" text={error} /> : tab === 'overview' ? (
+          <>
+            {!data.setup.booksFollowed ? <Note>No books are assigned yet, so teachers have nothing to release. Choose the board, subjects and books on the web app under Video Learning › Setup.</Note> : null}
+            <StatRow>
+              <StatTile label="Books" value={data.setup.booksFollowed} icon="library-outline" />
+              <StatTile label="Live releases" value={data.setup.liveReleases} icon="paper-plane-outline" tone="primary" />
+              <StatTile label="Requests" value={data.setup.openRequests} icon="mail-outline" tone="warning" />
+            </StatRow>
+            <StatRow>
+              <StatTile label="Watching" value={data.students.started} icon="trending-up-outline" tone="warning" />
+              <StatTile label="Completed" value={data.students.completed} icon="checkmark-done-outline" tone="success" />
+              <StatTile label="Watch time" value={spent(data.students.watchSeconds)} icon="time-outline" />
+            </StatRow>
+            <SectionTitle>Sections</SectionTitle>
+            {data.sections.length ? (
+              <Card>
+                {data.sections.map((s: any) => (
+                  <View key={s.section}>
+                    <RowItem icon="people-outline" title={`${s.className} ${s.sectionName}`} sub={`${s.students} students · ${s.started} started · ${s.completed} completed`} />
+                    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm }}><Meter percent={s.percent} /></View>
+                  </View>
+                ))}
+              </Card>
+            ) : <Empty icon="paper-plane-outline" text="Figures appear once teachers release books, chapters or videos." />}
+          </>
+        ) : reqs.length ? (
+          <Card>
+            {reqs.map((r) => (
+              <RowItem key={r._id} icon={r.type === 'book' ? 'book-outline' : 'albums-outline'}
+                title={r.type === 'book' ? r.title : `Chapter ${r.chapterNumber ?? ''} ${r.chapterName || ''}`.trim()}
+                sub={`${r.type === 'book' ? 'Book' : `In ${r.bookTitle || r.title}`} · ${fmtDate(r.createdAt)}${r.reviewNote ? ` · ${r.reviewNote}` : ''}`}
+                right={<Badge label={word(r.status)} tone={tone(r.status)} />} />
+            ))}
+          </Card>
+        ) : <Empty icon="mail-outline" text="No requests yet. Request books and chapters on the web app." />}
       </ScrollView>
     </>
   );
 }
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (<View style={s.stat}><Text style={s.statVal}>{value}</Text><Text style={s.statLabel}>{label}</Text></View>);
-}
-
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  muted: { color: Colors.textSecondary, ...Typography.body, padding: Spacing.md },
-  statRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.md, paddingBottom: 0 },
-  stat: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
-  statVal: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  statLabel: { fontSize: 11, color: Colors.textSecondary },
-  tabs: { flexDirection: 'row', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, gap: Spacing.sm, paddingVertical: Spacing.sm, marginTop: Spacing.md },
-  tab: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: Radius.sm },
-  tabActive: { backgroundColor: Colors.primary },
-  tabTxt: { ...Typography.label, color: Colors.textSecondary },
-  tabTxtActive: { color: '#fff' },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, gap: Spacing.sm },
-  rowTitle: { ...Typography.label, color: Colors.text, fontWeight: '600' },
-  rowSub: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
-  toggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1 },
-  on: { backgroundColor: '#DCFCE7', borderColor: '#BBF7D0' },
-  off: { backgroundColor: '#EEF2FF', borderColor: '#E0E7FF' },
-  toggleTxt: { fontSize: 12, fontWeight: '600' },
-  approvalCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm },
-  approvalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
-  approveBtn: { flex: 1, backgroundColor: '#16A34A', borderRadius: Radius.sm, paddingVertical: 9, alignItems: 'center' },
-  approveTxt: { color: '#fff', fontWeight: '600' },
-  rejectBtn: { flex: 1, backgroundColor: '#FEE2E2', borderRadius: Radius.sm, paddingVertical: 9, alignItems: 'center' },
-  rejectTxt: { color: '#DC2626', fontWeight: '600' },
-});

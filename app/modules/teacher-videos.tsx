@@ -1,155 +1,174 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
-import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, RefreshControl,
-} from 'react-native';
-import { TextInput } from '@/components/ui/TextInput';
+/**
+ * Teacher → Video Learning (phone).
+ *
+ *   Books     the books of the sections where they teach the subject; open
+ *             one to release the whole book, a chapter or a single video to
+ *             one of those sections, now
+ *   Releases  what is open or scheduled, with unpublish and revoke
+ *   Progress  how their students are getting on
+ *
+ * Scheduling, expiry dates, choosing individual students and the reports'
+ * exports are on the web app (Video Learning › Releases / Progress).
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { ScrollView, RefreshControl, View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
-import * as videoApi from '@/api/video.api';
+import { Colors, Spacing } from '@/constants/theme';
+import { LoaderView, Empty, Card, RowItem, Badge, SegTabs, StatRow, StatTile, ActionBtn, SectionTitle, confirmAsync, unwrap, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import ModuleDisabled from '@/components/ModuleDisabled';
+import * as api from '@/api/video.api';
+import { Meter, Note, clock, plural, word, tone, spent } from '@/components/videos/parts';
 
-type Tab = 'catalog' | 'add';
+const what = (r: any) => (r.level === 'book' ? 'Whole book' : r.level === 'chapter' ? `Chapter ${r.chapterNumber}: ${r.chapterTitle}` : `${r.videoTitle} (Ch. ${r.chapterNumber})`);
+const failed = (e: any) => confirmAsync('Could not do that', e?.message || 'Please try again.', 'OK');
 
-export default function TeacherVideosScreen() {
-  const [tab, setTab] = useState<Tab>('catalog');
-  const [catalog, setCatalog] = useState<any[]>([]);
-  const [scope, setScope] = useState<any>(null);
-  const [mine, setMine] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [disabled, setDisabled] = useState(false);
-  const [form, setForm] = useState({ title: '', sourceUrl: '' });
-  const [saving, setSaving] = useState(false);
-
+function BookView({ book, onBack }: { book: any; onBack: () => void }) {
+  const [section, setSection] = useState(String(book.sections[0]?.section || ''));
+  const [data, setData] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
-    try {
-      const [cat, sc, my]: any[] = await Promise.all([
-        videoApi.teacherCatalog({ limit: 30 }), videoApi.teacherScope(), videoApi.teacherMyVideos(),
-      ]);
-      setCatalog(((cat as any)?.data ?? cat)?.items ?? []);
-      setScope((sc as any)?.data ?? sc);
-      setMine((my as any)?.data ?? my ?? []);
-    } catch (err: any) {
-      if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
-    } finally { setLoading(false); setRefreshing(false); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  const onRefresh = () => { setRefreshing(true); load(); };
+    try { setData(unwrap(await api.teacherBook(book._id, section))); } catch (e: any) { failed(e); }
+  }, [book._id, section]);
+  useEffect(() => { setData(null); load(); }, [load]);
 
-  const assign = (v: any) => {
-    const section = scope?.classSectionIds?.[0] || scope?.subjectSectionIds?.[0];
-    if (!section) return Alert.alert('No section', 'You are not assigned to a section you can assign videos to.');
-    Alert.alert('Assign video', `Assign "${v.title}" to your section?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Assign', onPress: async () => {
-        try {
-          await videoApi.teacherAssign({ contentType: 'video', video: v._id, targetType: 'section', section, title: `Watch: ${v.title}`, minWatchPercent: 80 });
-          Alert.alert('Assigned', 'Students in your section have been notified.');
-        } catch (err: any) { Alert.alert('Error', err?.message || 'Could not assign'); }
-      } },
-    ]);
+  const release = async (level: string, extra: object, label: string) => {
+    const here = book.sections.find((s: any) => String(s.section) === section);
+    if (!await confirmAsync(`Release ${label}?`, `It opens now to everyone in ${here?.className} ${here?.sectionName}, and they are notified.`, 'Release')) return;
+    setBusy(true);
+    try { await api.teacherRelease({ book: book._id, level, section, ...extra }); await load(); }
+    catch (e: any) { failed(e); }
+    finally { setBusy(false); }
   };
-
-  const submit = async () => {
-    if (!form.title.trim() || !form.sourceUrl.trim()) return Alert.alert('Required', 'Enter a title and a YouTube/Vimeo URL.');
-    setSaving(true);
-    try {
-      const res: any = await videoApi.teacherAddVideo({ ...form });
-      const requiresApproval = (res as any)?.data?.requiresApproval;
-      Alert.alert(requiresApproval ? 'Submitted' : 'Published', requiresApproval ? 'Sent to your school admin for approval.' : 'Your video is live.');
-      setForm({ title: '', sourceUrl: '' }); load();
-    } catch (err: any) { Alert.alert('Error', err?.message || 'Could not submit'); }
-    finally { setSaving(false); }
-  };
-
-  if (disabled) return (<><Stack.Screen options={{ title: 'Video Learning' }} /><ModuleDisabled /></>);
-  if (loading) return (<><Stack.Screen options={{ title: 'Video Learning' }} /><View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View></>);
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Video Learning' }} />
-      <View style={s.tabs}>
-        {(['catalog', 'add'] as Tab[]).map((t) => (
-          <TouchableOpacity key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
-            <Text style={[s.tabTxt, tab === t && s.tabTxtActive]}>{t === 'catalog' ? 'Catalog' : 'Add Video'}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={s.screen} contentContainerStyle={{ padding: Spacing.md }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}>
-        {tab === 'catalog' ? (
-          catalog.length === 0
-            ? <Text style={s.muted}>No videos available yet. Ask your admin to enable videos, or add your own.</Text>
-            : catalog.map((v) => (
-              <View key={v._id} style={s.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rowTitle} numberOfLines={2}>{v.title}</Text>
-                  <Text style={s.rowSub}>{String(v.category || '').replace(/_/g, ' ')} · {v.source}</Text>
-                </View>
-                <TouchableOpacity style={s.assignBtn} onPress={() => assign(v)}>
-                  <Text style={s.assignTxt}>Assign</Text>
-                </TouchableOpacity>
+      <ActionBtn label="‹ All books" onPress={onBack} small />
+      <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text, marginTop: Spacing.sm }}>{book.title}</Text>
+      <Text style={{ color: Colors.textSecondary, marginBottom: Spacing.sm }}>{book.subjectName}{book.publisher ? ` · ${book.publisher}` : ''}</Text>
+      {book.sections.length > 1 ? (
+        <SegTabs tabs={book.sections.map((s: any) => ({ key: String(s.section), label: `${s.className} ${s.sectionName}` }))} active={section} onChange={setSection} />
+      ) : null}
+      {!data ? <LoaderView /> : (
+        <>
+          <Card>
+            <RowItem icon="library-outline" title="Whole book" sub={data.bookRelease ? `${word(data.bookRelease.shownStatus)} for this section` : 'Every chapter and video, including any added later'}
+              right={data.bookRelease ? <Badge label={word(data.bookRelease.shownStatus)} tone={tone(data.bookRelease.shownStatus)} />
+                : <ActionBtn small tone="primary" label="Release" disabled={busy || !data.chapters.length} onPress={() => release('book', {}, 'the whole book')} />} />
+          </Card>
+          {data.chapters.map((c: any) => {
+            const covered = c.release || data.bookRelease;
+            return (
+              <View key={c._id}>
+                <SectionTitle>{`Chapter ${c.chapterNumber}: ${c.title}`}</SectionTitle>
+                <Card>
+                  <RowItem icon="albums-outline" title="All videos of this chapter" sub={c.videos.length ? plural(c.videos.length, 'video') : 'No videos yet'}
+                    right={covered ? <Badge label={`Released${covered.level !== 'chapter' ? ' (book)' : ''}`} tone="success" />
+                      : c.videos.length ? <ActionBtn small tone="primary" label="Release" disabled={busy} onPress={() => release('chapter', { chapter: c._id }, `Chapter ${c.chapterNumber}`)} /> : undefined} />
+                  {c.videos.map((v: any) => (
+                    <RowItem key={v._id} icon="play-circle-outline" title={v.title} sub={clock(v.durationSec)}
+                      right={v.releasedVia ? <Badge label={v.releasedVia === 'video' ? 'Released' : `With the ${v.releasedVia}`} tone="success" />
+                        : <ActionBtn small label="Release" disabled={busy} onPress={() => release('video', { chapterVideo: v._id }, `"${v.title}" only`)} />} />
+                  ))}
+                </Card>
               </View>
-            ))
-        ) : (
-          <>
-            <View style={s.form}>
-              <Text style={s.label}>Title</Text>
-              <TextInput style={s.input} value={form.title} onChangeText={(t) => setForm((f) => ({ ...f, title: t }))} placeholder="Video title" placeholderTextColor={Colors.textSecondary} />
-              <Text style={s.label}>YouTube / Vimeo URL</Text>
-              <TextInput text="token" style={s.input} value={form.sourceUrl} onChangeText={(t) => setForm((f) => ({ ...f, sourceUrl: t }))} placeholder="https://youtu.be/…" placeholderTextColor={Colors.textSecondary} autoCapitalize="none" />
-              <TouchableOpacity style={[s.submitBtn, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.submitTxt}>Submit for approval</Text>}
-              </TouchableOpacity>
-              <Text style={s.hint}>🔒 Teachers can add YouTube/Vimeo links only. They go to your school admin for approval before students can watch.</Text>
-            </View>
-
-            <Text style={[s.label, { marginTop: Spacing.lg }]}>My submitted videos</Text>
-            {mine.length === 0 ? <Text style={s.muted}>None yet.</Text> : mine.map((v) => (
-              <View key={v._id} style={s.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rowTitle} numberOfLines={1}>{v.title}</Text>
-                  <Text style={s.rowSub}>{v.source}</Text>
-                </View>
-                <View style={[s.pill, pillTone(v.approvalStatus)]}><Text style={s.pillTxt}>{v.approvalStatus}</Text></View>
-              </View>
-            ))}
-          </>
-        )}
-      </ScrollView>
+            );
+          })}
+        </>
+      )}
     </>
   );
 }
 
-function pillTone(st: string) {
-  if (st === 'approved') return { backgroundColor: '#DCFCE7' };
-  if (st === 'rejected') return { backgroundColor: '#FEE2E2' };
-  return { backgroundColor: '#FEF3C7' };
-}
+export default function TeacherVideos() {
+  const [tab, setTab] = useState('books');
+  const [ws, setWs] = useState<any>(null);
+  const [rel, setRel] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [students, setStudents] = useState<any[]>([]);
+  const [open, setOpen] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [blocked, setBlocked] = useState(false);
 
-const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  muted: { color: Colors.textSecondary, ...Typography.body, padding: Spacing.md },
-  tabs: { flexDirection: 'row', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, gap: Spacing.sm, paddingTop: Spacing.sm },
-  tab: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: Radius.sm },
-  tabActive: { backgroundColor: Colors.primary },
-  tabTxt: { ...Typography.label, color: Colors.textSecondary },
-  tabTxtActive: { color: '#fff' },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm, gap: Spacing.sm },
-  rowTitle: { ...Typography.label, color: Colors.text, fontWeight: '600' },
-  rowSub: { ...Typography.caption, color: Colors.textSecondary, textTransform: 'capitalize', marginTop: 2 },
-  assignBtn: { backgroundColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: 14, paddingVertical: 8 },
-  assignTxt: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  form: { backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md },
-  label: { ...Typography.label, color: Colors.text, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 10, marginBottom: Spacing.md, color: Colors.text },
-  submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: 13, alignItems: 'center' },
-  submitTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  hint: { ...Typography.caption, color: Colors.textSecondary, marginTop: Spacing.sm },
-  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
-  pillTxt: { fontSize: 11, fontWeight: '600', color: '#374151', textTransform: 'capitalize' },
-});
+  const load = useCallback(async () => {
+    try {
+      if (tab === 'books') setWs(unwrap(await api.teacherWorkspace()));
+      if (tab === 'releases') setRel(unwrap(await api.teacherReleases({ tab: 'active', limit: 50 })) || []);
+      if (tab === 'progress') {
+        setStats(unwrap(await api.teacherAnalytics()));
+        setStudents(unwrap(await api.teacherStudents({ limit: 50 })) || []);
+      }
+    } catch (e: any) { if (MODULE_BLOCKED_CODES.includes(e?.data?.code)) setBlocked(true); else failed(e); }
+    finally { setLoading(false); setRefreshing(false); }
+  }, [tab]);
+  useEffect(() => { setLoading(true); load(); }, [load]);
+
+  const act = async (fn: () => Promise<any>, title: string, msg: string) => {
+    if (!await confirmAsync(title, msg, 'Yes')) return;
+    try { await fn(); load(); } catch (e: any) { failed(e); }
+  };
+
+  const head = <Stack.Screen options={{ title: 'Video Learning' }} />;
+  if (blocked) return <>{head}<ModuleDisabled /></>;
+  return (
+    <>
+      {head}
+      <ScrollView style={{ flex: 1, backgroundColor: Colors.background }} contentContainerStyle={{ padding: Spacing.md }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}>
+        <SegTabs tabs={[{ key: 'books', label: 'My books' }, { key: 'releases', label: 'Releases' }, { key: 'progress', label: 'Progress' }]}
+          active={tab} onChange={(k) => { setOpen(null); setTab(k); }} />
+        {loading ? <LoaderView /> : tab === 'books' ? (
+          open ? <BookView book={open} onBack={() => { setOpen(null); load(); }} /> : !ws?.sections?.length ? (
+            <Empty icon="person-outline" text="Books appear here for the sections where you are the subject teacher." />
+          ) : !ws.books.length ? (
+            <Empty icon="library-outline" text="The school has not chosen video lesson books for the subjects you teach yet." />
+          ) : (
+            <Card>
+              {ws.books.map((b: any) => (
+                <RowItem key={b._id} icon="book-outline" title={b.title} onPress={() => setOpen(b)}
+                  sub={`${b.subjectName} · ${b.sections.map((s: any) => `${s.className} ${s.sectionName}${s.liveReleases ? ` (${s.liveReleases} released)` : ''}`).join(', ')}`} />
+              ))}
+            </Card>
+          )
+        ) : tab === 'releases' ? (
+          <>
+            <Note>Taking a release down closes it straight away; what students have watched is kept. Schedules, end dates and choosing students are on the web app.</Note>
+            {rel.length ? (
+              <Card>
+                {rel.map((r) => (
+                  <View key={r._id} style={{ paddingBottom: Spacing.sm }}>
+                    <RowItem icon="paper-plane-outline" title={what(r)} sub={`${r.bookTitle} · ${r.className} ${r.sectionName}`} right={<Badge label={word(r.shownStatus)} tone={tone(r.shownStatus)} />} />
+                    <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.md }}>
+                      <ActionBtn small tone="warning" label="Unpublish" onPress={() => act(() => api.teacherUnpublish(r._id), 'Unpublish?', `${what(r)} closes for ${r.className} ${r.sectionName} now. You can publish it again.`)} />
+                      <ActionBtn small tone="danger" label="Revoke" onPress={() => act(() => api.teacherRevoke(r._id), 'Revoke access?', `${what(r)} closes for good. Students keep their watch record.`)} />
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            ) : <Empty icon="paper-plane-outline" text="Nothing is released right now." />}
+          </>
+        ) : stats ? (
+          <>
+            <StatRow>
+              <StatTile label="Students" value={stats.assignedStudents} icon="people-outline" />
+              <StatTile label="Started" value={stats.students?.started ?? 0} icon="trending-up-outline" tone="warning" />
+              <StatTile label="Completed" value={stats.students?.completed ?? 0} icon="checkmark-done-outline" tone="success" />
+            </StatRow>
+            <SectionTitle>Students</SectionTitle>
+            {students.length ? (
+              <Card>
+                {students.map((s) => (
+                  <View key={s._id}>
+                    <RowItem icon="person-outline" title={s.name} sub={`${s.className} ${s.sectionName} · ${s.completed} of ${s.videos} completed · ${spent(s.watchSeconds)}`}
+                      right={<Badge label={word(s.status)} tone={tone(s.status)} />} />
+                    <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm }}><Meter percent={s.percent} /></View>
+                  </View>
+                ))}
+              </Card>
+            ) : <Empty icon="people-outline" text="Students appear here once something is released to their section." />}
+          </>
+        ) : null}
+      </ScrollView>
+    </>
+  );
+}
