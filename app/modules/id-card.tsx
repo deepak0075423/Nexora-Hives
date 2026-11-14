@@ -1,7 +1,7 @@
 /**
  * ID Card on the phone (Oct 2026) — for a student, a teacher (or any other
  * employee) and a parent. The card in force hangs in the showcase: tap it to
- * turn it over, swipe to spin it. "Show at the gate" puts it on a dark full
+ * turn it over, swipe to spin it. "Full screen view" puts it on a dark full
  * screen with the school's name and a clock ticking to the second — a live
  * screen, which a screenshot is not — and keeps the phone awake meanwhile.
  * "Share PDF" hands the school's own print file to the share sheet.
@@ -186,7 +186,7 @@ export default function IdCardScreen() {
               <View style={s.acts}>
                 {shown.status === 'active' ? (
                   <TouchableOpacity style={[s.btn, s.btnLight]} onPress={() => setPresent(true)} accessibilityRole="button">
-                    <Ionicons name="scan" size={16} color="#1E1B4B" /><Text style={[s.btnText, { color: '#1E1B4B' }]}>Show at the gate</Text>
+                    <Ionicons name="expand" size={16} color="#1E1B4B" /><Text style={[s.btnText, { color: '#1E1B4B' }]}>Full screen view</Text>
                   </TouchableOpacity>
                 ) : null}
                 <TouchableOpacity style={s.btn} onPress={() => setBack((b) => !b)} accessibilityRole="button">
