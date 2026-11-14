@@ -67,7 +67,6 @@ const TEACHER_MODULES = [
   { key: 'leave',      label: 'Leave',      icon: 'airplane',         route: '/modules/leave',       moduleFlag: 'leave' },
   { key: 'payroll',    label: 'Payroll',    icon: 'cash',             route: '/modules/teacher-payroll', moduleFlag: 'payroll' },
   { key: 'library',    label: 'Library',    icon: 'library',          route: '/modules/library',     moduleFlag: 'library' },
-  { key: 'manageLib',  label: 'Manage Lib', icon: 'albums',           route: '/modules/library-admin', moduleFlag: 'library', requires: 'isLibrarian' },
   { key: 'inventory',  label: 'Inventory',  icon: 'cube',             route: '/modules/inventory-requests', moduleFlag: 'inventory' },
   { key: 'admDuties',  label: 'Adm. Duties', icon: 'clipboard',       route: '/modules/admission-duties', moduleFlag: 'admission' },
   // A teacher who lives in the hostel (hostelResident), and one posted to a hostel as its
@@ -152,10 +151,11 @@ const PARENT_MODULES = [
 
 
 // A teacher whose designation grants ADMIN access to a module gets that module's
-// admin screens too. library and feedback are absent on purpose — TEACHER_MODULES
-// already carries "Manage Lib" and "Fb Review" for them, gated on the same
-// permission through isLibrarian / isPrincipal.
+// admin screens too, in the Module Admin section. Library is here (it used to
+// sit among the general modules as "Manage Lib"); feedback is absent on
+// purpose — TEACHER_MODULES carries "Fb Review", gated on isPrincipal.
 const TEACHER_ADMIN_MODULES = [
+  { key: 'manageLib',  label: 'Library*',    icon: 'albums',          route: '/modules/library-admin',    adminOf: 'library' },
   { key: 'attendance', label: 'Attendance*', icon: 'checkmark-done', route: '/modules/admin/attendance', adminOf: 'attendance' },
   { key: 'timetable',  label: 'Timetable*',  icon: 'calendar-number', route: '/modules/admin/timetable',  adminOf: 'timetable' },
   { key: 'exams',      label: 'Aptitude*',   icon: 'bulb',            route: '/modules/admin/exams',      adminOf: 'aptitudeExam' },
