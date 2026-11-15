@@ -74,7 +74,18 @@ export const cancelCompOff       = (id: string)      => api.delete(`/teacher/lea
 export const getCompOffApprovals = (params?: object) => api.get('/teacher/leave/compoff/approvals', { params });
 export const approveCompOff      = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/approve`, data ?? {});
 export const rejectCompOff       = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/reject`, data ?? {});
-export const getDocuments        = () => api.get('/teacher/documents');
+export const getDocuments        = (params?: object) => api.get('/teacher/documents', { params });
+export const getDocumentCategories = () => api.get('/teacher/document-categories');
+export const uploadDocument      = (data: FormData) => api.post('/teacher/documents', data);
+export const updateDocument      = (id: string, data: FormData) => api.put(`/teacher/documents/${id}`, data);
+export const getAssignmentAnalytics = (id: string) => api.get(`/teacher/documents/${id}/assignment/analytics`);
+export const deleteDocument      = (id: string) => api.delete(`/teacher/documents/${id}`);
+export const archiveDocument     = (id: string, archived = true) => api.post(`/teacher/documents/${id}/archive`, { archived });
+export const markDocumentRead    = (id: string) => api.post(`/teacher/documents/${id}/read`);
+export const markDocumentsRead   = (ids: string[]) => api.post('/teacher/documents/read', { ids });
+// Marking and reminding — the teacher who set the work only (the route checks).
+export const reviewAssignment    = (id: string, studentId: string, data: object) => api.post(`/teacher/documents/${id}/submissions/${studentId}/review`, data);
+export const remindAssignment    = (id: string, data?: object) => api.post(`/teacher/documents/${id}/remind`, data || {});
 // One document opened — the same head and roster the office reads, behind
 // the teacher's access check. Comments: your own to edit and delete only.
 export const getAssignmentDetail   = (id: string, params?: object) => api.get(`/teacher/documents/${id}/assignment`, { params });

@@ -4,15 +4,24 @@
  * student drawer). Every role opens it from the Documents list, and a
  * document notification lands here.
  *
- *   • Details — what it is, who it reached, its files (each opens).
- *   • Submissions (admin and teacher, assignments only) — the tiles, and the
- *     students filtered by section and status. The section choices are the
- *     document's own academic year only (the server decides): a student still
- *     placed in last year's section shows only if they already handed work in,
- *     labelled with that year, and never as a choice of its own.
+ *   • Details — what it is, who it reached, its files (each opens). A student
+ *     hands work in here; a parent sees where each of their children stands.
+ *   • Submissions (admin and teacher, assignments only) — the tiles, the
+ *     scores, and the students filtered by section and status. Whoever may
+ *     manage the document (the office, or the teacher who set it) marks from
+ *     here and sends reminders; anyone else reads.
+ *   • Analytics (the same people, assignments only) — the class average and
+ *     how it compares with the last piece of work, the hand-in trend, how each
+ *     section and each question went, who did best and who needs attention.
+ *
+ * Whoever may manage it can also change it from here (Edit), archive or
+ * restore it, and delete it.
  *   • Comments (admin, teacher, student) — your own comments to edit and
  *     delete; an admin deletes anyone's (components/documents/commentParts).
  *     Parents have no comments, as on the web.
+ *
+ * Opening it marks it read — it used to stay "New" on the web however many
+ * times it was opened here.
  *
  * `as=admin` opens it the office's way — a module-admin teacher arriving from
  * the admin list reaches the /admin endpoints that list was read from.
@@ -30,13 +39,17 @@ import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import {
   unwrap, LoaderView, Empty, Badge, Card, KV, SectionTitle, StatTile, StatRow, SegTabs, Select, SearchBar,
-  ActionBtn, FormModal, confirmAsync, fmtDate, MODULE_BLOCKED_CODES,
+  ActionBtn, FormModal, Input, confirmAsync, fmtDate, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { CommentsPanel, FileList, type CommentApi } from '@/components/documents/commentParts';
+import { DocPick, appendDocFiles, type Picked } from '@/components/documents/filePick';
+import { ShareSheet } from '@/components/documents/ShareSheet';
 
 type Side = 'admin' | 'teacher' | 'student' | 'parent';
 
 const PAGE = 20;
+/** The marking form's own line for what the named questions leave over (the server's name for it). */
+const OTHER_MARKS = 'Other marks';
 
 const TYPE_LABEL: Record<string, string> = {
   assignment: 'Assignment', notice: 'Notice', circular: 'Circular',
@@ -67,24 +80,38 @@ const when = (d?: string | null) => {
   return `${fmtDate(d)}, ${x.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}`;
 };
 
+const said = (e: any, fallback = '') => e?.data?.message || e?.message || fallback;
+
 function apisFor(side: Side | null) {
   if (side === 'admin') return {
-    detail: adminApi.getAssignmentDetail, one: null,
+    detail: adminApi.getAssignmentDetail, one: null, markRead: null,
+    analytics: adminApi.getAssignmentAnalytics, update: adminApi.updateDocument,
+    review: adminApi.reviewSubmission, remind: adminApi.remindAssignment,
+    archive: adminApi.archiveDocument, remove: adminApi.deleteDocument,
     comments: { list: adminApi.getDocumentComments, add: adminApi.addDocumentComment, update: adminApi.updateDocumentComment,
       remove: adminApi.deleteDocumentComment, like: adminApi.likeDocumentComment } as CommentApi,
   };
   if (side === 'teacher') return {
-    detail: teacherApi.getAssignmentDetail, one: null,
+    detail: teacherApi.getAssignmentDetail, one: null, markRead: teacherApi.markDocumentRead,
+    analytics: teacherApi.getAssignmentAnalytics, update: teacherApi.updateDocument,
+    review: teacherApi.reviewAssignment, remind: teacherApi.remindAssignment,
+    archive: teacherApi.archiveDocument, remove: teacherApi.deleteDocument,
     comments: { list: teacherApi.getDocumentComments, add: teacherApi.addDocumentComment, update: teacherApi.updateDocumentComment,
       remove: teacherApi.deleteDocumentComment, like: teacherApi.likeDocumentComment } as CommentApi,
   };
   if (side === 'student') return {
-    detail: null, one: studentApi.getDocument,
+    detail: null, one: studentApi.getDocument, markRead: studentApi.markDocumentRead,
+    analytics: null, update: null,
+    review: null, remind: null, archive: null, remove: null,
     comments: { list: studentApi.getDocumentComments, add: studentApi.addDocumentComment, update: studentApi.updateDocumentComment,
       remove: studentApi.deleteDocumentComment } as CommentApi,
   };
-  if (side === 'parent') return { detail: null, one: parentApi.getDocument, comments: null };
-  return { detail: null, one: null, comments: null };
+  if (side === 'parent') return {
+    detail: null, one: parentApi.getDocument, markRead: parentApi.markDocumentRead,
+    analytics: null, update: null,
+    review: null, remind: null, archive: null, remove: null, comments: null,
+  };
+  return { detail: null, one: null, markRead: null, analytics: null, update: null, review: null, remind: null, archive: null, remove: null, comments: null };
 }
 
 export default function DocumentDetailScreen() {
@@ -117,6 +144,21 @@ export default function DocumentDetailScreen() {
   const [openSub, setOpenSub] = useState<any>(null);
   const [busy, setBusy] = useState(false);
 
+  // Analytics are read when their tab is first opened, and again after a mark changes.
+  const [ana, setAna] = useState<any>(null);
+  const [anaFailed, setAnaFailed] = useState('');
+
+  // Editing: the form, and what it needs to offer.
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState<{ sections: any[]; classes: any[]; teachers: any[]; categories: string[] }>(
+    { sections: [], classes: [], teachers: [], categories: [] });
+
+  // The marking form, for whoever is open in the sheet.
+  const [marks, setMarks] = useState('');
+  const [scores, setScores] = useState<Record<string, string>>({});
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
   // Typing settles before the roster is asked again.
   useEffect(() => { const t = setTimeout(() => setQ(search.trim()), 350); return () => clearTimeout(t); }, [search]);
 
@@ -140,11 +182,14 @@ export default function DocumentDetailScreen() {
       setFailed('');
     } catch (e: any) {
       if (MODULE_BLOCKED_CODES.includes(e?.data?.code)) setDisabled(true);
-      else setFailed(e?.message || 'This document could not be opened');
+      else setFailed(said(e, 'This document could not be opened'));
     } finally { setLoading(false); setRefreshing(false); }
   }, [side, id, A, query]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Arriving here — from the list or from a notification — is opening it.
+  useEffect(() => { if (id && A.markRead) A.markRead(String(id)).catch(() => {}); }, [id, A]);
 
   const loadMore = async () => {
     if (!A.detail) return;
@@ -153,31 +198,123 @@ export default function DocumentDetailScreen() {
       const d = unwrap(await A.detail(String(id), query(page + 1)));
       setRows((r) => [...r, ...(d?.roster?.students || [])]);
       setPage(page + 1);
-    } catch (e: any) { Alert.alert('Could not load more', e?.message || ''); }
+    } catch (e: any) { Alert.alert('Could not load more', said(e)); }
     finally { setMore(false); }
   };
 
+  const canManage = !!head?.canManage;
+
+  useEffect(() => {
+    if (tab !== 'analytics' || ana || !A.analytics || !head?.isAssignment) return;
+    setAnaFailed('');
+    A.analytics(String(id))
+      .then((r: any) => setAna(unwrap(r)))
+      .catch((e: any) => setAnaFailed(said(e, 'The analytics could not be loaded')));
+  }, [tab, ana, A, id, head?.isAssignment]);
+
+  // The edit form opens on what is already known and fills in its pickers.
+  const startEdit = async () => {
+    try {
+      if (side === 'admin') {
+        const [c, k] = await Promise.all([adminApi.getDocumentClasses(), adminApi.getDocumentCategories()]);
+        const t: any = await adminApi.getDocumentTeachers().catch(() => ({ data: [] }));
+        setFormData({ sections: [], classes: unwrap(c) || [], teachers: unwrap(t) || [], categories: (unwrap(k) || []).map((x: any) => x.name ?? x) });
+      } else {
+        const [l, k]: any[] = await Promise.all([teacherApi.getDocuments({ page: 1, limit: 1 }), teacherApi.getDocumentCategories()]);
+        setFormData({ sections: l?.sections || [], classes: [], teachers: [], categories: ((k?.data ?? k) || []).map((x: any) => x.name ?? x) });
+      }
+    } catch { /* the form opens with what it has */ }
+    setEditing(true);
+  };
+
   const archive = async () => {
-    if (!(await confirmAsync('Archive document', `Archive “${head?.title}”? It stays, but leaves the main list.`, 'Archive'))) return;
+    if (!A.archive) return;
+    const back = !!head?.isArchived;
+    if (!(await confirmAsync(
+      back ? 'Restore document' : 'Archive document',
+      back ? `Put “${head?.title}” back on the shelf?` : `Archive “${head?.title}”? It stays, but leaves everyone’s list.`,
+      back ? 'Restore' : 'Archive',
+    ))) return;
     setBusy(true);
-    try { await adminApi.archiveDocument(String(id)); await load(); }
-    catch (e: any) { Alert.alert('Could not archive', e?.message || ''); }
+    try { await A.archive(String(id), !back); await load(); }
+    catch (e: any) { Alert.alert(back ? 'Could not restore' : 'Could not archive', said(e)); }
     finally { setBusy(false); }
   };
   const remove = async () => {
-    if (!(await confirmAsync('Delete document', `Permanently delete “${head?.title}”? Its files and every submission against it go with it.`, 'Delete'))) return;
+    if (!A.remove) return;
+    if (!(await confirmAsync('Delete document', `Permanently delete “${head?.title}”? Its files, its comments and every submission against it go with it.`, 'Delete'))) return;
     setBusy(true);
-    try { await adminApi.deleteDocument(String(id)); router.back(); }
-    catch (e: any) { Alert.alert('Could not delete', e?.message || ''); setBusy(false); }
+    try { await A.remove(String(id)); router.back(); }
+    catch (e: any) { Alert.alert('Could not delete', said(e)); setBusy(false); }
+  };
+
+  // ── Reminders ──────────────────────────────────────────────────────────────
+  const outstanding = (roster?.counts?.pending || 0) + (roster?.counts?.missed || 0);
+  const remind = async (student?: any) => {
+    if (!A.remind) return;
+    if (!student && !(await confirmAsync(
+      'Send reminder',
+      outstanding
+        ? `Remind the ${outstanding} student${outstanding === 1 ? '' : 's'} who ${outstanding === 1 ? 'has' : 'have'} not handed this in? Their parents are told too. It can go to everyone once an hour.`
+        : 'Everyone has handed this in — there is nobody to remind.',
+      'Send',
+    ))) return;
+    try {
+      const r: any = await A.remind(String(id), student ? { studentIds: [String(student._id)] } : {});
+      Alert.alert('Reminder', r?.sent ? `Sent to ${r.sent} student${r.sent === 1 ? '' : 's'} and their parents.` : (r?.message || 'Nobody to remind.'));
+    } catch (e: any) { Alert.alert('Not sent', said(e)); }
+  };
+
+  // ── Marking ────────────────────────────────────────────────────────────────
+  const questions: any[] = head?.questions || [];
+  const byQuestion = questions.length > 0;
+  const outOf = Number(head?.totalMarks) > 0 ? Number(head.totalMarks) : null;
+  const named = questions.reduce((n, x) => n + (Number(x.maxMarks) > 0 ? Number(x.maxMarks) : 0), 0);
+  // What the named questions leave over, when each says what it is worth.
+  const room = byQuestion && outOf && questions.every((x) => Number(x.maxMarks) > 0)
+    ? Math.round((outOf - named) * 100) / 100 : 0;
+  const labels = [...questions.map((x) => String(x.label)), ...(room > 0 ? [OTHER_MARKS] : [])];
+
+  const openStudent = (r: any) => {
+    setOpenSub(r);
+    setMarks(r.marks == null ? '' : String(r.marks));
+    setNote(r.feedback || '');
+    setScores(Object.fromEntries([...questions.map((x) => String(x.label)), OTHER_MARKS].map((l) => {
+      const hit = (r.questionScores || []).find((x: any) => x.label === l);
+      return [l, hit?.score == null ? '' : String(hit.score)];
+    })));
+  };
+
+  const derived = byQuestion
+    ? (() => {
+      const vals = labels.filter((l) => scores[l] !== '' && scores[l] != null).map((l) => Number(scores[l])).filter((n) => Number.isFinite(n));
+      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) * 100) / 100 : null;
+    })()
+    : null;
+
+  const saveMarks = async () => {
+    if (!A.review || !openSub) return;
+    setSaving(true);
+    try {
+      await A.review(String(id), String(openSub._id), byQuestion
+        ? { feedback: note, questionScores: labels.map((l) => ({ label: l, score: scores[l] })) }
+        : { feedback: note, marks });
+      setOpenSub(null);
+      setAna(null);      // worked out before this mark existed
+      await load();
+    } catch (e: any) { Alert.alert('Not saved', said(e)); }
+    finally { setSaving(false); }
   };
 
   const title = head?.title || 'Document';
   const tabs = [
     { key: 'details', label: 'Details' },
     ...(staff && roster ? [{ key: 'submissions', label: `Submissions (${roster.counts?.total ?? 0})` }] : []),
+    ...(staff && roster && A.analytics ? [{ key: 'analytics', label: 'Analytics' }] : []),
     ...(A.comments ? [{ key: 'comments', label: comments == null ? 'Comments' : `Comments (${comments})` }] : []),
   ];
   const active = tabs.some((t) => t.key === tab) ? tab : 'details';
+  const handedIn = openSub && (openSub.state === 'submitted' || openSub.state === 'late');
 
   if (disabled) return (<><Stack.Screen options={{ title: 'Document' }} /><ModuleDisabled /></>);
 
@@ -213,7 +350,9 @@ export default function DocumentDetailScreen() {
             <SegTabs tabs={tabs} active={active} onChange={setTab} />
 
             {active === 'details' && (
-              <Details head={head} side={side!} busy={busy} onArchive={archive} onDelete={remove} />
+              <Details head={head} side={side!} busy={busy} docId={String(id)} reload={load}
+                canAct={side === 'admin' || (side === 'teacher' && canManage)}
+                onEdit={startEdit} onArchive={archive} onDelete={remove} />
             )}
 
             {active === 'submissions' && roster && (
@@ -226,6 +365,33 @@ export default function DocumentDetailScreen() {
                   <StatTile label="Not submitted" value={roster.counts?.missed ?? 0} icon="close-circle" tone="danger" />
                   <StatTile label="Total students" value={roster.counts?.total ?? 0} icon="people" tone="info" />
                 </StatRow>
+
+                {/* How the class did, once anything has been marked. */}
+                {roster.counts?.graded > 0 && (
+                  <Card>
+                    <SectionTitle>Scores ({roster.counts.graded} marked)</SectionTitle>
+                    <KV label="Average" value={`${roster.scores?.average ?? '—'}${outOf ? ` / ${outOf}` : ''}`} />
+                    <KV label="Highest" value={`${roster.scores?.highest ?? '—'}${outOf ? ` / ${outOf}` : ''}`} />
+                    <KV label="Lowest" value={`${roster.scores?.lowest ?? '—'}${outOf ? ` / ${outOf}` : ''}`} />
+                    {(roster.distribution || []).some((b: any) => b.count > 0) && (
+                      <View style={s.bands}>
+                        {(roster.distribution as any[]).map((b) => (
+                          <View key={b.label} style={s.band}>
+                            <Text style={s.bandCount}>{b.count}</Text>
+                            <Text style={s.bandLabel}>{b.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </Card>
+                )}
+
+                {canManage && A.remind && (
+                  <View style={{ marginBottom: 10 }}>
+                    <ActionBtn label={`Remind everyone still to hand in${outstanding ? ` (${outstanding})` : ''}`}
+                      onPress={() => remind()} />
+                  </View>
+                )}
 
                 <Select label="Section" value={section} onChange={setSection}
                   options={[
@@ -240,10 +406,11 @@ export default function DocumentDetailScreen() {
                 <Text style={s.count}>Showing {rows.length} of {roster.shown ?? rows.length} students</Text>
                 {!rows.length ? <Empty icon="people-outline" text="No students match these filters" /> : rows.map((r) => {
                   const st = STATE[r.state] || STATE.pending;
-                  const outOf = roster.scores?.outOf;
+                  // Something to open: their work, or — for whoever marks — the form.
+                  const opens = !!r.submissionId || canManage;
                   return (
-                    <TouchableOpacity key={r._id} style={s.row} disabled={!r.submissionId} activeOpacity={0.7}
-                      onPress={() => setOpenSub(r)} accessibilityLabel={`${r.name}, ${st.label}`}>
+                    <TouchableOpacity key={r._id} style={s.row} disabled={!opens} activeOpacity={0.7}
+                      onPress={() => openStudent(r)} accessibilityLabel={`${r.name}, ${st.label}`}>
                       <View style={{ flex: 1 }}>
                         <Text style={s.rowName} numberOfLines={1}>{r.name}</Text>
                         <Text style={s.rowSub} numberOfLines={1}>
@@ -255,7 +422,7 @@ export default function DocumentDetailScreen() {
                         <Badge label={st.label} tone={st.tone} />
                         {r.marks != null ? <Text style={s.marks}>{r.marks}{outOf ? ` / ${outOf}` : ''}</Text> : null}
                       </View>
-                      {r.submissionId ? <Ionicons name="chevron-forward" size={16} color={Colors.textLight} style={{ marginLeft: 6 }} /> : null}
+                      {opens ? <Ionicons name="chevron-forward" size={16} color={Colors.textLight} style={{ marginLeft: 6 }} /> : null}
                     </TouchableOpacity>
                   );
                 })}
@@ -267,6 +434,11 @@ export default function DocumentDetailScreen() {
               </View>
             )}
 
+            {active === 'analytics' && (
+              anaFailed ? <Empty icon="alert-circle-outline" text={anaFailed} />
+                : !ana ? <LoaderView /> : <Analytics ana={ana} roster={roster} outOf={outOf} />
+            )}
+
             {active === 'comments' && A.comments && (
               <CommentsPanel docId={String(id)} api={A.comments} adminSide={side === 'admin'} onCount={setComments} />
             )}
@@ -274,15 +446,57 @@ export default function DocumentDetailScreen() {
         )}
       </ScrollView>
 
-      <FormModal visible={!!openSub} title={openSub ? `${openSub.name}’s work` : ''} onClose={() => setOpenSub(null)}>
+      {A.update ? (
+        <ShareSheet visible={editing} mode={side === 'admin' ? 'admin' : 'teacher'} editing={head}
+          sections={formData.sections} classes={formData.classes} teachers={formData.teachers} categories={formData.categories}
+          send={async () => undefined} update={A.update}
+          onClose={() => setEditing(false)}
+          onDone={() => { setEditing(false); load(); }} />
+      ) : null}
+
+      <FormModal visible={!!openSub} title={openSub ? `${openSub.name}’s work` : ''} onClose={() => setOpenSub(null)}
+        onSubmit={canManage && A.review ? saveMarks : undefined} submitting={saving} submitLabel="Save marks & feedback">
         {openSub ? (
           <View>
             <KV label="Status" value={(STATE[openSub.state] || STATE.pending).label} />
             <KV label="Handed in" value={when(openSub.submittedAt) || '—'} />
-            {openSub.marks != null ? <KV label="Marks" value={`${openSub.marks}${roster?.scores?.outOf ? ` / ${roster.scores.outOf}` : ''}`} /> : null}
-            {openSub.feedback ? <KV label="Feedback" value={openSub.feedback} /> : null}
+            {openSub.readAt ? <KV label="Opened" value={when(openSub.readAt)} /> : null}
+            {openSub.marks != null ? <KV label="Marks" value={`${openSub.marks}${outOf ? ` / ${outOf}` : ''}`} /> : null}
+            {!canManage && openSub.feedback ? <KV label="Feedback" value={openSub.feedback} /> : null}
             <SectionTitle>Files</SectionTitle>
             {openSub.files?.length ? <FileList files={openSub.files} /> : <Text style={s.muted}>No files.</Text>}
+
+            {canManage && A.review ? (
+              <View style={{ marginTop: Spacing.md }}>
+                <SectionTitle>Mark it</SectionTitle>
+                {!handedIn ? (
+                  <Text style={s.warn}>
+                    Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a
+                    zero — the list still shows it as not submitted.
+                  </Text>
+                ) : null}
+                {byQuestion ? (
+                  <>
+                    {labels.map((l) => {
+                      const max = l === OTHER_MARKS ? room : questions.find((x) => String(x.label) === l)?.maxMarks;
+                      return (
+                        <Input key={l} label={`${l}${max ? ` (out of ${max})` : ''}`} value={scores[l] ?? ''}
+                          keyboardType="decimal-pad" onChange={(v) => setScores((x) => ({ ...x, [l]: v }))} />
+                      );
+                    })}
+                    <Text style={s.total}>Total {derived ?? '—'}{outOf ? ` / ${outOf}` : ''} — added up from the lines above</Text>
+                  </>
+                ) : (
+                  <Input label={`Marks${outOf ? ` (out of ${outOf})` : ''}`} value={marks} onChange={setMarks}
+                    keyboardType="decimal-pad" placeholder="Leave empty to unmark" />
+                )}
+                <Input label="Feedback" value={note} onChange={(v) => setNote(v.slice(0, 600))} multiline
+                  placeholder="What they did well, and what to fix next time" />
+                {!handedIn ? (
+                  <ActionBtn label="Send this student a reminder" onPress={() => remind(openSub)} />
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
       </FormModal>
@@ -290,12 +504,151 @@ export default function DocumentDetailScreen() {
   );
 }
 
-function Details({ head, side, busy, onArchive, onDelete }: {
-  head: any; side: Side; busy: boolean; onArchive: () => void; onDelete: () => void;
+/** One labelled bar: a name, a figure, and how far along 0–100 it sits. */
+const Bar = ({ label, value, pct, tone = '#4F46E5' }: { label: string; value: string; pct: number | null; tone?: string }) => (
+  <View style={{ marginBottom: 10 }}>
+    <View style={s.barHead}>
+      <Text style={s.barLabel} numberOfLines={1}>{label}</Text>
+      <Text style={s.barValue}>{value}</Text>
+    </View>
+    <View style={s.barTrack}>
+      <View style={[s.barFill, { width: `${Math.max(0, Math.min(100, pct ?? 0))}%`, backgroundColor: tone }]} />
+    </View>
+  </View>
+);
+
+/**
+ * How the class did — the web's Analytics tab, told in bars a phone can hold.
+ * Nothing is drawn for what was not measured: an assignment with no marks says
+ * so rather than showing an empty chart.
+ */
+function Analytics({ ana, roster, outOf }: { ana: any; roster: any; outOf: number | null }) {
+  const sum = ana.summary || {};
+  const cmp = ana.comparison;
+  const total = sum.total || 0;
+  // Daily arrivals as a running total — the line the web draws, as bars.
+  let running = 0;
+  const trend = (ana.trend || []).map((t: any) => {
+    running += t.count || 0;
+    const d = new Date(t.day);
+    return { label: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`, total: running };
+  });
+  const sections = (ana.sections || []).filter((x: any) => x.total > 0);
+  const questions = (ana.questions || []).filter((x: any) => x.percent != null);
+  const person = (p: any, right: string) => (
+    <View key={String(p._id)} style={s.person}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={s.rowName} numberOfLines={1}>{p.name}</Text>
+        {p.section ? <Text style={s.rowSub} numberOfLines={1}>{p.section}</Text> : null}
+      </View>
+      <Text style={s.marks}>{right}</Text>
+    </View>
+  );
+
+  return (
+    <View>
+      <Card>
+        <SectionTitle>Class average</SectionTitle>
+        <Text style={s.big}>
+          {sum.average ?? '—'}<Text style={s.bigSub}>{outOf ? ` / ${outOf}` : ''}{sum.averagePercent != null ? `  ·  ${sum.averagePercent}%` : ''}</Text>
+        </Text>
+        <Text style={s.rowSub}>{sum.graded || 0} marked of {sum.submitted || 0} handed in · {total} on the assignment</Text>
+        {cmp?.change != null ? (
+          <Text style={[s.delta, { color: cmp.change >= 0 ? '#047857' : Colors.danger }]}>
+            {cmp.change >= 0 ? '▲' : '▼'} {Math.abs(cmp.change)}% {cmp.change >= 0 ? 'higher' : 'lower'} than on “{cmp.title}”
+          </Text>
+        ) : null}
+        {!sum.graded ? <Text style={s.calm}>Nothing has been marked yet, so there are no scores to compare.</Text> : null}
+      </Card>
+
+      {trend.length > 0 && (
+        <Card>
+          <SectionTitle>Handed in so far</SectionTitle>
+          {trend.slice(-10).map((t: any) => (
+            <Bar key={t.label} label={t.label} value={`${t.total} of ${total}`} pct={total ? (t.total / total) * 100 : 0} tone="#059669" />
+          ))}
+        </Card>
+      )}
+
+      {sections.length > 0 && (
+        <Card>
+          <SectionTitle>By section</SectionTitle>
+          {sections.map((x: any) => (
+            <Bar key={x.label} label={x.label}
+              value={x.percent != null ? `${x.percent}% avg · ${x.submitted}/${x.total} in` : `${x.submitted}/${x.total} in`}
+              pct={x.percent != null ? x.percent : (x.total ? (x.submitted / x.total) * 100 : 0)}
+              tone={x.percent != null ? '#4F46E5' : '#94A3B8'} />
+          ))}
+        </Card>
+      )}
+
+      {questions.length > 0 && (
+        <Card>
+          <SectionTitle>By question (average)</SectionTitle>
+          {questions.map((x: any) => (
+            <Bar key={x.label} label={x.label} value={`${x.average}${x.maxMarks ? ` / ${x.maxMarks}` : ''} · ${x.percent}%`}
+              pct={x.percent} tone={x.percent < 40 ? '#DC2626' : x.percent < 70 ? '#D97706' : '#059669'} />
+          ))}
+        </Card>
+      )}
+
+      {(roster?.distribution || []).some((b: any) => b.count > 0) && (
+        <Card>
+          <SectionTitle>Score distribution</SectionTitle>
+          {(roster.distribution as any[]).map((b) => (
+            <Bar key={b.label} label={b.label} value={`${b.count} student${b.count === 1 ? '' : 's'}`}
+              pct={sum.graded ? (b.count / sum.graded) * 100 : 0} />
+          ))}
+        </Card>
+      )}
+
+      {(ana.top || []).length > 0 && (
+        <Card>
+          <SectionTitle>Top performers</SectionTitle>
+          {(ana.top as any[]).map((p) => person(p, `${p.marks}${outOf ? ` / ${outOf}` : ''}`))}
+        </Card>
+      )}
+
+      <Card>
+        <SectionTitle>Needs attention</SectionTitle>
+        {(ana.attention || []).length
+          ? (ana.attention as any[]).map((p) => person(p, p.state === 'missed' ? 'Not submitted' : p.state === 'pending' ? 'Pending' : `${p.marks}${outOf ? ` / ${outOf}` : ''}`))
+          : <Text style={s.calm}>Nobody is behind — everything is in.</Text>}
+      </Card>
+    </View>
+  );
+}
+
+function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, docId, reload }: {
+  head: any; side: Side; busy: boolean; canAct: boolean; onEdit: () => void; onArchive: () => void; onDelete: () => void;
+  docId: string; reload: () => void;
 }) {
   const subject = typeof head.subject === 'object' ? head.subject?.name : head.subject;
   const shared = Array.isArray(head.sharedWith) ? head.sharedWith.join(', ') : '';
   const sub = head.mySubmission;
+  const [files, setFiles] = useState<Picked[]>([]);
+  const [sending, setSending] = useState(false);
+
+  const handed  = !!sub && (sub.status === 'submitted' || sub.status === 'late');
+  // Looked at by the teacher: it can no longer be swapped for something else.
+  const settled = !!sub && (sub.marks != null || !!sub.reviewedAt);
+  const pastDue = !!head.dueDate && Date.now() > new Date(head.dueDate).getTime();
+
+  const handIn = async () => {
+    if (!files.length) { Alert.alert('Nothing attached', 'Attach at least one file.'); return; }
+    setSending(true);
+    try {
+      const fd = new FormData();
+      appendDocFiles(fd, files);
+      const r: any = await studentApi.submitAssignment(docId, fd);
+      setFiles([]);
+      Alert.alert('Handed in', r?.message === 'Submitted late' ? 'It came in after the due date, so it is marked late.' : 'Your work has been handed in.');
+      reload();
+    } catch (e: any) {
+      Alert.alert('Not handed in', said(e, 'Please try again.'));
+    } finally { setSending(false); }
+  };
+
   return (
     <View>
       <Card>
@@ -306,6 +659,9 @@ function Details({ head, side, busy, onArchive, onDelete }: {
         <KV label={head.isAssignment ? 'Assigned on' : 'Shared on'} value={fmtDate(head.assignedOn || head.createdAt)} />
         {head.isAssignment ? <KV label="Due date" value={head.dueDate ? fmtDate(head.dueDate) : 'No due date'} /> : null}
         {head.isAssignment && head.totalMarks ? <KV label="Total marks" value={String(head.totalMarks)} /> : null}
+        {canAct && head.readCount != null ? (
+          <KV label="Opened by" value={head.readCount ? `${head.readCount} ${head.readCount === 1 ? 'person' : 'people'}` : 'Nobody yet'} />
+        ) : null}
       </Card>
 
       {head.description ? (
@@ -315,22 +671,77 @@ function Details({ head, side, busy, onArchive, onDelete }: {
         </Card>
       ) : null}
 
-      {(side === 'student' || side === 'parent') && head.isAssignment && sub ? (
-        <Card>
-          <SectionTitle>{side === 'parent' ? 'Their work' : 'Your work'}</SectionTitle>
-          <KV label="Status" value={sub.status === 'late' ? 'Handed in late' : 'Handed in'} />
-          <KV label="Handed in" value={when(sub.submittedAt) || '—'} />
-          {sub.marks != null ? <KV label="Marks" value={`${sub.marks}${head.totalMarks ? ` / ${head.totalMarks}` : ''}`} /> : null}
-          {sub.feedback ? <KV label="Feedback" value={sub.feedback} /> : null}
-        </Card>
-      ) : null}
-
       <SectionTitle>Files ({head.files?.length || 0})</SectionTitle>
       {head.files?.length ? <FileList files={head.files} /> : <Text style={s.muted}>No files attached.</Text>}
 
-      {side === 'admin' ? (
+      {/* A student's own work: what came back, and handing it in. */}
+      {side === 'student' && head.isAssignment ? (
+        <Card style={{ marginTop: Spacing.md }}>
+          <SectionTitle>Your work</SectionTitle>
+          {sub ? (
+            <>
+              <KV label="Status" value={sub.marks != null ? 'Marked' : handed ? (sub.status === 'late' ? 'Handed in late' : 'Handed in') : 'Not handed in'} />
+              {handed ? <KV label="Handed in" value={when(sub.submittedAt) || '—'} /> : null}
+              {sub.marks != null ? <KV label="Marks" value={`${sub.marks}${head.totalMarks ? ` / ${head.totalMarks}` : ''}`} /> : null}
+              {(sub.questionScores || []).filter((x: any) => x.score != null).map((x: any) => (
+                <KV key={x.label} label={`   ${x.label}`} value={String(x.score)} />
+              ))}
+              {sub.feedback ? <KV label="Feedback" value={sub.feedback} /> : null}
+              {handed && sub.files?.length ? <FileList files={sub.files} compact /> : null}
+            </>
+          ) : <Text style={s.muted}>You have not handed anything in yet.</Text>}
+
+          {settled ? (
+            <Text style={s.calm}>This has been marked, so it can no longer be replaced. Ask your teacher if you need to hand it in again.</Text>
+          ) : !head.allowSubmission ? (
+            <Text style={s.calm}>Submissions are closed for this one.</Text>
+          ) : (
+            <View style={{ marginTop: 10 }}>
+              <DocPick files={files} onFiles={setFiles} max={5}
+                label={handed ? 'Replace what you handed in' : 'Attach your work'}
+                hint="Up to 5 files, 10 MB each — PDFs, documents or photos" />
+              {pastDue ? (
+                <Text style={s.warn}>
+                  {handed && sub.status !== 'late'
+                    ? 'The due date has passed — replacing your work now will mark it late.'
+                    : 'The due date has passed — this will be marked late.'}
+                </Text>
+              ) : null}
+              <ActionBtn label={sending ? 'Sending…' : handed ? 'Replace submission' : 'Hand it in'} tone="primary"
+                onPress={handIn} disabled={sending || !files.length} />
+            </View>
+          )}
+        </Card>
+      ) : null}
+
+      {/* A parent: where each of their children stands on it. */}
+      {side === 'parent' && head.isAssignment && (head.children || []).length ? (
+        <Card style={{ marginTop: Spacing.md }}>
+          <SectionTitle>{head.children.length > 1 ? 'Each of your children' : 'Their work'}</SectionTitle>
+          {(head.children as any[]).map((c) => {
+            const w = c.submission;
+            const done = w && (w.status === 'submitted' || w.status === 'late');
+            const line = w?.marks != null ? `Marked — ${w.marks}${head.totalMarks ? ` / ${head.totalMarks}` : ''}`
+              : done ? `${w.status === 'late' ? 'Handed in late' : 'Handed in'} ${when(w.submittedAt)}`
+                : !head.allowSubmission ? 'Closed'
+                  : (head.dueDate && Date.now() > new Date(head.dueDate).getTime()) ? 'Not handed in — the due date has passed'
+                    : 'Not handed in yet';
+            return (
+              <View key={String(c._id)} style={s.child}>
+                <Text style={s.rowName}>{c.name}</Text>
+                <Text style={s.rowSub}>{line}</Text>
+                {w?.feedback ? <Text style={s.feedback}>“{w.feedback}”</Text> : null}
+              </View>
+            );
+          })}
+          <Text style={s.calm}>Work is handed in from your child’s own account.</Text>
+        </Card>
+      ) : null}
+
+      {canAct ? (
         <View style={s.adminActs}>
-          {!head.isArchived ? <ActionBtn label="Archive" onPress={onArchive} disabled={busy} /> : null}
+          <ActionBtn label="Edit" tone="primary" onPress={onEdit} disabled={busy} />
+          <ActionBtn label={head.isArchived ? 'Restore' : 'Archive'} onPress={onArchive} disabled={busy} />
           <ActionBtn label="Delete document" tone="danger" onPress={onDelete} disabled={busy} />
         </View>
       ) : null}
@@ -345,6 +756,12 @@ const s = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   desc: { fontSize: 14, lineHeight: 20, color: Colors.text },
   muted: { fontSize: 13, color: Colors.textSecondary, marginBottom: Spacing.md },
+  calm: { fontSize: 12, lineHeight: 18, color: Colors.textSecondary, marginTop: 10 },
+  warn: {
+    fontSize: 12, lineHeight: 18, color: '#92400E', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
+    borderRadius: Radius.md, padding: 10, marginBottom: 10,
+  },
+  total: { fontSize: 12, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   count: { fontSize: 12, color: Colors.textSecondary, marginVertical: 8 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 8,
@@ -356,5 +773,20 @@ const s = StyleSheet.create({
   marks: { fontSize: 12, fontWeight: '700', color: Colors.text },
   more: { alignItems: 'center', padding: 12, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   moreText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
-  adminActs: { flexDirection: 'row', gap: 8, marginTop: Spacing.lg },
+  adminActs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: Spacing.lg },
+  barHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
+  barLabel: { flex: 1, fontSize: 12, fontWeight: '600', color: Colors.text },
+  barValue: { fontSize: 12, color: Colors.textSecondary },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: '#E5E7EB', overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4 },
+  big: { fontSize: 28, fontWeight: '800', color: Colors.text },
+  bigSub: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  delta: { fontSize: 12, fontWeight: '700', marginTop: 6 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  bands: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  band: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.md, backgroundColor: Colors.background },
+  bandCount: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  bandLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2 },
+  child: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  feedback: { fontSize: 12, fontStyle: 'italic', color: Colors.textSecondary, marginTop: 4 },
 });

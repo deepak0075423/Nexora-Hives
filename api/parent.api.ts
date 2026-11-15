@@ -14,7 +14,9 @@ export const getExamResults     = (params?: object) => api.get('/parent/exams', 
 export const getResults         = () => api.get('/parent/results');
 export const getResultDetail    = (id: string) => api.get(`/parent/results/${id}`);
 export const getClassTests      = () => api.get('/parent/results/class-tests');
-export const getDocuments       = () => api.get('/parent/documents');
+export const getDocuments       = (params?: object) => api.get('/parent/documents', { params });
+export const markDocumentRead   = (id: string) => api.post(`/parent/documents/${id}/read`);
+export const markDocumentsRead  = (ids: string[]) => api.post('/parent/documents/read', { ids });
 export const getDocument        = (id: string) => api.get(`/parent/documents/${id}`);
 export const getHolidays        = () => api.get('/parent/holidays');
 

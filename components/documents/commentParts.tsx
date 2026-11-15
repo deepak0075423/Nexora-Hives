@@ -13,11 +13,11 @@
  * canDelete / canPin) and enforces the same; these buttons only follow it.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
-import { withFileToken } from '@/utils/fileAccess';
+import { withFileToken, openPrivateFile } from '@/utils/fileAccess';
 import { TextInput } from '@/components/ui/TextInput';
 import { unwrap, confirmAsync, Empty, FormModal, Input, LoaderView } from '@/components/ui/kit';
 
@@ -37,8 +37,22 @@ export function fileHref(f: any) {
   return withFileToken(url);
 }
 
+/** The same address with no token on it — what the app itself fetches. */
+export function fileAddress(f: any) {
+  const raw = typeof f === 'string' ? f : (f?.filePath || f?.url || f?.fileUrl || '');
+  const p = String(raw).replace(/\\/g, '/');
+  const at = p.indexOf('uploads/');
+  return /^https?:/.test(p) ? p : `${ORIGIN}/${at !== -1 ? p.slice(at) : p.replace(/^\//, '')}`;
+}
+
+/**
+ * Open a file. The app fetches it and hands the phone its own copy
+ * (utils/fileAccess.openPrivateFile) — the address, with the reader's token on
+ * it, used to be given to the phone's browser.
+ */
 export function openDocFile(f: any) {
-  Linking.openURL(fileHref(f)).catch(() => Alert.alert('Could not open', 'This file could not be opened.'));
+  openPrivateFile(fileAddress(f), typeof f === 'string' ? 'file' : (f?.originalName || 'file'), typeof f === 'string' ? undefined : f?.mimeType)
+    .catch((e: any) => Alert.alert('Could not open', e?.message || 'This file could not be opened.'));
 }
 
 export const fmtSize = (n?: number) => {

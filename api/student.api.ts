@@ -21,7 +21,11 @@ export const saveAnswer       = (id: string, data: object) => api.post(`/student
 export const submitExam       = (id: string) => api.post(`/student/exams/${id}/submit`);
 export const logViolation     = (id: string) => api.post(`/student/exams/${id}/violation`);
 export const getExamResult    = (id: string) => api.get(`/student/exams/${id}/result`);
-export const getDocuments     = () => api.get('/student/documents');
+export const getDocuments     = (params?: object) => api.get('/student/documents', { params });
+// "I have opened this", and handing work in (a multipart form, field `files`).
+export const markDocumentRead   = (id: string) => api.post(`/student/documents/${id}/read`);
+export const markDocumentsRead  = (ids: string[]) => api.post('/student/documents/read', { ids });
+export const submitAssignment   = (id: string, data: FormData) => api.post(`/student/documents/${id}/submit`, data);
 export const getDocument      = (id: string) => api.get(`/student/documents/${id}`);
 // The discussion under a document: read, ask, and edit or delete your own.
 export const getDocumentComments   = (id: string)       => api.get(`/student/documents/${id}/comments`);

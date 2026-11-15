@@ -216,7 +216,15 @@ export const saveTimetableEntries = (sectionId: string, data: object) =>
 export const getDocuments          = (params?: object) => api.get('/admin/documents', { params });
 export const getDocument           = (id: string)       => api.get(`/admin/documents/${id}`);
 export const deleteDocument        = (id: string)       => api.delete(`/admin/documents/${id}`);
-export const archiveDocument       = (id: string)       => api.post(`/admin/documents/${id}/archive`);
+export const archiveDocument       = (id: string, archived = true) => api.post(`/admin/documents/${id}/archive`, { archived });
+export const getDocumentOverview   = ()                 => api.get('/admin/documents/overview');
+export const getDocumentClasses    = ()                 => api.get('/admin/documents/classes');
+export const uploadDocument        = (data: FormData)   => api.post('/admin/documents', data);
+export const updateDocument        = (id: string, data: FormData) => api.put(`/admin/documents/${id}`, data);
+export const getDocumentTeachers   = ()                 => api.get('/admin/documents/teachers');
+export const getAssignmentAnalytics = (id: string)      => api.get(`/admin/documents/${id}/assignment/analytics`);
+export const reviewSubmission      = (id: string, studentId: string, data: object) => api.post(`/admin/documents/${id}/submissions/${studentId}/review`, data);
+export const remindAssignment      = (id: string, data?: object) => api.post(`/admin/documents/${id}/remind`, data || {});
 // One document opened: its head, and for an assignment the roster (paged;
 // `status`, `section`, `search`, `page`, `limit`). The section choices are the
 // document's own academic year only.
