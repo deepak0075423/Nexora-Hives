@@ -10,6 +10,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { admin } from '@/api/admission.api';
+import { openAdmissionFile } from '@/components/admission/files';
 import { useOffice, forgetOffice, Blocked, BLOCKED } from '@/components/admission/office/office';
 import {
   Page, Tabs, Tiles, Tile, Panel, Line, Tag, Btn, Row, Note, Muted, Sheet, Field, Box, Pick, Tick, Facts, Fact, Blank, BRAND,
@@ -85,9 +86,11 @@ function AppealSheet({ id, onClose, onDone }: { id: string; onClose: () => void;
   const router = useRouter();
   const { adm } = useOffice();
   const { data: d, error, reload } = useApi<any>(() => admin.appeal(id), [id]);
-  const [f, setF] = useState<any>({ outcome: '', decision: '', internalNote: '', reopenTo: '', marks: {} });
+  const [f, setF] = useState<any>({ outcome: '', decision: '', internalNote: '', reopenTo: '', marks: {}, autoScore: '', manualScore: '' });
   const [busy, setBusy] = useState('');
-  useEffect(() => { if (d?.result) setF((x: any) => ({ ...x, marks: Object.fromEntries(Object.entries(d.result.marks || {}).map(([k, v]) => [k, v == null ? '' : String(v)])) })); }, [d]);
+  useEffect(() => { if (d?.result) setF((x: any) => ({ ...x, marks: Object.fromEntries(Object.entries(d.result.marks || {}).map(([k, v]) => [k, v == null ? '' : String(v)])), autoScore: d.result.autoScore == null ? '' : String(d.result.autoScore), manualScore: d.result.manualScore == null ? '' : String(d.result.manualScore) })); }, [d]);
+  // Where the workflow lets an upheld appeal go: one choice is chosen for you.
+  useEffect(() => { const list = unwrapList(d?.reopenTo); if (list.length === 1) setF((x: any) => ({ ...x, reopenTo: list[0].key })); }, [d]);
   const a = d?.appeal;
   const waiting = a && ['open', 'in_review'].includes(a.status);
   const assign = async (userId: string) => {
@@ -99,7 +102,10 @@ function AppealSheet({ id, onClose, onDone }: { id: string; onClose: () => void;
     try {
       await admin.decideAppeal(a._id, {
         outcome: f.outcome, decision: f.decision.trim(), internalNote: f.internalNote.trim(),
-        ...(f.outcome === 'upheld' && a.kind === 'recheck' ? { marks: Object.fromEntries(Object.entries(f.marks).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)])) } : {}),
+        // An online exam has a score, not subject marks.
+        ...(f.outcome === 'upheld' && a.kind === 'recheck' ? (d.exam?.mode === 'online'
+          ? { autoScore: f.autoScore === '' ? undefined : Number(f.autoScore), manualScore: f.manualScore === '' ? undefined : Number(f.manualScore) }
+          : { marks: Object.fromEntries(Object.entries(f.marks).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)])) }) : {}),
         ...(f.outcome === 'upheld' && a.kind === 'decision' ? { reopenTo: f.reopenTo } : {}),
       });
       say('Answered', 'The family is told.'); onDone();
@@ -118,6 +124,9 @@ function AppealSheet({ id, onClose, onDone }: { id: string; onClose: () => void;
             <Fact k={waiting ? 'Answer by' : 'Answered'} v={fmtDate(waiting ? a.dueAt : a.decidedAt)} />
           </Facts>
           <Note tone="indigo" icon="person-circle-outline">{`The family wrote: “${a.reason}”`}</Note>
+          {unwrapList(a.files).map((x: any) => (
+            <Btn key={x.id} icon="attach-outline" onPress={() => openAdmissionFile(admin.appealFileUrl(a._id, x.id), x.name).catch((e: any) => say('Could not open it', errMsg(e)))}>{x.name}</Btn>
+          ))}
           {d.exam && d.result ? (
             <Panel icon="clipboard-outline" tone="violet" title={`${d.exam.name} — the result as it stands`}>
               {unwrapList(d.exam.subjects).map((x: any) => (
@@ -127,6 +136,17 @@ function AppealSheet({ id, onClose, onDone }: { id: string; onClose: () => void;
                   {waiting && f.outcome === 'upheld' ? <View style={{ width: 86 }}><Box value={f.marks[x.key] ?? ''} onChange={(v) => setF({ ...f, marks: { ...f.marks, [x.key]: v } })} text="decimal" keyboardType="decimal-pad" placeholder="New" /></View> : null}
                 </View>
               ))}
+              {d.exam.mode === 'online' ? (
+                <>
+                  <Muted>{`Auto-marked ${d.result.autoScore ?? '—'} · evaluator's marks ${d.result.manualScore ?? '—'} · out of ${d.exam.maxMarks}`}</Muted>
+                  {waiting && f.outcome === 'upheld' ? (
+                    <Row>
+                      <View style={{ flex: 1 }}><Field label="Corrected auto-marked score"><Box value={f.autoScore} onChange={(v) => setF({ ...f, autoScore: v })} text="decimal" keyboardType="decimal-pad" /></Field></View>
+                      <View style={{ flex: 1 }}><Field label="Corrected evaluator's marks"><Box value={f.manualScore} onChange={(v) => setF({ ...f, manualScore: v })} text="decimal" keyboardType="decimal-pad" /></Field></View>
+                    </Row>
+                  ) : null}
+                </>
+              ) : null}
               <Muted>{`Total ${d.result.total}${d.result.grade ? ` · grade ${d.result.grade}` : ''} · ${d.result.passed ? 'qualified' : 'not qualified'}`}</Muted>
             </Panel>
           ) : null}

@@ -124,11 +124,13 @@ function ConvertSheet({ app, onClose, onDone }: { app: any; onClose: () => void;
     setF({
       section: (unwrapList(p.placement?.sections).find((s: any) => s.free == null || s.free > 0) || {})._id || '',
       studentAccount: p.student?.canUseApplicantAccount && !p.student?.email ? 'applicant' : 'new',
-      studentEmail: p.student?.email || '', admissionNumber: '',
+      // A child with no address of their own: the parent's with the child's name after a "+", to accept or type over.
+      studentEmail: p.student?.email || p.student?.suggestedEmail || '', admissionNumber: '',
       parentMode: 'new', parentId: p.parent?.existing?.[0]?._id || '',
       relation: p.parent?.relation || 'Father', parentName: p.parent?.name || '', parentEmail: p.parent?.email || '', parentPhone: p.parent?.phone || '',
       activation: p.options?.activation || 'immediate',
-      fees: !!p.options?.fees?.available, transport: !!(p.options?.transport?.available && p.options?.transport?.requested),
+      // A free seat (RTE, a free quota) is not put on the fee structure unless switched on here.
+      fees: !!p.options?.fees?.available && !p.options?.fees?.freeSeat, creditAdmissionFee: true, transport: !!(p.options?.transport?.available && p.options?.transport?.requested),
       hostelId: '', medical: !!(p.options?.medical?.available && p.options?.medical?.has),
     });
   }, [p]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,7 +143,7 @@ function ConvertSheet({ app, onClose, onDone }: { app: any; onClose: () => void;
         admissionNumber: f.admissionNumber.trim(),
         parent: f.parentMode === 'existing' ? { mode: 'existing', userId: f.parentId } : { mode: 'new', relation: f.relation, name: f.parentName.trim(), email: f.parentEmail.trim(), phone: f.parentPhone.trim() },
         activation: f.activation,
-        options: { fees: f.fees, transport: f.transport, medical: f.medical, ...(f.hostelId ? { hostel: { hostelId: f.hostelId } } : {}) },
+        options: { fees: f.fees, creditAdmissionFee: f.creditAdmissionFee, transport: f.transport, medical: f.medical, ...(f.hostelId ? { hostel: { hostelId: f.hostelId } } : {}) },
       };
       const r: any = await admin.convert(app._id, body);
       say('Enrolled', r?.message || '');
@@ -168,7 +170,7 @@ function ConvertSheet({ app, onClose, onDone }: { app: any; onClose: () => void;
           </Field>
           {p.student?.canUseApplicantAccount ? <Tick on={f.studentAccount === 'applicant'} onChange={(v) => set('studentAccount', v ? 'applicant' : 'new')} label={`Turn the applicant's account (${p.student.applicantEmail}) into the student's`} /> : null}
           {f.studentAccount === 'new' ? (
-            <Field label="Student's sign-in email" required><Box value={f.studentEmail} onChange={(v) => set('studentEmail', v)} maxLength={200} text="email" keyboardType="email-address" /></Field>
+            <Field label="Student's sign-in email" required hint={p.student?.suggestedEmail && f.studentEmail === p.student.suggestedEmail ? 'Suggested: the parent\'s address with the child\'s name after a “+” — mail to it reaches the parent. Change it if the child has their own.' : undefined}><Box value={f.studentEmail} onChange={(v) => set('studentEmail', v)} maxLength={200} text="email" keyboardType="email-address" /></Field>
           ) : null}
           <Text style={st.h}>Parent</Text>
           {unwrapList(p.parent?.existing).length ? <Tick on={f.parentMode === 'existing'} onChange={(v) => set('parentMode', v ? 'existing' : 'new')} label="Link an existing parent at the school" /> : null}

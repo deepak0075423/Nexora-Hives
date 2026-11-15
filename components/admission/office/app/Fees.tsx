@@ -29,6 +29,11 @@ export default function Fees({ d, closed, reload }: { d: any; closed: boolean; r
   const [refunding, setRefunding] = useState<any>(null);
   const [voiding, setVoiding] = useState<any>(null);
   const [unwaive, setUnwaive] = useState<any>(null);
+  const [busyPay, setBusyPay] = useState('');
+  const act = async (key: string, fn: () => Promise<any>, done: (r: any) => string) => {
+    setBusyPay(key);
+    try { const r = await fn(); say('Done', done(r)); reload(); } catch (e) { say('Not done', errMsg(e)); } finally { setBusyPay(''); }
+  };
   const refunds = unwrapList(d.fees?.refunds);
   const refundedOn = (p: any) => refunds.filter((r) => r.payment === p._id && r.status !== 'failed').reduce((s, r) => s + Number(r.amount), 0);
   const payments = unwrapList(d.fees?.payments);
@@ -67,7 +72,12 @@ export default function Fees({ d, closed, reload }: { d: any; closed: boolean; r
     <>
       {/* A fee the school does not charge for this application gets no card of zeros. */}
       {[['application_fee', d.fees.application], ['admission_fee', d.fees.admission]].filter(([, b]: any) => Number(b?.fee) > 0 || Number(b?.paid) > 0).map(([k, b]: any) => card(k, b))}
-      {d.fees.openOrder ? <Note tone="indigo">{`An online payment was started on ${fmtDateTime(d.fees.openOrder.createdAt)} and has not come back from the gateway. It is never marked paid without the gateway's confirmation.`}</Note> : null}
+      {d.fees.openOrder ? <Note tone="indigo">{`An online payment of ${money(d.fees.openOrder.amount)} was started on ${fmtDateTime(d.fees.openOrder.createdAt)} and has not come back from the gateway. The server asks the gateway about it every few minutes; it is never marked paid without the gateway's confirmation.`}</Note> : null}
+      {d.fees.openOrder ? (
+        <Row>
+          <Btn icon="refresh-outline" disabled={!!busyPay} onPress={() => act('check', () => admin.checkPayment(app._id, d.fees.openOrder.kind), (r: any) => `Confirmed with the gateway — receipt ${r?.data?.receiptNumber || ''}`)}>{busyPay === 'check' ? 'Checking…' : 'Check with the gateway'}</Btn>
+        </Row>
+      ) : null}
       {waiversOn.length ? (
         <Panel icon="pricetag-outline" tone="teal" title="Waivers">
           {waiversOn.map((w, i) => (
@@ -86,9 +96,11 @@ export default function Fees({ d, closed, reload }: { d: any; closed: boolean; r
                 <Text style={st.payName}>{`${p.receiptNumber || '—'} · ${money(p.amount)}`}</Text>
                 <Pill tone={p.status === 'paid' ? 'green' : p.status === 'void' ? 'slate' : 'amber'}>{p.status === 'void' ? 'Cancelled' : p.status}</Pill>
               </View>
+              {p.status === 'paid' && p.clearance === 'pending' ? <Pill tone="amber">Not cleared yet</Pill> : null}
               <Muted>{`${KIND_LABEL[p.kind]} · ${PAY_MODES.find((m) => m.value === p.mode)?.label || (p.mode === 'online' ? 'Online' : p.mode)}${p.reference ? ` · ${p.reference}` : ''} · ${fmtDate(p.paidAt || p.createdAt)}${back > 0 ? ` · ${money(back)} refunded` : ''}`}</Muted>
               <Row>
                 {['paid', 'void'].includes(p.status) ? <Btn icon="document-outline" onPress={() => openAdmissionFile(admin.receiptUrl(app._id, p._id), `receipt-${p.receiptNumber || p._id}.pdf`).catch((e) => say('Could not open it', errMsg(e)))}>Receipt</Btn> : null}
+                {p.status === 'paid' && p.clearance === 'pending' ? <Btn icon="checkmark-circle-outline" disabled={!!busyPay} onPress={() => act(`clear:${p._id}`, () => admin.clearPayment(app._id, p._id), () => 'Marked cleared')}>Cleared</Btn> : null}
                 {p.status === 'paid' && left > 0.001 ? <Btn icon="return-down-back-outline" onPress={() => setRefunding({ ...p, left })}>Refund</Btn> : null}
                 {p.status === 'paid' && p.mode !== 'online' && app.status !== 'enrolled' && !back ? <Btn kind="danger" onPress={() => setVoiding(p)}>Cancel receipt</Btn> : null}
               </Row>

@@ -30,6 +30,15 @@ export default function FeesPanel({ appId, status, fees, onChanged }: { appId: s
       onChanged();
     } catch (e) { say('Could not open the payment', errMsg(e)); } finally { setBusy(''); }
   };
+  // "I paid, but nothing changed": the school's gateway is asked about the payment that was started.
+  const check = async () => {
+    setBusy('check');
+    try { const r: any = await portal.payCheck(appId, fees.openOrder?.kind); say('Payment found', `Receipt ${r?.data?.receiptNumber || ''}`.trim()); onChanged(); }
+    catch (e: any) {
+      const code = e?.response?.data?.code || e?.data?.code;
+      say(code === 'NOT_PAID' ? 'Not paid yet' : 'Could not check', code === 'NOT_PAID' ? 'The bank has not taken a payment for this yet. If money left your account, it shows here within a few minutes — or is returned by your bank.' : errMsg(e));
+    } finally { setBusy(''); }
+  };
   const receipt = (p: any) => openAdmissionFile(portal.receiptUrl(appId, p._id), `receipt-${p.receiptNumber || p._id}.pdf`).catch((e) => say('Could not open the receipt', errMsg(e)));
   const paid = unwrapList(fees.payments).filter((p) => p.status === 'paid');
   const refunds = unwrapList(fees.refunds);
@@ -70,6 +79,10 @@ export default function FeesPanel({ appId, status, fees, onChanged }: { appId: s
           </View>
         );
       })}
+      {fees.openOrder ? (
+        <Note tone="amber" icon="information-circle-outline">{`An online payment of ${money(fees.openOrder.amount)} was started and has not been confirmed. If you paid, check it — it is also checked by itself every few minutes.`}</Note>
+      ) : null}
+      {fees.openOrder ? <Row><Btn icon="refresh-outline" disabled={!!busy} onPress={check}>{busy === 'check' ? 'Checking…' : 'Check my payment'}</Btn></Row> : null}
       {!fees.online && owing ? <Note tone="slate">Pay at the school office; the receipt appears here once it is recorded.</Note> : null}
       {fees.online && owing ? <Muted>Paying opens the school’s secure payment page. Come back here when it is done — the receipt appears once the bank confirms.</Muted> : null}
       {refunds.map((r, i) => (

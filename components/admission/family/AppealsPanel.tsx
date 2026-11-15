@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { portal } from '@/api/admission.api';
+import { pickFile, partOf, openAdmissionFile } from '../files';
 import { confirmAsync } from '@/components/ui/kit';
 import { Panel, Btn, Row, Note, Tag, Muted, Sheet, Field, Box, Pick, useApi, APPEAL_STATUS, APPEAL_KIND, fmtDate, errMsg, say, unwrapList } from '../parts';
 
@@ -19,6 +20,19 @@ export default function AppealsPanel({ appId, onChanged }: { appId: string; onCh
   const list = unwrapList(data.appeals);
   const can = o.enabled && o.left > 0 && (unwrapList(o.recheck).length || o.decision);
   if (!can && !list.length) return null;
+  // A file with the appeal (a photo of the answer sheet, a certificate) while the school has not answered.
+  const [attaching, setAttaching] = useState('');
+  const attach = async (a: any) => {
+    try {
+      const f = await pickFile('files');
+      if (!f) return;
+      setAttaching(a._id);
+      const form = new FormData();
+      form.append('file', partOf(f) as any);
+      await portal.attachToAppeal(appId, a._id, form);
+      reload();
+    } catch (e) { say('Not attached', errMsg(e)); } finally { setAttaching(''); }
+  };
   const withdraw = async (a: any) => {
     if (!(await confirmAsync(`Withdraw ${a.number}?`, 'The school stops looking at it.', 'Withdraw'))) return;
     try { await portal.withdrawAppeal(appId, a._id); reload(); onChanged(); } catch (e) { say('Not withdrawn', errMsg(e)); }
@@ -40,6 +54,12 @@ export default function AppealsPanel({ appId, onChanged }: { appId: string; onCh
           </View>
           <Text style={st.kind}>{APPEAL_KIND[a.kind] || a.kind}{a.examName ? ` — ${a.examName}` : ''}</Text>
           <Muted>{`You wrote: “${a.reason}”`}</Muted>
+          {unwrapList(a.files).map((f: any) => (
+            <Btn key={f.id} icon="attach-outline" onPress={() => openAdmissionFile(portal.appealFileUrl(appId, a._id, f.id), f.name).catch((e) => say('Could not open it', errMsg(e)))}>{f.name}</Btn>
+          ))}
+          {['open', 'in_review'].includes(a.status) && unwrapList(a.files).length < 3 ? (
+            <Row><Btn icon="attach-outline" disabled={!!attaching} onPress={() => attach(a)}>{attaching === a._id ? 'Attaching…' : 'Attach a file'}</Btn></Row>
+          ) : null}
           {a.decision ? <Note tone={a.status === 'upheld' ? 'green' : 'slate'} title={`The school's answer (${fmtDate(a.decidedAt)})`}>{a.decision}</Note>
             : ['open', 'in_review'].includes(a.status) ? (
               <Row>

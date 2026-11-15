@@ -7,7 +7,9 @@
  * allow (school-backend services/admission/privacy.js).
  */
 import React, { useState } from 'react';
-import { Text, ScrollView } from 'react-native';
+import { Text, ScrollView, StyleSheet } from 'react-native';
+import { TextInput } from '@/components/ui/TextInput';
+import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/theme';
 import { portal } from '@/api/admission.api';
 import { openAdmissionFile } from '@/components/admission/files';
@@ -44,6 +46,7 @@ export default function ApplicantPrivacyScreen() {
             </Row>
             <Muted>{`The school answers within ${data.requestDays} days. Each document can be opened from its application.`}</Muted>
           </Panel>
+          <AccountPanel />
           <Panel icon="list-outline" tone="slate" title="Your requests">
             {requests.length ? requests.map((r, i) => (
               <Line key={r._id} last={i === requests.length - 1} title={`${r.number} · ${r.kindLabel}`}
@@ -102,3 +105,50 @@ function AskSheet({ kinds, onClose, onDone }: { kinds: any[]; onClose: () => voi
     </Sheet>
   );
 }
+
+/**
+ * The applicant's own name, mobile and password (Nov 2026 — none of them could
+ * be changed while signed in). The email is the sign-in and stays.
+ */
+function AccountPanel() {
+  const { user, reload } = useAuth() as any;
+  const [f, setF] = useState({ name: user?.name || '', phone: user?.phone || '' });
+  const [pw, setPw] = useState({ currentPassword: '', password: '', confirm: '' });
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState('');
+  const changed = f.name.trim() !== (user?.name || '') || f.phone !== (user?.phone || '');
+  const save = async () => {
+    setBusy('profile');
+    try { await portal.updateProfile({ name: f.name.trim(), phone: f.phone }); await reload?.(); say('Saved', 'Your details are updated.'); }
+    catch (e) { say('Not saved', errMsg(e)); } finally { setBusy(''); }
+  };
+  const change = async () => {
+    setBusy('password');
+    try { await portal.changePassword({ currentPassword: pw.currentPassword, password: pw.password }); setPw({ currentPassword: '', password: '', confirm: '' }); setOpen(false); say('Password changed', 'Use the new password from now on.'); }
+    catch (e) { say('Not changed', errMsg(e)); } finally { setBusy(''); }
+  };
+  const secret = (value: string, onChange: (v: string) => void, label: string) => (
+    <TextInput style={pwSt.box} value={value} onChangeText={onChange} secureTextEntry autoCapitalize="none" autoCorrect={false} text="off" accessibilityLabel={label} />
+  );
+  return (
+    <Panel icon="person-circle-outline" tone="indigo" title="Your account" subtitle={`You sign in with ${user?.email || 'your email'}.`}>
+      <Field label="Your name" required><Box value={f.name} onChange={(v) => setF({ ...f, name: v })} maxLength={100} text="name" /></Field>
+      <Field label="Mobile"><Box value={f.phone} onChange={(v) => setF({ ...f, phone: v })} phone /></Field>
+      <Row>
+        <Btn kind="primary" disabled={!changed || f.name.trim().length < 2 || !!busy} onPress={save}>{busy === 'profile' ? 'Saving…' : 'Save'}</Btn>
+        <Btn icon="key-outline" onPress={() => setOpen(true)}>Change password</Btn>
+      </Row>
+      <Sheet visible={open} icon="key-outline" tone="indigo" title="Change your password" busy={busy === 'password'} onClose={() => setOpen(false)}
+        subtitle="This is your email's password: if the same email signs in elsewhere in Aksharum, it changes there too."
+        footer={<><Btn block onPress={() => setOpen(false)}>Cancel</Btn><Btn block kind="primary" disabled={!!busy || !pw.currentPassword || pw.password.length < 8 || pw.password !== pw.confirm} onPress={change}>Change</Btn></>}>
+        <Field label="Present password" required>{secret(pw.currentPassword, (v) => setPw({ ...pw, currentPassword: v }), 'Present password')}</Field>
+        <Field label="New password" required hint="At least 8 characters, with a letter and a number">{secret(pw.password, (v) => setPw({ ...pw, password: v }), 'New password')}</Field>
+        <Field label="New password again" required error={pw.confirm && pw.confirm !== pw.password ? 'The two do not match' : undefined}>{secret(pw.confirm, (v) => setPw({ ...pw, confirm: v }), 'New password again')}</Field>
+      </Sheet>
+    </Panel>
+  );
+}
+
+const pwSt = StyleSheet.create({
+  box: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: Colors.border, borderRadius: 10, fontSize: 13.5, color: Colors.text },
+});

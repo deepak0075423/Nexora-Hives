@@ -15,7 +15,7 @@
  *
  * Every answer is the server's (school-backend controllers/admissionPortal).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,8 +61,26 @@ function nextStep(d: any): { text: string; tone: 'amber' | 'red' | 'indigo' | 'g
 }
 
 function ApplicantApplicationScreenBody() {
-  const { id, digilocker } = useLocalSearchParams<{ id: string; digilocker?: string }>();
+  const { id, digilocker, dl_state: dlState, dl_code: dlCode } = useLocalSearchParams<{ id: string; digilocker?: string; dl_state?: string; dl_code?: string }>();
   const { data: d, loading, error, reload } = useApi<any>(() => portal.detail(String(id)), [id]);
+  // Back from DigiLocker: this signed-in account — the application's owner — finishes the
+  // connection with the code the link carried. Arriving here alone connects nothing.
+  const [locker, setLocker] = useState<'' | 'connecting' | 'connected' | 'failed'>(digilocker === 'failed' ? 'failed' : '');
+  const lockerDone = useRef('');
+  useEffect(() => {
+    if (digilocker !== 'return' || !dlState || !dlCode || lockerDone.current === dlState) return;
+    lockerDone.current = String(dlState);
+    setLocker('connecting');
+    portal.digilockerComplete(String(id), { state: String(dlState), code: String(dlCode) })
+      .then(() => { setLocker('connected'); reload(); })
+      .catch(() => setLocker('failed'));
+  }, [digilocker, dlState, dlCode, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [busyTransfer, setBusyTransfer] = useState('');
+  const answerTransfer = async (agree: boolean) => {
+    setBusyTransfer(agree ? 'yes' : 'no');
+    try { await portal.answerTransfer(String(id), d.transfer._id, agree); say(agree ? 'Thank you' : 'Move cancelled', agree ? 'The other branch can now take the application.' : 'Nothing was shared with the other branch.'); reload(); }
+    catch (e) { say('Not sent', errMsg(e)); } finally { setBusyTransfer(''); }
+  };
   const me = useApi<any>(() => portal.me(), []);
   const [withdrawing, setWithdrawing] = useState(false);
   const [why, setWhy] = useState('');
@@ -88,8 +106,9 @@ function ApplicantApplicationScreenBody() {
     <Page title={a?.studentName || 'Application'} loading={loading && !d} error={!d ? error : ''} onRetry={reload} onRefresh={reload}>
       {d && a ? (
         <>
-          {digilocker === 'connected' ? <Note tone="green" icon="shield-checkmark-outline">DigiLocker is connected — choose the documents to use below.</Note>
-            : digilocker === 'failed' ? <Note tone="red" icon="alert-circle-outline">DigiLocker could not be connected — try again.</Note> : null}
+          {locker === 'connected' ? <Note tone="green" icon="shield-checkmark-outline">DigiLocker is connected — choose the documents to use below.</Note>
+            : locker === 'connecting' ? <Note tone="indigo" icon="shield-checkmark-outline">Connecting DigiLocker…</Note>
+              : locker === 'failed' ? <Note tone="red" icon="alert-circle-outline">DigiLocker could not be connected — try again.</Note> : null}
           <Hero tone={tone} eyebrow={[d.className, d.round?.name, d.yearName].filter(Boolean).join(' · ')} title={a.statusText || defOf(STATUS, a.status).label}
             sub={a.applicationNumber ? `Application ${a.applicationNumber}` : 'Not submitted yet'} right={<Tag value={a.status} />}>
             {!closed ? (
@@ -116,6 +135,21 @@ function ApplicantApplicationScreenBody() {
               <Text style={st.stepText}>{step.text}</Text>
               {step.web ? <TouchableOpacity onPress={openPortal} accessibilityRole="link"><Text style={st.link}>Open the admission portal</Text></TouchableOpacity> : null}
             </Note>
+          ) : null}
+
+          {d.transfer ? (
+            <Panel icon="swap-horizontal-outline" tone="indigo" title={`A move to ${d.transfer.toSchoolName}`}>
+              {d.transfer.needsAnswer ? (
+                <>
+                  <Text style={st.stepText}>{`The school proposes moving this application to ${d.transfer.toSchoolName}${d.transfer.reason ? ` — “${d.transfer.reason}”` : ''}.`}</Text>
+                  <Note tone="amber" icon="shield-checkmark-outline">{`If you agree, your answers and documents are shared with ${d.transfer.toSchoolName}, which then decides whether to take the application. Nothing is shared unless you agree.`}</Note>
+                  <Row>
+                    <Btn kind="primary" icon="checkmark-circle-outline" disabled={!!busyTransfer} onPress={() => answerTransfer(true)}>{busyTransfer === 'yes' ? 'Sending…' : 'I agree to the move'}</Btn>
+                    <Btn disabled={!!busyTransfer} onPress={() => answerTransfer(false)}>{busyTransfer === 'no' ? 'Sending…' : 'No, keep it here'}</Btn>
+                  </Row>
+                </>
+              ) : <Note tone="green" icon="checkmark-circle-outline">{`You agreed to this move. ${d.transfer.toSchoolName} will answer; you will be told here and by email.`}</Note>}
+            </Panel>
           ) : null}
 
           <OfferPanel appId={String(id)} offer={d.offer} onChanged={reload} />

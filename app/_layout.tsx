@@ -62,8 +62,10 @@ function RootGuard() {
 
   // This phone shows the signed-in person's notifications as the OS's own —
   // registered again after switching account, so it follows whoever is signed in.
+  // Admission applicants too (Nov 2026): their application's news arrives here
+  // as well as by email (the server allows an applicant these few calls).
   useEffect(() => {
-    if (user?._id && user.role !== 'guest') registerForPushNotifications();
+    if (user?._id) registerForPushNotifications();
   }, [user?._id, user?.role]);
 
   return null;
@@ -94,7 +96,14 @@ function PushBridge() {
       return;
     }
     const receiptId = data.receiptId || receiptIdFromUrl(data.url);
-    if (!receiptId) return;
+    if (!receiptId) {
+      // An admission applicant's news has no inbox entry: it opens the application itself.
+      if (data.path && typeof data.path === 'string' && data.path.startsWith('/modules/') && user && !loading) {
+        handled.current = id;
+        router.push(data.path as any);
+      }
+      return;
+    }
     handled.current = id;
     if (loading || !user) rememberPendingNotification(String(receiptId));
     else router.push(`/notification/${receiptId}` as any);
