@@ -290,6 +290,7 @@ export default function DocumentsScreen() {
                     </Text>
                     <View style={s.badges}>
                       {st ? <Badge label={st.label} tone={st.tone} /> : null}
+                      {doc.isDraft ? <Badge label="Draft" tone="warning" /> : null}
                       {doc.isArchived ? <Badge label="Archived" tone="neutral" /> : null}
                       {role === 'teacher' && doc.mine && doc.isAssignment
                         ? <Badge label={`${doc.markedCount}/${doc.submissionCount} marked`} tone={doc.submissionCount > doc.markedCount ? 'warning' : 'success'} />

@@ -79,6 +79,10 @@ export const getDocumentCategories = () => api.get('/teacher/document-categories
 export const uploadDocument      = (data: FormData) => api.post('/teacher/documents', data);
 export const updateDocument      = (id: string, data: FormData) => api.put(`/teacher/documents/${id}`, data);
 export const getAssignmentAnalytics = (id: string) => api.get(`/teacher/documents/${id}/assignment/analytics`);
+export const publishDocument        = (id: string) => api.post(`/teacher/documents/${id}/publish`);
+export const getDocumentVersions    = (id: string) => api.get(`/teacher/documents/${id}/versions`);
+export const restoreDocumentVersion = (id: string, vid: string) => api.post(`/teacher/documents/${id}/versions/${vid}/restore`);
+export const getDocumentReaders     = (id: string) => api.get(`/teacher/documents/${id}/readers`);
 export const deleteDocument      = (id: string) => api.delete(`/teacher/documents/${id}`);
 export const archiveDocument     = (id: string, archived = true) => api.post(`/teacher/documents/${id}/archive`, { archived });
 export const markDocumentRead    = (id: string) => api.post(`/teacher/documents/${id}/read`);

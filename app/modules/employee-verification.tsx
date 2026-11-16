@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, Alert, Linking } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
@@ -9,7 +9,7 @@ import {
   unwrap, LoaderView, Empty, Badge, Card, SectionTitle, StatTile, StatRow, ActionBtn, SegTabs,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
-import { withFileToken } from '@/utils/fileAccess';
+import { withFileToken, openUpload } from '@/utils/fileAccess';
 import {
   DocStateBadge, FilterChips, OwedChips, RejectSheet, ReminderSheet, RemindStateBadge, fmtDay, openStaffFile,
 } from '@/components/directory/docParts';
@@ -154,7 +154,7 @@ export default function EmployeeVerificationScreen() {
 
   const openDoc = (url: string, key: string) => {
     mark(key);
-    Linking.openURL(fileUrl(url)).catch(() => Alert.alert('Could not open', 'This document could not be opened.'));
+    openUpload(fileUrl(url));
   };
 
   if (loading) return (<><Stack.Screen options={{ title: 'Verification' }} /><LoaderView /></>);

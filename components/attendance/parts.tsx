@@ -14,7 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform,
-  KeyboardAvoidingView, ActivityIndicator, Linking,
+  KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
 import { TextInput } from '@/components/ui/TextInput';
 import type { TextKind } from '@/utils/textRules';
@@ -23,7 +23,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
-import { withFileToken } from '@/utils/fileAccess';
+import { withFileToken, openUpload } from '@/utils/fileAccess';
 
 export const BRAND = '#4F46E5';
 export const INK = '#1E1B4B';
@@ -722,7 +722,7 @@ export function Attachments({ files }: { files: any[] }) {
         const url = typeof f === 'string' ? f : f.url;
         const name = typeof f === 'string' ? f.split('/').pop() : f.name;
         return (
-          <TouchableOpacity key={`${url}-${i}`} style={s.fileLink} onPress={() => Linking.openURL(fileUrl(url))} accessibilityLabel={`Open ${name}`}>
+          <TouchableOpacity key={`${url}-${i}`} style={s.fileLink} onPress={() => openUpload(fileUrl(url), name)} accessibilityLabel={`Open ${name}`}>
             <Ionicons name={/pdf/i.test(`${f.type || ''}${name}`) ? 'document-text-outline' : 'attach-outline'} size={15} color="#3B5BDB" />
             <Text style={s.fileLinkText} numberOfLines={1}>{name}</Text>
             <Ionicons name="open-outline" size={13} color="#3B5BDB" />

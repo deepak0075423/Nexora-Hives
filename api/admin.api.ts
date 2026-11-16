@@ -223,6 +223,11 @@ export const uploadDocument        = (data: FormData)   => api.post('/admin/docu
 export const updateDocument        = (id: string, data: FormData) => api.put(`/admin/documents/${id}`, data);
 export const getDocumentTeachers   = ()                 => api.get('/admin/documents/teachers');
 export const getAssignmentAnalytics = (id: string)      => api.get(`/admin/documents/${id}/assignment/analytics`);
+// A draft shared, earlier sets of files, and who has opened the document.
+export const publishDocument        = (id: string)      => api.post(`/admin/documents/${id}/publish`);
+export const getDocumentVersions    = (id: string)      => api.get(`/admin/documents/${id}/versions`);
+export const restoreDocumentVersion = (id: string, vid: string) => api.post(`/admin/documents/${id}/versions/${vid}/restore`);
+export const getDocumentReaders     = (id: string)      => api.get(`/admin/documents/${id}/readers`);
 export const reviewSubmission      = (id: string, studentId: string, data: object) => api.post(`/admin/documents/${id}/submissions/${studentId}/review`, data);
 export const remindAssignment      = (id: string, data?: object) => api.post(`/admin/documents/${id}/remind`, data || {});
 // One document opened: its head, and for an assignment the roster (paged;

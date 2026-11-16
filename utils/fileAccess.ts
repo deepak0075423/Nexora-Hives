@@ -80,6 +80,32 @@ export async function openPrivateFile(url: string, name = 'file', mime?: string)
   await Sharing.shareAsync(out.uri, { mimeType: mime || 'application/octet-stream', dialogTitle: name });
 }
 
+/**
+ * Open a private file from a tap, saying so when it cannot be opened — what a
+ * screen calls where it used to call `Linking.openURL(withFileToken(url))`.
+ */
+export function openUpload(url?: string | null, name?: string): void {
+  const u = String(url || '');
+  if (!u) return;
+  const fallback = decodeURIComponent(u.split('?')[0].split('/').pop() || 'file');
+  openPrivateFile(u, name || fallback).catch((e: any) => {
+    // Lazy, so this file stays usable where there is no Alert (tests, SSR).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('react-native').Alert.alert('Could not open', e?.message || 'This file could not be opened.');
+  });
+}
+
+/**
+ * An <Image> source for a private file: the token in a header on the phone,
+ * where an image request can carry one; on the address only in a browser,
+ * where it cannot.
+ */
+export function privateImage(url?: string | null): { uri: string; headers?: Record<string, string> } {
+  const clean = String(url || '').replace(/([?&])ft=[^&]*(&|$)/, (_m, a, b) => (b ? a : '')).replace(/[?&]$/, '');
+  if (Platform.OS === 'web') return { uri: withFileToken(clean) };
+  return { uri: clean, headers: fileAuthHeaders() };
+}
+
 /** The address with the reader's file token on it, when it points at a private folder. */
 export function withFileToken(url?: string | null): string {
   const u = String(url || '');

@@ -150,7 +150,8 @@ export default function AdminDocumentsScreen() {
                 title={doc.title ?? 'Document'}
                 sub={[doc.sharedWith?.label, fmtDate(doc.createdAt), doc.uploadedBy?.name ? `by ${doc.uploadedBy.name}` : ''].filter(Boolean).join(' · ')}
                 // What it is, or that it has been put away — this read "active" on every row.
-                right={<Badge label={doc.isArchived ? 'Archived' : (TYPE_LABEL[doc.docType] || 'Document')} tone={doc.isArchived ? 'neutral' : 'info'} />}
+                right={<Badge label={doc.isDraft ? 'Draft' : doc.isArchived ? 'Archived' : (TYPE_LABEL[doc.docType] || 'Document')}
+                  tone={doc.isDraft ? 'warning' : doc.isArchived ? 'neutral' : 'info'} />}
                 onPress={() => router.push({ pathname: '/modules/document-detail', params: { id: String(doc._id), as: 'admin' } })}
               />
             ))}

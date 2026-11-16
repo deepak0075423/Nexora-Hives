@@ -15,10 +15,12 @@
  *     section and each question went, who did best and who needs attention.
  *
  * Whoever may manage it can also change it from here (Edit), archive or
- * restore it, and delete it.
- *   • Comments (admin, teacher, student) — your own comments to edit and
- *     delete; an admin deletes anyone's (components/documents/commentParts).
- *     Parents have no comments, as on the web.
+ * restore it, delete it, see who has opened it and put an earlier set of
+ * files back. A copy is a DRAFT until it is shared from here: nobody it is
+ * aimed at sees it, or is told, before that.
+ *   • Comments (everyone the document reaches) — your own comments to edit
+ *     and delete; an admin deletes anyone's (components/documents/commentParts).
+ *     A parent or student never sees what the staff kept among themselves.
  *
  * Opening it marks it read — it used to stay "New" on the web however many
  * times it was opened here.
@@ -86,6 +88,8 @@ function apisFor(side: Side | null) {
   if (side === 'admin') return {
     detail: adminApi.getAssignmentDetail, one: null, markRead: null,
     analytics: adminApi.getAssignmentAnalytics, update: adminApi.updateDocument,
+    publish: adminApi.publishDocument, versions: adminApi.getDocumentVersions,
+    restore: adminApi.restoreDocumentVersion, readers: adminApi.getDocumentReaders,
     review: adminApi.reviewSubmission, remind: adminApi.remindAssignment,
     archive: adminApi.archiveDocument, remove: adminApi.deleteDocument,
     comments: { list: adminApi.getDocumentComments, add: adminApi.addDocumentComment, update: adminApi.updateDocumentComment,
@@ -94,6 +98,8 @@ function apisFor(side: Side | null) {
   if (side === 'teacher') return {
     detail: teacherApi.getAssignmentDetail, one: null, markRead: teacherApi.markDocumentRead,
     analytics: teacherApi.getAssignmentAnalytics, update: teacherApi.updateDocument,
+    publish: teacherApi.publishDocument, versions: teacherApi.getDocumentVersions,
+    restore: teacherApi.restoreDocumentVersion, readers: teacherApi.getDocumentReaders,
     review: teacherApi.reviewAssignment, remind: teacherApi.remindAssignment,
     archive: teacherApi.archiveDocument, remove: teacherApi.deleteDocument,
     comments: { list: teacherApi.getDocumentComments, add: teacherApi.addDocumentComment, update: teacherApi.updateDocumentComment,
@@ -101,17 +107,24 @@ function apisFor(side: Side | null) {
   };
   if (side === 'student') return {
     detail: null, one: studentApi.getDocument, markRead: studentApi.markDocumentRead,
-    analytics: null, update: null,
+    analytics: null, update: null, publish: null, versions: null, restore: null, readers: null,
     review: null, remind: null, archive: null, remove: null,
     comments: { list: studentApi.getDocumentComments, add: studentApi.addDocumentComment, update: studentApi.updateDocumentComment,
       remove: studentApi.deleteDocumentComment } as CommentApi,
   };
   if (side === 'parent') return {
     detail: null, one: parentApi.getDocument, markRead: parentApi.markDocumentRead,
-    analytics: null, update: null,
+    analytics: null, update: null, publish: null, versions: null, restore: null, readers: null,
+    review: null, remind: null, archive: null, remove: null,
+    // A parent asks about what was shared and reads the answers — their own
+    // comments to edit and delete, no likes (as for a student).
+    comments: { list: parentApi.getDocumentComments, add: parentApi.addDocumentComment, update: parentApi.updateDocumentComment,
+      remove: parentApi.deleteDocumentComment } as CommentApi,
+  };
+  return {
+    detail: null, one: null, markRead: null, analytics: null, update: null, publish: null, versions: null, restore: null, readers: null,
     review: null, remind: null, archive: null, remove: null, comments: null,
   };
-  return { detail: null, one: null, markRead: null, analytics: null, update: null, review: null, remind: null, archive: null, remove: null, comments: null };
 }
 
 export default function DocumentDetailScreen() {
@@ -147,6 +160,10 @@ export default function DocumentDetailScreen() {
   // Analytics are read when their tab is first opened, and again after a mark changes.
   const [ana, setAna] = useState<any>(null);
   const [anaFailed, setAnaFailed] = useState('');
+
+  // Earlier sets of files, and who has opened it — read when asked for.
+  const [history, setHistory] = useState<any>(null);     // { current, versions } | 'loading'
+  const [readers, setReaders] = useState<any>(null);     // { total, readers } | 'loading'
 
   // Editing: the form, and what it needs to offer.
   const [editing, setEditing] = useState(false);
@@ -211,6 +228,35 @@ export default function DocumentDetailScreen() {
       .then((r: any) => setAna(unwrap(r)))
       .catch((e: any) => setAnaFailed(said(e, 'The analytics could not be loaded')));
   }, [tab, ana, A, id, head?.isAssignment]);
+
+  // A draft goes onto its audience's shelves — and they are told — only here.
+  const publish = async () => {
+    if (!A.publish) return;
+    if (!(await confirmAsync('Share this draft', `Share “${head?.title}” now? Everyone it is for will see it and be told.`, 'Share'))) return;
+    setBusy(true);
+    try { await A.publish(String(id)); await load(); }
+    catch (e: any) { Alert.alert('Could not share it', said(e)); }
+    finally { setBusy(false); }
+  };
+
+  const openHistory = async () => {
+    if (!A.versions) return;
+    setHistory('loading');
+    try { setHistory(unwrap(await A.versions(String(id)))); }
+    catch (e: any) { setHistory(null); Alert.alert('Could not load the earlier files', said(e)); }
+  };
+  const restoreVersion = async (v: any) => {
+    if (!A.restore) return;
+    if (!(await confirmAsync('Use these files again', `Make version ${v.versionNumber} the current one? What is there now is kept as a version too.`, 'Use them'))) return;
+    try { await A.restore(String(id), String(v._id)); setHistory(null); await load(); }
+    catch (e: any) { Alert.alert('Could not restore', said(e)); }
+  };
+  const openReaders = async () => {
+    if (!A.readers) return;
+    setReaders('loading');
+    try { setReaders(unwrap(await A.readers(String(id)))); }
+    catch (e: any) { setReaders(null); Alert.alert('Could not load who has opened it', said(e)); }
+  };
 
   // The edit form opens on what is already known and fills in its pickers.
   const startEdit = async () => {
@@ -341,6 +387,7 @@ export default function DocumentDetailScreen() {
                 <Text style={s.heroTitle}>{title}</Text>
                 <View style={s.badges}>
                   <Badge label={TYPE_LABEL[head.docType] || (head.isAssignment ? 'Assignment' : 'Document')} tone="info" />
+                  {head.isDraft ? <Badge label="Draft" tone="warning" /> : null}
                   {head.isArchived ? <Badge label="Archived" tone="neutral" /> : null}
                   {head.academicYearName ? <Badge label={head.academicYearName} tone="neutral" /> : null}
                 </View>
@@ -352,7 +399,8 @@ export default function DocumentDetailScreen() {
             {active === 'details' && (
               <Details head={head} side={side!} busy={busy} docId={String(id)} reload={load}
                 canAct={side === 'admin' || (side === 'teacher' && canManage)}
-                onEdit={startEdit} onArchive={archive} onDelete={remove} />
+                onEdit={startEdit} onArchive={archive} onDelete={remove}
+                onPublish={publish} onHistory={openHistory} onReaders={openReaders} />
             )}
 
             {active === 'submissions' && roster && (
@@ -453,6 +501,45 @@ export default function DocumentDetailScreen() {
           onClose={() => setEditing(false)}
           onDone={() => { setEditing(false); load(); }} />
       ) : null}
+
+      {/* Earlier sets of files. Replacing a file keeps what was there. */}
+      <FormModal visible={!!history} title="Earlier files" onClose={() => setHistory(null)}>
+        {!history || history === 'loading' ? <LoaderView /> : (
+          <View>
+            <SectionTitle>Version {history.current?.versionNumber} — current</SectionTitle>
+            {history.current?.files?.length ? <FileList files={history.current.files} /> : <Text style={s.muted}>No files.</Text>}
+            {!history.versions?.length ? (
+              <Text style={s.calm}>Nothing has been replaced on this document — there are no earlier files.</Text>
+            ) : (history.versions as any[]).map((v) => (
+              <View key={String(v._id)} style={{ marginTop: Spacing.md }}>
+                <SectionTitle>Version {v.versionNumber}</SectionTitle>
+                <Text style={s.rowSub}>Replaced {fmtDate(v.replacedAt)}{v.replacedBy ? ` by ${v.replacedBy}` : ''}</Text>
+                <View style={{ marginVertical: 8 }}>
+                  {v.files?.length ? <FileList files={v.files} /> : <Text style={s.muted}>No files.</Text>}
+                </View>
+                <ActionBtn label="Use these again" onPress={() => restoreVersion(v)} />
+              </View>
+            ))}
+          </View>
+        )}
+      </FormModal>
+
+      {/* Who has opened it — the read marks, read from the sharer's side. */}
+      <FormModal visible={!!readers} title="Who has opened it" onClose={() => setReaders(null)}>
+        {!readers || readers === 'loading' ? <LoaderView /> : !readers.readers?.length ? (
+          <Text style={s.muted}>Nobody has opened this yet.</Text>
+        ) : (readers.readers as any[]).map((r) => (
+          <View key={String(r._id)} style={s.person}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.rowName} numberOfLines={1}>{r.name}</Text>
+              <Text style={s.rowSub} numberOfLines={1}>
+                {[({ school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' } as any)[r.role] || r.role, r.section].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+            <Text style={s.rowWhen}>{when(r.readAt)}</Text>
+          </View>
+        ))}
+      </FormModal>
 
       <FormModal visible={!!openSub} title={openSub ? `${openSub.name}’s work` : ''} onClose={() => setOpenSub(null)}
         onSubmit={canManage && A.review ? saveMarks : undefined} submitting={saving} submitLabel="Save marks & feedback">
@@ -619,8 +706,9 @@ function Analytics({ ana, roster, outOf }: { ana: any; roster: any; outOf: numbe
   );
 }
 
-function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, docId, reload }: {
+function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, onPublish, onHistory, onReaders, docId, reload }: {
   head: any; side: Side; busy: boolean; canAct: boolean; onEdit: () => void; onArchive: () => void; onDelete: () => void;
+  onPublish: () => void; onHistory: () => void; onReaders: () => void;
   docId: string; reload: () => void;
 }) {
   const subject = typeof head.subject === 'object' ? head.subject?.name : head.subject;
@@ -651,6 +739,22 @@ function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, docId,
 
   return (
     <View>
+      {/* A copy waits here until it has been made this week's. */}
+      {head.isDraft ? (
+        <View style={s.draft}>
+          <Text style={s.draftText}>
+            This is a draft. Nobody it is shared with can see it yet, and nobody has been told about it.
+            {canAct ? ' Edit it — the title, the due date, the file — then share it.' : ''}
+          </Text>
+          {canAct ? (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <ActionBtn label="Edit" onPress={onEdit} disabled={busy} />
+              <ActionBtn label="Share now" tone="primary" onPress={onPublish} disabled={busy} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       <Card>
         {subject ? <KV label="Subject" value={subject} /> : null}
         {head.category ? <KV label="Category" value={head.category} /> : null}
@@ -661,6 +765,13 @@ function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, docId,
         {head.isAssignment && head.totalMarks ? <KV label="Total marks" value={String(head.totalMarks)} /> : null}
         {canAct && head.readCount != null ? (
           <KV label="Opened by" value={head.readCount ? `${head.readCount} ${head.readCount === 1 ? 'person' : 'people'}` : 'Nobody yet'} />
+        ) : null}
+        {canAct ? <KV label="Version" value={`v${head.currentVersion || 1}`} /> : null}
+        {canAct ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {head.readCount > 0 ? <ActionBtn label="See who opened it" small onPress={onReaders} /> : null}
+            <ActionBtn label="Earlier files" small onPress={onHistory} />
+          </View>
         ) : null}
       </Card>
 
@@ -774,6 +885,11 @@ const s = StyleSheet.create({
   more: { alignItems: 'center', padding: 12, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   moreText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
   adminActs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: Spacing.lg },
+  draft: {
+    backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: Radius.lg,
+    padding: 12, marginBottom: Spacing.md,
+  },
+  draftText: { fontSize: 13, lineHeight: 19, color: '#92400E' },
   barHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
   barLabel: { flex: 1, fontSize: 12, fontWeight: '600', color: Colors.text },
   barValue: { fontSize: 12, color: Colors.textSecondary },

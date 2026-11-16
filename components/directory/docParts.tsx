@@ -10,11 +10,11 @@
  * The server decides every rule; these are how the phone shows them.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
-import { withFileToken } from '@/utils/fileAccess';
+import { openUpload } from '@/utils/fileAccess';
 import { Badge, FormModal, Input, Toggle } from '@/components/ui/kit';
 
 type Tone = 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral';
@@ -50,8 +50,8 @@ const UPLOADS_ORIGIN = BASE_URL.replace(/\/api\/?$/, '');
 /** Open one staff document. The folder is private — the file token rides on the address. */
 export function openStaffFile(url?: string) {
   if (!url) return;
-  const full = withFileToken(/^https?:/.test(url) ? url : `${UPLOADS_ORIGIN}${url}`);
-  Linking.openURL(full).catch(() => Alert.alert('Could not open', 'This document could not be opened.'));
+  // Fetched by the app, the token in a header — never handed to the browser on the address.
+  openUpload(/^https?:/.test(url) ? url : `${UPLOADS_ORIGIN}${url}`);
 }
 
 export const fmtDay = (d?: string | null) => {

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { BASE_URL } from '@/api/axios';
-import { withFileToken } from '@/utils/fileAccess';
+import { withFileToken, openUpload, privateImage } from '@/utils/fileAccess';
 
 /**
  * The paperwork already on a record, shown inside a document picker.
@@ -36,15 +36,14 @@ export default function ExistingDoc({ folder, file, replaceHint = 'tap the butto
   const url = docUrl(folder, file);
   const isImage = IMAGE_RE.test(file) && !broken;
 
-  const open = () => {
-    Linking.openURL(url).catch(() =>
-      Alert.alert('Could not open', 'This document could not be opened on this device.'));
-  };
+  // Fetched by the app and handed to the phone's own viewer — the address,
+  // token and all, used to be given to the browser.
+  const open = () => openUpload(url, file);
 
   return (
     <TouchableOpacity style={s.row} onPress={open} accessibilityRole="button">
       {isImage ? (
-        <Image source={{ uri: url }} style={s.thumb} onError={() => setBroken(true)} />
+        <Image source={privateImage(url)} style={s.thumb} onError={() => setBroken(true)} />
       ) : (
         <View style={[s.thumb, s.thumbIcon]}>
           <Ionicons name="document-text-outline" size={20} color={Colors.textSecondary} />

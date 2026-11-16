@@ -12,7 +12,7 @@ import {
   StatTile, StatRow, fmtDate, ActionBtn,
 } from '@/components/ui/kit';
 import { Avatar } from './employee-directory';
-import { withFileToken } from '@/utils/fileAccess';
+import { withFileToken, openUpload } from '@/utils/fileAccess';
 import { fatherOrHusbandLabel } from '@/utils/fatherOrHusband';
 import { experienceText } from '@/utils/validators';
 
@@ -492,7 +492,7 @@ export default function EmployeeDirectoryDetailScreen() {
                       sub={`${d.category} · ${d.verificationStatus}${d.verifiedBy ? ` by ${d.verifiedBy}` : ''}`}
                       icon={d.sensitive ? 'shield' : 'document-text'}
                       right={<Badge label={d.verificationStatus} tone={VERIFY_TONE[d.verificationStatus]} />}
-                      onPress={d.url ? () => Linking.openURL(fileUrl(d.url)) : undefined}
+                      onPress={d.url ? () => openUpload(fileUrl(d.url), d.label || d.name) : undefined}
                     />
                   ))}
                 </Card>
@@ -509,9 +509,9 @@ export default function EmployeeDirectoryDetailScreen() {
                 <RevealRow label="UAN / PF Number" masked={data.governmentIds?.uanNumber} field="uanNumber" allowed={!!viewer.canReveal} />
                 <KV label="Verification" value={<Badge label={data.governmentIds?.verificationStatus} tone={VERIFY_TONE[data.governmentIds?.verificationStatus]} />} />
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: Spacing.sm, flexWrap: 'wrap' }}>
-                  {!!data.governmentIds?.aadhaarFront && <ActionBtn label="Aadhaar Front" small tone="neutral" onPress={() => Linking.openURL(fileUrl(data.governmentIds.aadhaarFront))} />}
-                  {!!data.governmentIds?.aadhaarBack && <ActionBtn label="Aadhaar Back" small tone="neutral" onPress={() => Linking.openURL(fileUrl(data.governmentIds.aadhaarBack))} />}
-                  {!!data.governmentIds?.panDocument && <ActionBtn label="PAN Card" small tone="neutral" onPress={() => Linking.openURL(fileUrl(data.governmentIds.panDocument))} />}
+                  {!!data.governmentIds?.aadhaarFront && <ActionBtn label="Aadhaar Front" small tone="neutral" onPress={() => openUpload(fileUrl(data.governmentIds.aadhaarFront), 'aadhaar-front')} />}
+                  {!!data.governmentIds?.aadhaarBack && <ActionBtn label="Aadhaar Back" small tone="neutral" onPress={() => openUpload(fileUrl(data.governmentIds.aadhaarBack), 'aadhaar-back')} />}
+                  {!!data.governmentIds?.panDocument && <ActionBtn label="PAN Card" small tone="neutral" onPress={() => openUpload(fileUrl(data.governmentIds.panDocument), 'pan-card')} />}
                 </View>
               </Card>
             )

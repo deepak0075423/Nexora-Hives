@@ -17,6 +17,11 @@ export const getClassTests      = () => api.get('/parent/results/class-tests');
 export const getDocuments       = (params?: object) => api.get('/parent/documents', { params });
 export const markDocumentRead   = (id: string) => api.post(`/parent/documents/${id}/read`);
 export const markDocumentsRead  = (ids: string[]) => api.post('/parent/documents/read', { ids });
+// The discussion under a document that reaches one of their children.
+export const getDocumentComments   = (id: string)       => api.get(`/parent/documents/${id}/comments`);
+export const addDocumentComment    = (id: string, data: object) => api.post(`/parent/documents/${id}/comments`, data);
+export const updateDocumentComment = (cid: string, data: object) => api.patch(`/parent/documents/comments/${cid}`, data);
+export const deleteDocumentComment = (cid: string)      => api.delete(`/parent/documents/comments/${cid}`);
 export const getDocument        = (id: string) => api.get(`/parent/documents/${id}`);
 export const getHolidays        = () => api.get('/parent/holidays');
 

@@ -40,10 +40,20 @@ const AUDIENCES = [
 ];
 const STAFF_AUDIENCES = ['all_teachers', 'specific_teachers'];
 
+const KINDS = [
+  { value: 'homework', label: 'Homework' }, { value: 'classwork', label: 'Classwork' },
+  { value: 'project', label: 'Project' }, { value: 'practice', label: 'Practice' },
+  { value: 'lab', label: 'Lab work' }, { value: 'reading', label: 'Reading' },
+];
+/** The marking form's own line for what the named questions leave over. */
+const RESERVED_QUESTION = 'other marks';
+type Question = { label: string; maxMarks: string };
+
 const EMPTY = {
   docType: 'notice', isAssignment: false, title: '', description: '', category: '', subject: '',
   targetType: 'whole_school', classIds: [] as string[], sectionIds: [] as string[], teacherIds: [] as string[],
   dueDate: '', totalMarks: '', allowSubmission: true,
+  assignmentType: 'homework', questions: [] as Question[],
 };
 
 // How many teachers are drawn at once — the filters are how a long staff list is read.
@@ -112,6 +122,8 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       dueDate: dueWas,
       totalMarks: editing.totalMarks == null ? '' : String(editing.totalMarks),
       allowSubmission: editing.allowSubmission !== false,
+      assignmentType: editing.assignmentType || 'homework',
+      questions: (editing.questions || []).map((q: any) => ({ label: String(q.label || ''), maxMarks: q.maxMarks == null ? '' : String(q.maxMarks) })),
     });
   }, [visible, editing?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -156,6 +168,10 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       // Only a date that was changed is held to "not in the past".
       if (f.dueDate && f.dueDate !== dueWas && new Date(`${f.dueDate}T23:59:59`) < new Date()) return 'That due date has already passed';
       if (f.totalMarks && !(Number(f.totalMarks) > 0)) return 'Marks must be more than zero';
+      const labels = f.questions.map((q) => q.label.trim().toLowerCase());
+      if (labels.some((l) => !l)) return 'Every question needs a name';
+      if (new Set(labels).size !== labels.length) return 'Two questions share a name';
+      if (labels.includes(RESERVED_QUESTION)) return '“Other marks” is kept for what the questions leave over — call the question something else';
     }
     if (files.length + kept.length > 10) return 'A document can hold up to 10 files';
     return '';
@@ -176,6 +192,8 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       fd.append('allowSubmission', assigned && f.allowSubmission ? 'true' : 'false');
       fd.append('dueDate', assigned ? f.dueDate : '');
       fd.append('totalMarks', assigned ? f.totalMarks : '');
+      fd.append('assignmentType', f.assignmentType);
+      fd.append('questions', JSON.stringify(assigned ? f.questions.map((q) => ({ label: q.label.trim(), maxMarks: q.maxMarks })) : []));
       if (mode === 'teacher') {
         fd.append('sectionIds', JSON.stringify(f.sectionIds));
       } else {
@@ -329,6 +347,43 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
           <Text style={s.hint}>It is due at the end of that day.</Text>
           <Input label="Out of (optional)" value={f.totalMarks} onChange={(v) => set({ totalMarks: v })}
             placeholder="e.g. 50" keyboardType="decimal-pad" />
+          <Select label="Kind of work" value={f.assignmentType} options={KINDS} onChange={(v) => set({ assignmentType: v })} />
+
+          {/* Optional: with questions, marking asks for a score per question
+              and the analytics can say which one the class lost marks on. */}
+          <Text style={s.label}>Break the marks down by question (optional)</Text>
+          {f.questions.map((q, i) => (
+            <View key={i} style={s.qRow}>
+              <View style={{ flex: 2 }}>
+                <Input label={`Question ${i + 1}`} value={q.label} placeholder={`Q${i + 1}`}
+                  onChange={(v) => set({ questions: f.questions.map((x, k) => (k === i ? { ...x, label: v.slice(0, 20) } : x)) })} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Input label="Marks" value={q.maxMarks} keyboardType="decimal-pad"
+                  onChange={(v) => set({ questions: f.questions.map((x, k) => (k === i ? { ...x, maxMarks: v } : x)) })} />
+              </View>
+              <TouchableOpacity style={s.qDrop} onPress={() => set({ questions: f.questions.filter((_, k) => k !== i) })}
+                accessibilityRole="button" accessibilityLabel={`Remove ${q.label || `question ${i + 1}`}`}>
+                <Ionicons name="close" size={18} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          <TouchableOpacity accessibilityRole="button" style={{ marginBottom: 10 }}
+            onPress={() => set({ questions: [...f.questions, { label: `Q${f.questions.length + 1}`, maxMarks: '' }] })}>
+            <Text style={s.link}>+ Add question</Text>
+          </TouchableOpacity>
+          {f.questions.length > 0 && (() => {
+            const total = f.questions.reduce((n, q) => n + (Number(q.maxMarks) || 0), 0);
+            const of = Number(f.totalMarks) || 0;
+            return (
+              <Text style={s.note}>
+                {total} across {f.questions.length} question{f.questions.length === 1 ? '' : 's'}{of ? ` · out of ${of}` : ''}
+                {of && total > of ? ' — more than the total above' : ''}
+                {of && total < of ? ` — ${Math.round((of - total) * 100) / 100} left over, given as “Other marks” when marking` : ''}
+              </Text>
+            );
+          })()}
+
           <Toggle label="Accept submissions" value={f.allowSubmission} onChange={(v) => set({ allowSubmission: v })}
             sub="Turn this off to close it without deleting anything already handed in" />
         </>
@@ -372,6 +427,8 @@ const s = StyleSheet.create({
   },
   personName: { fontSize: 13, fontWeight: '700', color: Colors.text },
   personSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  qRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  qDrop: { padding: 10, marginBottom: 14 },
   kept: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, paddingVertical: 8, paddingHorizontal: 10,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, backgroundColor: Colors.surface,
