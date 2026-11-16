@@ -50,7 +50,7 @@ export default function AdminDocumentsScreen() {
   useEffect(() => { const t = setTimeout(() => setTerm(search.trim()), 350); return () => clearTimeout(t); }, [search]);
 
   const query = useCallback((pg: number) => ({
-    tab, page: pg, limit: PAGE, search: term || undefined, academicYear: year || undefined,
+    tab, page: pg, limit: PAGE, search: term || undefined, academicYear: year || 'all',   // '' is "All years" here; the list's own default is the year in view
   }), [tab, term, year]);
 
   const loadSummary = useCallback(async () => {

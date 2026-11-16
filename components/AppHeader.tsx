@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { schoolLogoUrl } from '@/utils/branding';
+import YearSwitcher, { YearViewNotice } from '@/components/YearSwitcher';
 
 /**
  * Brand header shown at the top of the tab screens:
@@ -41,6 +42,8 @@ export default function AppHeader({ title }: { title?: string }) {
             <Text style={s.school}>Aksharum</Text>
           )}
         </View>
+        {/* Which academic year every screen is showing. */}
+        <YearSwitcher />
         <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/modules/alerts' as any)}
           accessibilityRole="button"
           accessibilityLabel={badgeCount > 0 ? `Notifications, ${badgeCount} unread` : 'Notifications'}>
@@ -52,6 +55,7 @@ export default function AppHeader({ title }: { title?: string }) {
           )}
         </TouchableOpacity>
       </View>
+      <YearViewNotice />
     </View>
   );
 }

@@ -312,8 +312,8 @@ export default function Insights({ onBlocked, initialView = 'teachers' }: { onBl
       {view === 'trends' ? (
         <>
           <Toolbar>
-            <Pick label="Academic year" all="All years" value={draft.academicYear} onChange={(v) => setDraft({ ...draft, academicYear: v })}
-              options={(meta.data?.academicYears ?? []).map((y: any) => ({ value: y._id, label: y.yearName }))} />
+            <Pick label="Academic year" all="This year" value={draft.academicYear} onChange={(v) => setDraft({ ...draft, academicYear: v })}
+              options={[{ value: 'all', label: 'All years' }, ...(meta.data?.academicYears ?? []).map((y: any) => ({ value: y._id, label: y.yearName }))]} />
             <Pick label="Campaign" all="All campaigns" value={campaignId} onChange={setCampaignId}
               options={(dash.data?.campaigns ?? []).map((c: any) => ({ value: c._id, label: c.name }))} />
             <Pick label="Class" all="All classes" value={draft.class} onChange={(v) => setDraft({ ...draft, class: v })}

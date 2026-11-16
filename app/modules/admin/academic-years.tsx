@@ -21,7 +21,10 @@ export default function AdminAcademicYearsScreen() {
   const [importInto, setImportInto] = useState<any>(null);
 
   const load = async () => {
-    try { setList(unwrap(await adminApi.getAcademicYears()) ?? []); }
+    // This screen is about the years themselves: it shows each one's stored
+    // status (`realStatus`), not the status as the rest of the app reads it
+    // while the header's year switcher is on another year.
+    try { setList((unwrap(await adminApi.getAcademicYears()) ?? []).map((y: any) => ({ ...y, status: y.realStatus || y.status }))); }
     catch (err: any) { Alert.alert('Error', err.message); }
     finally { setLoading(false); setRefreshing(false); }
   };

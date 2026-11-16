@@ -14,6 +14,7 @@ import {
 import NotificationBanner from '@/components/NotificationBanner';
 import LockScreen from '@/components/LockScreen';
 import storage from '@/utils/storage';
+import { onViewYearChange, resetViewYear } from '@/utils/yearView';
 
 // How a notification shows while the app is open, and Android's channels — before anything can arrive.
 setUpNotifications();
@@ -160,17 +161,25 @@ function DeepLinkBridge() {
  * Signing out and in again is not counted: navigating through the sign-in
  * screens already unmounts the tabs, and remounting at cold start (no user →
  * user) would only mount everything twice.
+ *
+ * The same goes for the academic year in view (the year switcher in the
+ * header, utils/yearView): every screen's lists are that year's, so changing
+ * it mounts the tree afresh too. A new membership starts on its school's
+ * current year.
  */
 function SessionScope({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const id = user?._id ?? null;
   const generation = useRef(0);
   const lastId = useRef<string | null>(null);
+  const [yearTurn, setYearTurn] = useState(0);
+  useEffect(() => onViewYearChange(() => setYearTurn((n) => n + 1)), []);
   if (id !== lastId.current) {
     if (id && lastId.current) generation.current += 1;
     lastId.current = id;
+    resetViewYear();
   }
-  return <React.Fragment key={generation.current}>{children}</React.Fragment>;
+  return <React.Fragment key={`${generation.current}:${yearTurn}`}>{children}</React.Fragment>;
 }
 
 const RELOCK_AFTER_MS = 30_000;

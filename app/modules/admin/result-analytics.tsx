@@ -52,7 +52,7 @@ export default function OfficeAnalyticsScreen() {
         {d ? (
           <View style={os.card}>
             <Select label="Academic year" value={q.academicYear || ''} onChange={(v) => setQ((x2) => ({ ...x2, academicYear: v }))}
-              options={[{ value: '', label: 'All years' }, ...(d.filters?.years || []).map((y: any) => ({ value: String(y._id), label: `${y.yearName}${y.current ? ' (current)' : ''}` }))]} />
+              options={[{ value: '', label: 'This year' }, { value: 'all', label: 'All years' }, ...(d.filters?.years || []).map((y: any) => ({ value: String(y._id), label: `${y.yearName}${y.current ? ' (current)' : ''}` }))]} />
             <Select label="Class" value={q.classNumber || ''} onChange={(v) => setQ((x2) => ({ ...x2, classNumber: v }))}
               options={[{ value: '', label: 'All classes' }, ...(d.filters?.classes || []).map((c: any) => ({ value: String(c.classNumber), label: c.className }))]} />
           </View>

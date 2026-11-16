@@ -1,5 +1,6 @@
 import axios from 'axios';
 import storage from '@/utils/storage';
+import { viewYear } from '@/utils/yearView';
 
 // Use your machine's LAN IP so both emulator and physical devices can connect.
 // Find yours with: ipconfig | findstr IPv4
@@ -14,6 +15,10 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   const token = await storage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // The academic year being looked at (the switcher in the header) — every
+  // read is answered for that year. Absent = the school's active year.
+  const year = viewYear();
+  if (year) config.headers['X-Academic-Year'] = year;
   // The Medical Room's "confirm it is you" token (an emailed code, 12 hours).
   if (String(config.url || '').startsWith('/medical/')) {
     const up = await storage.getItem('medicalStepUp').catch(() => null);
