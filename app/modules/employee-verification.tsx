@@ -7,6 +7,7 @@ import * as dirApi from '@/api/employeeDirectory.api';
 import { BASE_URL } from '@/api/axios';
 import {
   unwrap, LoaderView, Empty, Badge, Card, SectionTitle, StatTile, StatRow, ActionBtn, SegTabs,
+  SearchBar, Input, FormModal, KV, fmtDate,
   MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { withFileToken, openUpload } from '@/utils/fileAccess';
@@ -41,6 +42,67 @@ const fileUrl = (p?: string) => withFileToken(!p ? '' : /^https?:/.test(p) ? p :
 
 const TONE: Record<string, any> = { verified: 'success', pending: 'warning', rejected: 'danger' };
 
+// The sensitive numbers a section needs read in full before it can be checked.
+// Each read goes through the audited endpoint, exactly as on the web.
+const REVEALS: Record<string, string[]> = {
+  government_id: ['aadhaarNumber', 'panNumber', 'uanNumber'],
+  bank: ['bankAccountNumber'],
+};
+const addr = (a: any) => (!a ? '' : [a.line, a.city, a.state, a.pincode].filter(Boolean).join(', '));
+
+/** What a section is made of, read off the employee record — the values a reviewer checks. */
+function fieldsFor(section: string, d: any, shown: Record<string, string> = {}): [string, string][] {
+  if (!d) return [];
+  const full = (key: string, masked?: string) => shown[key] || masked || '';
+  switch (section) {
+    case 'personal': return [
+      ['Full name', d.personal?.fullName || d.overview?.name || ''],
+      ['Date of birth', d.personal?.dob ? fmtDate(d.personal.dob) : ''],
+      ['Gender', d.personal?.gender || ''],
+      ['Blood group', d.personal?.bloodGroup || ''],
+      ["Father's / husband's name", d.personal?.fatherOrHusbandName || ''],
+      ['Emergency contact', [d.personal?.emergencyContactName, d.personal?.emergencyContactPhone].filter(Boolean).join(' · ')],
+    ];
+    case 'contact': return [
+      ['Phone', d.contact?.phone || ''],
+      ['Alternate phone', d.contact?.alternatePhone || ''],
+      ['Email', d.contact?.email || ''],
+      ['Current address', addr(d.contact?.currentAddress)],
+      ['Permanent address', addr(d.contact?.permanentAddress)],
+    ];
+    case 'education': return (d.education?.qualifications || []).map((q: any) => [
+      q.kind === 'teaching_degree' ? 'Teaching degree' : q.kind === 'highest' ? 'Highest qualification' : 'Qualification',
+      [q.qualification, q.specialization, q.institution, q.passingYear, q.grade].filter(Boolean).join(' · '),
+    ]);
+    case 'government_id': return [
+      ['Aadhaar number', full('aadhaarNumber', d.governmentIds?.aadhaarNumber)],
+      ['PAN number', full('panNumber', d.governmentIds?.panNumber)],
+      ['UAN / PF number', full('uanNumber', d.governmentIds?.uanNumber)],
+    ];
+    case 'bank': return [
+      ['Account holder', d.bank?.accountHolder || ''],
+      ['Account number', full('bankAccountNumber', d.bank?.accountNumber)],
+      ['IFSC', d.bank?.ifsc || ''],
+      ['Branch', d.bank?.branch || ''],
+    ];
+    case 'employment_documents': return [
+      ['Employee ID', d.employment?.employeeId || ''],
+      ['Joining date', d.employment?.joiningDate ? fmtDate(d.employment.joiningDate) : ''],
+      ['Designation', d.employment?.designation || ''],
+      ['Department', d.employment?.department || ''],
+      ['Previous school', d.employment?.previousSchool || ''],
+    ];
+    default: return [];
+  }
+}
+
+const REQUEST_FILTERS = [
+  { value: 'open',     label: 'Waiting' },
+  { value: 'done',     label: 'Dealt with' },
+  { value: 'declined', label: 'Declined' },
+];
+const PAGE = 15;
+
 const DOC_FILTERS = [
   { value: 'todo',        label: 'Awaiting review' },
   { value: 'resubmitted', label: 'Re-submitted' },
@@ -60,7 +122,22 @@ const REMIND_FILTERS = [
 export default function EmployeeVerificationScreen() {
   // A "document re-submitted" notification lands on ?tab=documents&employee=<id>.
   const params = useLocalSearchParams<{ tab?: string; employee?: string }>();
-  const [tab, setTab] = useState<string>(['documents', 'reminders'].includes(String(params.tab)) ? String(params.tab) : 'sections');
+  const [tab, setTab] = useState<string>(['documents', 'reminders', 'requests'].includes(String(params.tab)) ? String(params.tab) : 'sections');
+  // The queue is searched and shown a page at a time — a school's whole staff
+  // in one scroll is slow to draw and slower to find anyone in.
+  const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(PAGE);
+  // The record behind an open employee (fetched once each), and the sensitive
+  // numbers read in full for the sections that were opened.
+  const [details, setDetails] = useState<Record<string, any>>({});
+  const [revealed, setRevealed] = useState<Record<string, Record<string, string>>>({});
+  // Documents this reviewer has opened: one is decided on only after it was looked at.
+  const [openedDocs, setOpenedDocs] = useState<Set<string>>(new Set());
+  const [asks, setAsks] = useState<any>(null);
+  const [askFilter, setAskFilter] = useState('open');
+  const [answering, setAnswering] = useState<any>(null);   // { request, status }
+  const [reply, setReply] = useState('');
+  const [answerBusy, setAnswerBusy] = useState(false);
   const [focus, setFocus] = useState<string>(params.tab === 'documents' && params.employee ? String(params.employee) : '');
   const [docFilter, setDocFilter] = useState(params.tab === 'documents' && params.employee ? 'all' : 'todo');
   const [remindFilter, setRemindFilter] = useState('owing');
@@ -80,9 +157,13 @@ export default function EmployeeVerificationScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [q, d] = await Promise.all([dirApi.getVerificationQueue(), dirApi.getDocumentDesk()]);
-      setData(unwrap(q));
+      const [queue, d, r] = await Promise.all([
+        dirApi.getVerificationQueue(), dirApi.getDocumentDesk(),
+        dirApi.getChangeRequests().catch(() => null),
+      ]);
+      setData(unwrap(queue));
       setDesk(unwrap(d));
+      if (r) setAsks(unwrap(r));
       setFatal(null);
     } catch (e: any) {
       setFatal({ message: e?.message || 'Could not load verification', code: e?.data?.code });
@@ -92,11 +173,54 @@ export default function EmployeeVerificationScreen() {
   useEffect(() => { load(); }, [load]);
 
   const mark = (k: string) => setSeen(s => new Set(s).add(k));
-  const keysFor = (id: string, sec: any) => (
-    sec.documents.length
-      ? sec.documents.map((d: any) => `${id}:${sec.section}:${d.key}`)
-      : [`${id}:${sec.section}:record`]
-  );
+
+  // Opening an employee fetches their record once; the values are what a
+  // reviewer checks a field-only section against.
+  useEffect(() => {
+    if (!open || details[open]) return;
+    let alive = true;
+    dirApi.getEmployee(open)
+      .then((res) => { if (alive) setDetails(d => ({ ...d, [open]: unwrap(res) })); })
+      .catch(() => { /* the section says the record could not be loaded */ });
+    return () => { alive = false; };
+  }, [open, details]);
+
+  /** Put a section's values on screen — which is the review — reading its sensitive numbers in full. */
+  const showValues = (employeeId: string, sec: any) => {
+    mark(`${employeeId}:${sec.section}:record`);
+    // A number that is not on file has nothing to read in full.
+    const d = details[employeeId];
+    const masked: any = d ? { ...d.governmentIds, bankAccountNumber: d.bank?.accountNumber } : null;
+    for (const field of REVEALS[sec.section] || []) {
+      if (revealed[employeeId]?.[field] !== undefined) continue;
+      if (masked && !masked[field]) continue;
+      dirApi.revealField(employeeId, field)
+        .then((res) => {
+          const v = (unwrap(res) as any)?.value;
+          if (v) setRevealed(r => ({ ...r, [employeeId]: { ...r[employeeId], [field]: v } }));
+        })
+        .catch(() => { /* not on file, or not this reader's to see: the masked value stays */ });
+    }
+  };
+
+  const answer = async () => {
+    if (!answering) return;
+    if (answering.status === 'declined' && reply.trim().length < 5) { Alert.alert('Give a reason', 'The employee is shown why it was declined.'); return; }
+    setAnswerBusy(true);
+    try {
+      await dirApi.closeChangeRequest(answering.request._id, { status: answering.status, reply: reply.trim() });
+      setAnswering(null);
+      setReply('');
+      await load();
+    } catch (e: any) { Alert.alert('Could not save that', e?.message || 'Please try again'); }
+    finally { setAnswerBusy(false); }
+  };
+  // What has to have been on screen before a section can be signed: its
+  // values, and every scan in it.
+  const keysFor = (id: string, sec: any) => [
+    `${id}:${sec.section}:record`,
+    ...sec.documents.map((d: any) => `${id}:${sec.section}:${d.key}`),
+  ];
   const reviewed = (id: string, sec: any) => keysFor(id, sec).every((k: string) => seen.has(k));
 
   const verify = async (id: string, section: string, status: string) => {
@@ -156,6 +280,10 @@ export default function EmployeeVerificationScreen() {
     mark(key);
     openUpload(fileUrl(url));
   };
+  const viewDoc = (r: any) => {
+    setOpenedDocs(o => new Set(o).add(`${r.employee}:${r.key}:${r.fileName}`));
+    openStaffFile(r.url);
+  };
 
   if (loading) return (<><Stack.Screen options={{ title: 'Verification' }} /><LoaderView /></>);
 
@@ -171,7 +299,13 @@ export default function EmployeeVerificationScreen() {
     );
   }
 
-  const employees = data?.employees ?? [];
+  const everyone = data?.employees ?? [];
+  const term = q.trim().toLowerCase();
+  const employees = term
+    ? everyone.filter((e: any) => `${e.name} ${e.employeeId || ''} ${e.designation || ''} ${e.department || ''}`.toLowerCase().includes(term))
+    : everyone;
+  const requests: any[] = asks?.requests ?? [];
+  const openAsks = asks?.counts?.open || 0;
 
   return (
     <>
@@ -185,22 +319,25 @@ export default function EmployeeVerificationScreen() {
           { key: 'sections',  label: 'Sections' },
           { key: 'documents', label: `Documents${docCounts.todo ? ` (${docCounts.todo})` : ''}` },
           { key: 'reminders', label: `Reminders${remindCounts.follow_up_due ? ` (${remindCounts.follow_up_due} due)` : ''}` },
+          { key: 'requests',  label: `Requests${openAsks ? ` (${openAsks})` : ''}` },
         ]} />
 
         {tab === 'sections' && (<>
         <StatRow>
           <StatTile label="Fully verified" value={data?.fullyVerified ?? 0} icon="shield-checkmark" tone="success" />
-          <StatTile label="Employees" value={employees.length} icon="people" tone="info" />
+          <StatTile label="Employees" value={everyone.length} icon="people" tone="info" />
           <StatTile
             label="Outstanding"
-            value={Math.max(0, employees.length - (data?.fullyVerified ?? 0))}
+            value={Math.max(0, everyone.length - (data?.fullyVerified ?? 0))}
             icon="hourglass" tone="warning"
           />
         </StatRow>
 
+        <SearchBar value={q} onChange={(v) => { setQ(v); setLimit(PAGE); }} placeholder="Name, employee ID, designation, department…" />
+
         {employees.length === 0 ? (
-          <Empty icon="shield-outline" text="No employees to verify yet" />
-        ) : employees.map((e: any) => (
+          <Empty icon="shield-outline" text={term ? 'Nobody matches that search' : 'No employees to verify yet'} />
+        ) : employees.slice(0, limit).map((e: any) => (
           <Card key={e._id} style={{ marginBottom: Spacing.sm }}>
             <TouchableOpacity
               style={s.head}
@@ -226,6 +363,10 @@ export default function EmployeeVerificationScreen() {
                 {e.sections.map((sec: any) => {
                   const done = reviewed(e._id, sec);
                   const blocked = sec.missingDocuments;
+                  const closed = !!sec.restricted;
+                  const recordKey = `${e._id}:${sec.section}:record`;
+                  const detail = details[e._id];
+                  const fields = seen.has(recordKey) ? fieldsFor(sec.section, detail, revealed[e._id]) : [];
                   // Signed off once each document in it has been accepted.
                   const undecided = (sec.documents || []).filter((d: any) => d.state && d.state !== 'verified');
                   return (
@@ -236,7 +377,31 @@ export default function EmployeeVerificationScreen() {
                       </View>
 
                       <View style={s.evidence}>
-                        {blocked && <Badge label="No document on file" tone="warning" />}
+                        {closed && <Text style={s.blockedNote}>{sec.restrictedWhy}</Text>}
+                        {!closed && blocked && <Badge label={`Waiting for ${(sec.missingRequired || []).join(', ')}`} tone="warning" />}
+
+                        {/* The recorded values, in place: nothing is signed unseen. */}
+                        {!closed && sec.status !== 'verified' && (
+                          <TouchableOpacity
+                            style={[s.doc, seen.has(recordKey) && s.docSeen]}
+                            onPress={() => showValues(e._id, sec)}
+                            accessibilityRole="button" accessibilityLabel={`Show the recorded values for ${sec.label}`}
+                          >
+                            <Ionicons
+                              name={seen.has(recordKey) ? 'checkmark-circle' : 'eye-outline'}
+                              size={13} color={seen.has(recordKey) ? Colors.success : Colors.primary}
+                            />
+                            <Text style={[s.docText, seen.has(recordKey) && { color: Colors.textSecondary }]}>
+                              {seen.has(recordKey) ? 'Recorded values shown' : 'Show the recorded values'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {seen.has(recordKey) && !closed && (
+                          <View style={{ alignSelf: 'stretch', width: '100%' }}>
+                            {!detail ? <Text style={s.blockedNote}>Loading the record…</Text>
+                              : fields.map(([label, value]) => <KV key={label} label={label} value={value || 'Not on file'} />)}
+                          </View>
+                        )}
 
                         {sec.documents.map((d: any) => {
                           const k = `${e._id}:${sec.section}:${d.key}`;
@@ -257,9 +422,10 @@ export default function EmployeeVerificationScreen() {
                               <DocStateBadge state={d.state || 'pending'} />
                               {(d.state === 'pending' || d.state === 'resubmitted') ? (
                                 <View style={s.decide}>
+                                  {/* Decided only after it has been opened (the chip beside it). */}
                                   <ActionBtn label={docBusy === `${e._id}:${d.key}:verified` ? 'Saving…' : 'Verify'} tone="success" small
-                                    disabled={!!docBusy} onPress={() => decide(row, 'verified')} />
-                                  <ActionBtn label="Reject" tone="danger" small disabled={!!docBusy} onPress={() => setRejecting(row)} />
+                                    disabled={!!docBusy || !seen.has(k)} onPress={() => decide(row, 'verified')} />
+                                  <ActionBtn label="Reject" tone="danger" small disabled={!!docBusy || !seen.has(k)} onPress={() => setRejecting(row)} />
                                 </View>
                               ) : null}
                               {(d.state === 'rejected' || d.state === 'resubmitted') && d.comment ? (
@@ -269,39 +435,28 @@ export default function EmployeeVerificationScreen() {
                           );
                         })}
 
-                        {!blocked && sec.documents.length === 0 && (
-                          <TouchableOpacity
-                            style={[s.doc, seen.has(`${e._id}:${sec.section}:record`) && s.docSeen]}
-                            onPress={() => mark(`${e._id}:${sec.section}:record`)}
-                          >
-                            <Ionicons
-                              name={seen.has(`${e._id}:${sec.section}:record`) ? 'checkmark-circle' : 'eye-outline'}
-                              size={13} color={seen.has(`${e._id}:${sec.section}:record`) ? Colors.success : Colors.primary}
-                            />
-                            <Text style={[s.docText, seen.has(`${e._id}:${sec.section}:record`) && { color: Colors.textSecondary }]}>
-                              Mark details reviewed
-                            </Text>
-                          </TouchableOpacity>
-                        )}
                       </View>
 
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                         <View style={{ flex: 1 }}>
-                          {blocked ? (
-                            <Text style={s.blockedNote}>Nothing uploaded for this section yet.</Text>
+                          {/* Verifying is the only write this screen makes: a section
+                              that is signed off offers nothing to press. */}
+                          {sec.status === 'verified' ? (
+                            <Text style={s.blockedNote}>Signed off.</Text>
+                          ) : closed ? null : blocked ? (
+                            <Text style={s.blockedNote}>It cannot be signed off until {(sec.missingRequired || []).join(', ')} {(sec.missingRequired || []).length === 1 ? 'is' : 'are'} uploaded.</Text>
                           ) : !done ? (
-                            <Text style={s.blockedNote}>Open the evidence above to enable Verify.</Text>
-                          ) : sec.status !== 'verified' && undecided.length ? (
+                            <Text style={s.blockedNote}>Show the recorded values{sec.documents.length ? ' and open each document' : ''} above to enable Verify.</Text>
+                          ) : undecided.length ? (
                             <Text style={s.blockedNote}>Verify or reject each document above first.</Text>
-                          ) : sec.status !== 'verified' ? (
+                          ) : sec.problem ? (
+                            <Text style={s.blockedNote}>{sec.problem}</Text>
+                          ) : (
                             <ActionBtn
                               label={busy === `${e._id}:${sec.section}` ? 'Saving…' : 'Verify'}
                               tone="success" small
                               onPress={() => verify(e._id, sec.section, 'verified')}
                             />
-                          ) : (
-                            <ActionBtn label="Reset to pending" tone="neutral" small
-                              onPress={() => verify(e._id, sec.section, 'pending')} />
                           )}
                         </View>
                       </View>
@@ -312,6 +467,13 @@ export default function EmployeeVerificationScreen() {
             )}
           </Card>
         ))}
+
+        {employees.length > limit && (
+          <View style={{ marginBottom: Spacing.md }}>
+            <ActionBtn label={`Show ${Math.min(PAGE, employees.length - limit)} more (${employees.length - limit} left)`} tone="neutral"
+              onPress={() => setLimit(n => n + PAGE)} />
+          </View>
+        )}
 
         <SectionTitle>By section</SectionTitle>
         <Card>
@@ -362,12 +524,14 @@ export default function EmployeeVerificationScreen() {
                   {r.state === 'rejected' && <Text style={s.note}>“{r.comment}” · {fmtDay(r.reviewedAt)} — waiting for a new upload</Text>}
                   {r.state === 'verified' && <Text style={s.note}>{r.reviewedAt ? `Verified ${fmtDay(r.reviewedAt)}` : 'Verified with its section'}</Text>}
                   <View style={s.cardActs}>
-                    {r.fileName ? <ActionBtn label="View" tone="info" small onPress={() => openStaffFile(r.url)} /> : null}
+                    {r.fileName ? <ActionBtn label={openedDocs.has(`${r.employee}:${r.key}:${r.fileName}`) ? 'View again' : 'View'} tone="info" small onPress={() => viewDoc(r)} /> : null}
                     {(r.state === 'pending' || r.state === 'resubmitted') ? (
                       <>
+                        {/* Decided only after it has been viewed. */}
                         <ActionBtn label={docBusy === `${r.employee}:${r.key}:verified` ? 'Saving…' : 'Verify'} tone="success" small
-                          disabled={!!docBusy} onPress={() => decide(r, 'verified')} />
-                        <ActionBtn label="Reject" tone="danger" small disabled={!!docBusy} onPress={() => setRejecting(r)} />
+                          disabled={!!docBusy || !openedDocs.has(`${r.employee}:${r.key}:${r.fileName}`)} onPress={() => decide(r, 'verified')} />
+                        <ActionBtn label="Reject" tone="danger" small
+                          disabled={!!docBusy || !openedDocs.has(`${r.employee}:${r.key}:${r.fileName}`)} onPress={() => setRejecting(r)} />
                       </>
                     ) : null}
                   </View>
@@ -441,7 +605,57 @@ export default function EmployeeVerificationScreen() {
             </>
           );
         })()}
+        {/* ── "Please correct my details" ─────────────────────────────────── */}
+        {tab === 'requests' && (() => {
+          const shown = requests.filter((r: any) => r.status === askFilter);
+          return (
+            <>
+              <FilterChips value={askFilter} onChange={setAskFilter}
+                items={REQUEST_FILTERS.map((f) => ({ ...f, count: asks?.counts?.[f.value] || 0 }))} />
+              {!shown.length ? (
+                <Empty icon="chatbubble-ellipses-outline" text={askFilter === 'open' ? 'No correction is waiting.' : 'Nothing here.'} />
+              ) : shown.map((r: any) => (
+                <Card key={r._id} style={{ marginBottom: Spacing.sm }}>
+                  <View style={s.head}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={s.name} numberOfLines={1}>{r.employeeName}</Text>
+                      <Text style={s.sub} numberOfLines={1}>{r.areaLabel} · {fmtDay(r.createdAt)}</Text>
+                    </View>
+                    <Badge label={r.status === 'open' ? 'Waiting' : r.status === 'done' ? 'Dealt with' : 'Declined'}
+                      tone={r.status === 'open' ? 'warning' : r.status === 'done' ? 'success' : 'danger'} />
+                  </View>
+                  <Text style={s.note}>“{r.message}”</Text>
+                  {r.status !== 'open' && !!r.reply && <Text style={s.note}>The office: “{r.reply}”</Text>}
+                  {r.status === 'open' && (
+                    <View style={s.cardActs}>
+                      <ActionBtn label="Done" tone="success" small onPress={() => { setReply(''); setAnswering({ request: r, status: 'done' }); }} />
+                      <ActionBtn label="Decline" tone="neutral" small onPress={() => { setReply(''); setAnswering({ request: r, status: 'declined' }); }} />
+                    </View>
+                  )}
+                </Card>
+              ))}
+            </>
+          );
+        })()}
       </ScrollView>
+
+      <FormModal visible={!!answering} onClose={() => setAnswering(null)} onSubmit={answer} submitting={answerBusy}
+        title={answering?.status === 'declined' ? 'Decline this request' : 'Mark as dealt with'}
+        submitLabel={answering?.status === 'declined' ? 'Decline' : 'Mark as done'}>
+        {!!answering && (
+          <>
+            <Text style={s.note}>{answering.request.employeeName} · {answering.request.areaLabel}: “{answering.request.message}”</Text>
+            <Input label={answering.status === 'declined' ? 'Why it cannot be changed' : 'A note for the employee (optional)'}
+              value={reply} onChange={setReply} multiline text="sentence"
+              placeholder={answering.status === 'declined' ? 'e.g. The name has to match your Aadhaar card' : 'e.g. Updated — please check your profile'} />
+            <Text style={s.note}>
+              {answering.status === 'declined'
+                ? 'They will be told the request was declined, with this reason.'
+                : 'Make the change on their record first (on the web: Admin → Teachers → Edit). They will be told it has been dealt with.'}
+            </Text>
+          </>
+        )}
+      </FormModal>
 
       <RejectSheet target={rejecting} busy={!!docBusy} onClose={() => setRejecting(null)}
         onConfirm={(comment) => decide(rejecting, 'rejected', comment)} />

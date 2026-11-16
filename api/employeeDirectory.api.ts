@@ -11,7 +11,7 @@ export const getDashboard  = ()                 => api.get(`${base}/dashboard`);
 export const getEmployees  = (params?: object)  => api.get(`${base}/employees`, { params });
 export const getEmployee   = (id: string)       => api.get(`${base}/employees/${id}`);
 export const getTimetable  = (id: string)       => api.get(`${base}/employees/${id}/timetable`);
-export const getAttendance = (id: string)       => api.get(`${base}/employees/${id}/attendance`);
+export const getAttendance = (id: string, params?: object) => api.get(`${base}/employees/${id}/attendance`, { params });
 export const getLeave      = (id: string)       => api.get(`${base}/employees/${id}/leave`);
 
 // Returns ONE unmasked value and is audited server-side. Never called to
@@ -20,6 +20,8 @@ export const revealField   = (id: string, field: string) => api.post(`${base}/em
 
 export const updateEmployment = (id: string, body: object) => api.put(`${base}/employees/${id}/employment`, body);
 export const setVerification  = (id: string, body: object) => api.put(`${base}/employees/${id}/verification`, body);
+
+export const getHistory    = (id: string)       => api.get(`${base}/employees/${id}/history`);
 
 export const getDepartments  = () => api.get(`${base}/departments`);
 export const getDesignations = () => api.get(`${base}/designations`);
@@ -46,3 +48,9 @@ export const uploadMyDocument = (key: string, file: any) => {
   fd.append('file', file);
   return api.post(`${base}/me/documents/${key}`, fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
 };
+
+// "Please correct my details" — the employee asks, the office answers.
+export const getMyRequests      = ()                         => api.get(`${base}/me/requests`);
+export const createMyRequest    = (body: object)             => api.post(`${base}/me/requests`, body);
+export const getChangeRequests  = (params?: object)          => api.get(`${base}/change-requests`, { params });
+export const closeChangeRequest = (id: string, body: object) => api.put(`${base}/change-requests/${id}`, body);

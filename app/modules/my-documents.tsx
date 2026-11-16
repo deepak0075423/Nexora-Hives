@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as dirApi from '@/api/employeeDirectory.api';
-import { unwrap, LoaderView, Empty, Card, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { unwrap, LoaderView, Empty, Card, Badge, Input, Select, FormModal, MODULE_BLOCKED_CODES } from '@/components/ui/kit';
 import { pickFile, partOf } from '@/components/admission/files';
 import { DocStateBadge, openStaffFile, fmtDay } from '@/components/directory/docParts';
 
@@ -183,10 +183,82 @@ export default function MyDocumentsScreen() {
             ))}
 
             <Text style={s.foot}>PDF, JPG or PNG, up to 5 MB. A document the office has verified can only be changed by them.</Text>
+
+            <Corrections />
           </>
         )}
       </ScrollView>
     </>
+  );
+}
+
+const ASK_STATE: Record<string, { label: string; tone: any }> = {
+  open:     { label: 'Waiting for the office', tone: 'warning' },
+  done:     { label: 'Dealt with',             tone: 'success' },
+  declined: { label: 'Declined',               tone: 'danger' },
+};
+
+/**
+ * "Something on my record is wrong." Staff cannot edit their own record — the
+ * office keeps it — so this is the note that reaches the office, and where the
+ * answer comes back.
+ */
+function Corrections() {
+  const [data, setData] = useState<any>(null);
+  const [open, setOpen] = useState(false);
+  const [area, setArea] = useState('personal');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setData(unwrap(await dirApi.getMyRequests())); } catch { /* the section simply stays empty */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const send = async () => {
+    if (message.trim().length < 10) { Alert.alert('Say a little more', 'Say what needs correcting, and what it should be.'); return; }
+    setBusy(true);
+    try {
+      await dirApi.createMyRequest({ area, message: message.trim() });
+      setOpen(false);
+      setMessage('');
+      await load();
+      Alert.alert('Sent', 'The school office has your request. You will be notified when they answer.');
+    } catch (e: any) { Alert.alert('Could not send it', e?.message || 'Please try again'); }
+    finally { setBusy(false); }
+  };
+
+  const requests: any[] = data?.requests || [];
+  return (
+    <Card style={{ marginTop: Spacing.md }}>
+      <Text style={s.title}>Something on your record wrong?</Text>
+      <Text style={s.next}>Your name, address, bank details and the rest are kept by the school office. Tell them what to correct.</Text>
+      <View style={s.acts}>
+        <TouchableOpacity style={[s.btn, s.btnMain]} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="Ask for a correction">
+          <Ionicons name="create-outline" size={15} color="#fff" />
+          <Text style={[s.btnText, { color: '#fff' }]}>Ask for a correction</Text>
+        </TouchableOpacity>
+      </View>
+      {requests.map((r) => (
+        <View key={r._id} style={s.askRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[s.sub, { flex: 1 }]}>{r.areaLabel} · {fmtDay(r.createdAt)}</Text>
+            <Badge label={ASK_STATE[r.status]?.label || r.status} tone={ASK_STATE[r.status]?.tone} />
+          </View>
+          <Text style={s.whyText}>“{r.message}”</Text>
+          {!!r.reply && <Text style={s.next}>The office: “{r.reply}”</Text>}
+        </View>
+      ))}
+
+      <FormModal visible={open} title="Ask the office to correct your record" onClose={() => setOpen(false)} onSubmit={send} submitting={busy} submitLabel="Send to the office">
+        <Select label="What is it about" value={area}
+          options={(data?.areas || []).map((a: any) => ({ label: a.label, value: a.value }))}
+          onChange={(v) => setArea(v || 'other')} />
+        <Input label="What is wrong, and what should it be" value={message} onChange={(v) => setMessage(v.slice(0, 600))} multiline text="sentence"
+          placeholder="e.g. My current address has changed to 14 Lake Road, Pune 411001" />
+        <Text style={s.foot}>Do not put a full Aadhaar or bank account number here — hand those to the office.</Text>
+      </FormModal>
+    </Card>
   );
 }
 
@@ -223,4 +295,5 @@ const s = StyleSheet.create({
   btnMain: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   btnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   foot: { fontSize: 11.5, color: Colors.textLight, marginTop: Spacing.sm },
+  askRow: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
 });

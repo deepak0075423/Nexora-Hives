@@ -9,7 +9,7 @@ import * as dirApi from '@/api/employeeDirectory.api';
 import { BASE_URL } from '@/api/axios';
 import {
   unwrap, LoaderView, Empty, Badge, KV, SegTabs, Card, SectionTitle, RowItem,
-  StatTile, StatRow, fmtDate, ActionBtn,
+  StatTile, StatRow, fmtDate, ActionBtn, FormModal, Select,
 } from '@/components/ui/kit';
 import { Avatar } from './employee-directory';
 import { withFileToken, openUpload } from '@/utils/fileAccess';
@@ -25,7 +25,13 @@ const fileUrl = (p?: string) => withFileToken(!p ? '' : /^https?:/.test(p) ? p :
 
 const STATUS_TONE: Record<string, any> = { active: 'success', on_leave: 'warning', inactive: 'neutral' };
 const STATUS_LABEL: Record<string, string> = { active: 'Active', on_leave: 'On Leave', inactive: 'Inactive' };
-const VERIFY_TONE: Record<string, any> = { verified: 'success', pending: 'warning', rejected: 'danger' };
+const VERIFY_TONE: Record<string, any> = { verified: 'success', pending: 'warning', rejected: 'danger', resubmitted: 'info', missing: 'neutral' };
+const DOC_WORD: Record<string, string> = { missing: 'Not uploaded', pending: 'Awaiting review', resubmitted: 'Re-submitted', verified: 'Verified', rejected: 'Rejected' };
+const STAGE_LABEL: Record<string, string> = {
+  probation: 'On probation', confirmed: 'Confirmed', notice: 'Serving notice',
+  resigned: 'Resigned', terminated: 'Terminated', retired: 'Retired',
+};
+const STAGE_OPTIONS = [{ label: 'Not stated', value: '' }, ...Object.entries(STAGE_LABEL).map(([value, label]) => ({ label, value }))];
 
 const addr = (a: any) => (!a ? '' : [a.line, a.city, a.state, a.pincode, a.country].filter(Boolean).join(', '));
 const dash = (v: any) => (v === '' || v == null ? '--' : String(v));
@@ -44,7 +50,15 @@ export default function EmployeeDirectoryDetailScreen() {
   const [timetable, setTimetable] = useState<any>(null);
   const [attendance, setAttendance] = useState<any>(null);
   const [leave, setLeave] = useState<any>(null);
-  const [subError, setSubError] = useState('');
+  // One message per tab: a tab that failed must not put its error over
+  // another tab's data that loaded fine.
+  const [subErrors, setSubErrors] = useState<Record<string, string>>({});
+  const subError = subErrors[tab] || '';
+  const [history, setHistory] = useState<any>(null);
+  // Edit employment (administrators): department, type, manager, stage.
+  const [meta, setMeta] = useState<any>(null);
+  const [editing, setEditing] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
   // Values unmasked by an explicit, audited action.
   const [revealed, setRevealed] = useState<Record<string, string>>({});
 
@@ -67,10 +81,12 @@ export default function EmployeeDirectoryDetailScreen() {
     if (!id) return;
     const run = async (fetcher: () => Promise<any>, set: (v: any) => void, cached: any) => {
       if (cached) return;
-      setSubError('');
+      const which = tab;
+      setSubErrors(m => ({ ...m, [which]: '' }));
       try { const r = await fetcher(); if (alive) set(unwrap(r)); }
-      catch (e: any) { if (alive) setSubError(e?.message || 'Could not load this section'); }
+      catch (e: any) { if (alive) setSubErrors(m => ({ ...m, [which]: e?.message || 'Could not load this section' })); }
     };
+    if (tab === 'history')    run(() => dirApi.getHistory(String(id)),    setHistory,    history);
     if (tab === 'timetable')  run(() => dirApi.getTimetable(String(id)),  setTimetable,  timetable);
     if (tab === 'attendance') run(() => dirApi.getAttendance(String(id)), setAttendance, attendance);
     if (tab === 'leave')      run(() => dirApi.getLeave(String(id)),      setLeave,      leave);
@@ -105,17 +121,40 @@ export default function EmployeeDirectoryDetailScreen() {
     { key: 'documents',   label: 'Documents',  show: !!vis.documents },
     { key: 'govtIds',     label: 'Govt IDs',   show: !!vis.governmentId },
     { key: 'bank',        label: 'Bank',       show: !!vis.bank || !!vis.payroll },
-    { key: 'verification', label: 'Verify',    show: true },
-  ].filter(t => t.show).map(({ key, label }) => ({ key, label }))), [modules, vis]);
+    { key: 'verification', label: 'Verify',    show: !!vis.verification },
+    { key: 'history',     label: 'History',    show: !!data?.viewer?.isAdmin },
+  ].filter(t => t.show).map(({ key, label }) => ({ key, label }))), [modules, vis, data]);
 
-  const reveal = async (field: string, label: string) => {
+  // The value is shown in its own row and nowhere else — not in a system
+  // dialog, which lingers in the app switcher. Hiding needs no request.
+  const reveal = async (field: string) => {
     try {
       const res: any = unwrap(await dirApi.revealField(String(id), field));
       setRevealed(r => ({ ...r, [field]: res.value }));
-      Alert.alert(label, `${res.value}\n\nThis has been recorded in the audit log.`);
     } catch (e: any) {
-      Alert.alert('Not permitted', e?.message || 'You cannot reveal this value.');
+      Alert.alert('Could not show this', e?.message || 'You cannot reveal this value.');
     }
+  };
+  const hide = (field: string) => setRevealed(r => { const n = { ...r }; delete n[field]; return n; });
+
+  const startEdit = async () => {
+    const e = data?.employment || {};
+    setEditing({
+      department: e.department || '',
+      staffType: e.staffTypeSource === 'set' ? (e.staffType || '') : '',
+      reportingManager: e.reportingManager?._id || '',
+      employmentStage: e.employmentStage || '',
+    });
+    if (!meta) { try { setMeta(unwrap(await dirApi.getMeta())); } catch { /* the selects stay empty */ } }
+  };
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await dirApi.updateEmployment(String(id), editing);
+      setEditing(null);
+      await load();
+    } catch (e: any) { Alert.alert('Could not save', e?.message || 'Please try again'); }
+    finally { setSaving(false); }
   };
 
   if (loading) return (<><Stack.Screen options={{ title: 'Employee' }} /><LoaderView /></>);
@@ -141,12 +180,20 @@ export default function EmployeeDirectoryDetailScreen() {
       <Text style={st.revealLabel}>{label}</Text>
       <Text style={st.revealValue}>{revealed[field] ?? (masked || '--')}</Text>
       {!!masked && allowed && !revealed[field] && (
-        <TouchableOpacity style={st.revealBtn} onPress={() => reveal(field, label)}>
+        <TouchableOpacity style={st.revealBtn} onPress={() => reveal(field)} accessibilityRole="button" accessibilityLabel={`Reveal ${label}`}>
           <Ionicons name="eye-outline" size={14} color={Colors.primary} />
           <Text style={st.revealBtnText}>Reveal</Text>
         </TouchableOpacity>
       )}
-      {!!revealed[field] && <Badge label="Logged" tone="warning" />}
+      {!!revealed[field] && (
+        <>
+          <Badge label="Logged" tone="warning" />
+          <TouchableOpacity style={st.revealBtn} onPress={() => hide(field)} accessibilityRole="button" accessibilityLabel={`Hide ${label}`}>
+            <Ionicons name="eye-off-outline" size={14} color={Colors.primary} />
+            <Text style={st.revealBtnText}>Hide</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 
@@ -229,7 +276,7 @@ export default function EmployeeDirectoryDetailScreen() {
       <ScrollView
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 120 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setTimetable(null); setAttendance(null); setLeave(null); load(); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setTimetable(null); setAttendance(null); setLeave(null); setHistory(null); load(); }} />}
       >
         {/* Identity */}
         <View style={st.header}>
@@ -278,13 +325,14 @@ export default function EmployeeDirectoryDetailScreen() {
             <KV label="Department" value={dash(o.department)} />
             <KV label="Employee Type" value={o.staffType === 'teaching' ? 'Teaching' : 'Non-Teaching'} />
             <KV label="Status" value={<Badge label={STATUS_LABEL[o.employmentStatus]} tone={STATUS_TONE[o.employmentStatus]} />} />
+            {!!o.employmentStage && <KV label="Employment" value={STAGE_LABEL[o.employmentStage] || o.employmentStage} />}
             <KV label="Joined" value={fmtDate(o.joiningDate)} />
             <KV label="Official Email" value={dash(o.officialEmail)} />
             <KV label="Official Mobile" value={dash(o.officialPhone)} />
             <KV label="Subjects" value={dash((o.subjects || []).join(', '))} />
             <KV label="Classes" value={dash((o.classes || []).map((c: any) => c.label).join(', '))} />
             <KV label="Class Teacher of" value={dash((o.classTeacherOf || []).join(', '))} />
-            <KV label="Reporting Manager" value={dash(o.reportingManager?.name)} />
+            <KV label="Reporting Manager" value={dash(o.reportingManager ? `${o.reportingManager.name}${o.reportingManager.inactive ? ' (deactivated)' : ''}` : '')} />
           </Card>
         )}
 
@@ -331,8 +379,18 @@ export default function EmployeeDirectoryDetailScreen() {
             {data.employment?.totalExperience !== undefined && <KV label="Total Experience" value={dash(experienceText(data.employment.totalExperience))} />}
             {data.employment?.previousSchool !== undefined && <KV label="Previous School" value={dash(data.employment.previousSchool)} />}
             {data.employment?.lastDesignation !== undefined && <KV label="Previous Designation" value={dash(data.employment.lastDesignation)} />}
-            <KV label="Reporting Manager" value={dash(data.employment?.reportingManager?.name)} />
+            <KV label="Reporting Manager" value={dash(data.employment?.reportingManager ? `${data.employment.reportingManager.name}${data.employment.reportingManager.inactive ? ' (deactivated)' : ''}` : '')} />
+            {!!data.employment?.employmentStage && <KV label="Employment Stage" value={STAGE_LABEL[data.employment.employmentStage] || '--'} />}
+            {!!data.employment?.probationEndDate && <KV label="Probation Ends" value={fmtDate(data.employment.probationEndDate)} />}
+            {!!data.employment?.confirmationDate && <KV label="Confirmed On" value={fmtDate(data.employment.confirmationDate)} />}
+            {!!data.employment?.exitDate && <KV label="Last Working Day" value={fmtDate(data.employment.exitDate)} />}
+            {!!data.employment?.exitReason && <KV label="Reason for Leaving" value={data.employment.exitReason} />}
             <KV label="Campus / Branch" value="Not configured in this ERP" />
+            {viewer.isAdmin && data.hasProfile !== false && (
+              <View style={{ marginTop: Spacing.sm, alignSelf: 'flex-start' }}>
+                <ActionBtn label="Edit employment" tone="info" small onPress={startEdit} />
+              </View>
+            )}
           </Card>
         )}
 
@@ -347,7 +405,7 @@ export default function EmployeeDirectoryDetailScreen() {
                 <KV label="Institution" value={dash(q.institution)} />
                 <KV label="Passing Year" value={dash(q.passingYear)} />
                 <KV label="Grade" value={dash(q.grade)} />
-                <KV label="Verification" value={<Badge label={q.verificationStatus} tone={VERIFY_TONE[q.verificationStatus]} />} />
+                {!!q.verificationStatus && <KV label="Verification" value={<Badge label={q.verificationStatus} tone={VERIFY_TONE[q.verificationStatus]} />} />}
               </Card>
             ))
         )}
@@ -439,7 +497,7 @@ export default function EmployeeDirectoryDetailScreen() {
                       <StatTile label="Leave" value={attendance.leave} icon="airplane" tone="neutral" />
                       <StatTile label="Marked" value={attendance.marked} icon="calendar" tone="info" />
                     </StatRow>
-                    <Text style={st.note}>Summary only — the full register lives in the Attendance module.</Text>
+                    <Text style={st.note}>{attendance.range?.label || 'Last six months'} ({fmtDate(attendance.range?.from)} – {fmtDate(attendance.range?.to)}). Summary only — the full register lives in the Attendance module.</Text>
                   </>
                 )
         )}
@@ -469,12 +527,12 @@ export default function EmployeeDirectoryDetailScreen() {
                         <SectionTitle>Upcoming</SectionTitle>
                         <Card>
                           {leave.upcoming.map((l: any, i: number) => (
-                            <KV key={i} label={l.leaveType} value={`${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)} · ${l.totalDays}d`} />
+                            <KV key={i} label={`${l.leaveType}${l.ongoing ? ' · on leave now' : ''}`} value={`${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)} · ${l.totalDays}d`} />
                           ))}
                         </Card>
                       </>
                     )}
-                    <Text style={st.note}>Summary only — applications live in the Leave module.</Text>
+                    <Text style={st.note}>{leave.balanceYear ? `Balances and requests for ${leave.balanceYear}. ` : ''}Summary only — applications live in the Leave module.</Text>
                   </>
                 )
         )}
@@ -489,9 +547,11 @@ export default function EmployeeDirectoryDetailScreen() {
                     <RowItem
                       key={d.key}
                       title={d.label}
-                      sub={`${d.category} · ${d.verificationStatus}${d.verifiedBy ? ` by ${d.verifiedBy}` : ''}`}
+                      sub={[d.required ? 'Required' : 'Optional', d.fileName ? (d.uploadedAt ? `uploaded ${fmtDate(d.uploadedAt)}` : 'on file') : '',
+                        d.verificationStatus === 'verified' && d.verifiedBy ? `accepted by ${d.verifiedBy}` : '',
+                        d.rejectionComment && d.verificationStatus === 'rejected' ? `“${d.rejectionComment}”` : ''].filter(Boolean).join(' · ')}
                       icon={d.sensitive ? 'shield' : 'document-text'}
-                      right={<Badge label={d.verificationStatus} tone={VERIFY_TONE[d.verificationStatus]} />}
+                      right={<Badge label={DOC_WORD[d.verificationStatus] || d.verificationStatus} tone={VERIFY_TONE[d.verificationStatus]} />}
                       onPress={d.url ? () => openUpload(fileUrl(d.url), d.label || d.name) : undefined}
                     />
                   ))}
@@ -524,7 +584,7 @@ export default function EmployeeDirectoryDetailScreen() {
                 <SectionTitle>Bank</SectionTitle>
                 <KV label="Account Holder" value={dash(data.bank.accountHolder)} />
                 <RevealRow label="Account Number" masked={data.bank.accountNumber} field="bankAccountNumber"
-                  allowed={!!viewer.canReveal && !!viewer.canViewPayroll} />
+                  allowed={!!viewer.canRevealBank} />
                 <KV label="IFSC" value={dash(data.bank.ifsc)} />
                 <KV label="Branch" value={dash(data.bank.branch)} />
                 <KV label="Verification" value={<Badge label={data.bank.verificationStatus} tone={VERIFY_TONE[data.bank.verificationStatus]} />} />
@@ -559,7 +619,39 @@ export default function EmployeeDirectoryDetailScreen() {
             {!viewer.isAdmin && <Text style={st.note}>Verification is signed off by your school administrator.</Text>}
           </Card>
         )}
+        {tab === 'history' && (
+          subError ? <Empty icon="cloud-offline-outline" text={subError} />
+            : !history ? <LoaderView />
+              : (history.events || []).length === 0 ? <Empty icon="time-outline" text="Nothing has been recorded on this record yet" />
+                : (
+                  <Card>
+                    {history.events.map((ev: any) => (
+                      <RowItem key={ev._id} title={ev.text}
+                        sub={`${ev.bySelf ? 'The employee' : ev.by} · ${fmtDate(ev.at)}`}
+                        icon={ev.sensitive ? 'eye' : 'time'} />
+                    ))}
+                  </Card>
+                )
+        )}
       </ScrollView>
+      <FormModal visible={!!editing} title="Edit employment" onClose={() => setEditing(null)} onSubmit={saveEdit} submitting={saving}>
+        {!!editing && (
+          <>
+            <Select label="Department" value={editing.department}
+              options={[{ label: 'No department', value: '' }, ...((meta?.filters?.departments || []).filter((d: string) => d !== 'Unassigned').map((d: string) => ({ label: d, value: d })))]}
+              onChange={v => setEditing((f: any) => ({ ...f, department: v }))} />
+            <Select label="Employee type" value={editing.staffType}
+              options={[{ label: 'Read it from the assignments', value: '' }, { label: 'Teaching', value: 'teaching' }, { label: 'Non-Teaching', value: 'non_teaching' }]}
+              onChange={v => setEditing((f: any) => ({ ...f, staffType: v }))} />
+            <Select label="Reporting manager" value={editing.reportingManager}
+              options={[{ label: 'None', value: '' }, ...((meta?.filters?.managers || []).filter((m: any) => m._id !== String(id)).map((m: any) => ({ label: m.designation ? `${m.label} — ${m.designation}` : m.label, value: m._id })))]}
+              onChange={v => setEditing((f: any) => ({ ...f, reportingManager: v }))} />
+            <Select label="Employment stage" value={editing.employmentStage} options={STAGE_OPTIONS}
+              onChange={v => setEditing((f: any) => ({ ...f, employmentStage: v }))} />
+            <Text style={st.note}>Dates (probation, confirmation, last working day) and the rest of the record are edited on the web.</Text>
+          </>
+        )}
+      </FormModal>
     </>
   );
 }

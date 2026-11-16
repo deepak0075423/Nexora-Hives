@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as dirApi from '@/api/employeeDirectory.api';
@@ -29,20 +29,44 @@ const STATUS_LABEL: Record<string, string> = { active: 'Active', on_leave: 'On L
 //
 // `accountStatus` starts at 'active' — an inactive account is one pick away, and
 // Clear returns here rather than to "everyone", so the list keeps its meaning.
-const EMPTY_FILTERS: Record<string, string> = { designation: '', accountStatus: 'active' };
+const EMPTY_FILTERS: Record<string, string> = { department: '', designation: '', staffType: '', accountStatus: 'active' };
 
 const ACCOUNT_STATUS_OPTIONS = [
-  { label: 'Active teachers',   value: 'active' },
-  { label: 'Inactive teachers', value: 'inactive' },
-  { label: 'All teachers',      value: 'all' },
+  { label: 'Active accounts',   value: 'active' },
+  { label: 'Inactive accounts', value: 'inactive' },
+  { label: 'All accounts',      value: 'all' },
+];
+const STAFF_OPTIONS = [
+  { label: 'All staff',    value: '' },
+  { label: 'Teaching',     value: 'teaching' },
+  { label: 'Non-Teaching', value: 'non_teaching' },
+];
+const SORT_OPTIONS = [
+  { label: 'Name (A–Z)',  value: 'name' },
+  { label: 'Employee ID', value: 'employeeId' },
+  { label: 'Designation', value: 'designation' },
+  { label: 'Department',  value: 'department' },
 ];
 
 // The page sizes the list offers, matching the web directory.
 const PAGE_SIZES = [5, 10, 15, 20];
 
 export function Avatar({ name, src, size = 42 }: { name?: string; src?: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [src]);
   const initials = String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2)
     .map(w => w[0]).join('').toUpperCase();
+  // The account photo when there is one (and it loads); initials otherwise.
+  if (src && !broken) {
+    return (
+      <Image
+        source={{ uri: src }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: Colors.surfaceAlt }}
+        onError={() => setBroken(true)}
+        accessibilityLabel={name ? `${name}'s photo` : 'Photo'}
+      />
+    );
+  }
   return (
     <View style={[s.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
       <Text style={[s.avatarText, { fontSize: size * 0.38 }]}>{initials || '?'}</Text>
@@ -62,7 +86,14 @@ export default function EmployeeDirectoryScreen() {
 
   const [search,   setSearch]   = useState('');
   const [term,     setTerm]     = useState('');
-  const [filters,  setFilters]  = useState(EMPTY_FILTERS);
+  // Opened from a department or designation row: start on exactly those people.
+  const start = useLocalSearchParams<{ department?: string; designation?: string; accountStatus?: string }>();
+  const [filters,  setFilters]  = useState<Record<string, string>>(() => ({
+    ...EMPTY_FILTERS,
+    ...(start.department ? { department: String(start.department) } : {}),
+    ...(start.designation ? { designation: String(start.designation) } : {}),
+    ...(start.accountStatus ? { accountStatus: String(start.accountStatus) } : {}),
+  }));
   const [sortBy,   setSortBy]   = useState('name');
   const [limit,     setLimit]   = useState(10);
 
@@ -139,6 +170,14 @@ export default function EmployeeDirectoryScreen() {
 
   const opts = meta?.filters || {};
   const isAdmin = !!meta?.viewer?.isAdmin;
+  // Every tile opens what it counts: pressing one sets the filters that list
+  // exactly those people, as the same tiles do on the web.
+  const show = (next: Record<string, string>) => { setFilters({ ...EMPTY_FILTERS, accountStatus: 'all', ...next }); setSearch(''); setTerm(''); setPage(1); };
+  const Tile = ({ onPress, ...p }: any) => (
+    <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.75} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${p.label}: ${p.value}`}>
+      <StatTile {...p} />
+    </TouchableOpacity>
+  );
   const t = dashboard?.totals || {};
   const activeCount = Object.entries(filters).filter(([k, v]) => v && v !== EMPTY_FILTERS[k]).length;
 
@@ -159,20 +198,25 @@ export default function EmployeeDirectoryScreen() {
         {isAdmin && dashboard && (
           <>
             <StatRow>
-              <StatTile label="Employees" value={t.employees ?? 0} icon="people" tone="info" />
-              <StatTile label="Active" value={t.active ?? 0} icon="checkmark-circle" tone="success" />
-              <StatTile label="On Leave" value={t.onLeave ?? 0} icon="airplane" tone="warning" />
+              <Tile label="Employees" value={t.employees ?? 0} icon="people" tone="info" onPress={() => show({})} />
+              <Tile label="Active" value={t.active ?? 0} icon="checkmark-circle" tone="success" onPress={() => show({ status: 'active' })} />
+              <Tile label="On Leave" value={t.onLeave ?? 0} icon="airplane" tone="warning" onPress={() => show({ status: 'on_leave' })} />
             </StatRow>
             <StatRow>
-              <StatTile label="Teaching" value={t.teaching ?? 0} icon="school" tone="info" />
-              <StatTile label="Non-Teaching" value={t.nonTeaching ?? 0} icon="construct" tone="neutral" />
-              <StatTile label="Inactive" value={t.inactive ?? 0} icon="close-circle" tone="danger" />
+              <Tile label="Teaching" value={t.teaching ?? 0} icon="school" tone="info" onPress={() => show({ staffType: 'teaching' })} />
+              <Tile label="Non-Teaching" value={t.nonTeaching ?? 0} icon="construct" tone="neutral" onPress={() => show({ staffType: 'non_teaching' })} />
+              <Tile label="Inactive" value={t.inactive ?? 0} icon="close-circle" tone="danger" onPress={() => show({ accountStatus: 'inactive' })} />
             </StatRow>
             <StatRow>
-              <StatTile label="Incomplete" value={t.incompleteProfiles ?? 0} icon="document-text" tone="warning" />
-              <StatTile label="To Verify" value={t.pendingVerification ?? 0} icon="shield-checkmark" tone="warning" />
-              <StatTile label="Docs Missing" value={t.documentsNeedAttention ?? 0} icon="alert-circle" tone="danger" />
+              <Tile label="Incomplete" value={t.incompleteProfiles ?? 0} icon="document-text" tone="warning" onPress={() => show({ completion: 'incomplete', accountStatus: 'active' })} />
+              <Tile label="To Verify" value={t.pendingVerification ?? 0} icon="shield-checkmark" tone="warning" onPress={() => router.push('/modules/employee-verification' as any)} />
+              <Tile label="Owe Documents" value={t.documentsNeedAttention ?? 0} icon="alert-circle" tone="danger" onPress={() => router.push('/modules/employee-verification?tab=reminders' as any)} />
             </StatRow>
+            <TouchableOpacity style={s.moreLink} onPress={() => router.push('/modules/employee-directory-admin' as any)} accessibilityRole="button">
+              <Ionicons name="business-outline" size={16} color={Colors.primary} />
+              <Text style={s.moreLinkText}>Departments, designations, organisation &amp; reports</Text>
+              <Ionicons name="chevron-forward" size={15} color={Colors.primary} />
+            </TouchableOpacity>
           </>
         )}
 
@@ -183,6 +227,13 @@ export default function EmployeeDirectoryScreen() {
         />
 
         <Select
+          label="Department"
+          value={filters.department}
+          options={opt(opts.departments)}
+          onChange={v => setFilter('department', v)}
+        />
+
+        <Select
           label="Designation"
           value={filters.designation}
           options={opt(opts.designations)}
@@ -190,14 +241,31 @@ export default function EmployeeDirectoryScreen() {
         />
 
         <Select
-          label="Status"
-          value={filters.accountStatus}
-          options={ACCOUNT_STATUS_OPTIONS}
-          onChange={v => setFilter('accountStatus', v)}
+          label="Staff type"
+          value={filters.staffType}
+          options={STAFF_OPTIONS}
+          onChange={v => setFilter('staffType', v)}
+        />
+
+        {/* Deactivated accounts are the office's to browse, not a colleague's. */}
+        {isAdmin && (
+          <Select
+            label="Account"
+            value={filters.accountStatus}
+            options={ACCOUNT_STATUS_OPTIONS}
+            onChange={v => setFilter('accountStatus', v)}
+          />
+        )}
+
+        <Select
+          label="Sort by"
+          value={sortBy}
+          options={SORT_OPTIONS}
+          onChange={v => { setSortBy(v || 'name'); setPage(1); }}
         />
 
         <View style={s.filterBar}>
-          {(activeCount > 0 || term) && (
+          {(activeCount > 0 || !!term) && (
             <TouchableOpacity style={s.filterBtn} onPress={reset}>
               <Ionicons name="close" size={15} color={Colors.danger} />
               <Text style={[s.filterBtnText, { color: Colors.danger }]}>Clear</Text>
@@ -304,6 +372,12 @@ const s = StyleSheet.create({
   metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
   meta: { fontSize: 12, color: Colors.textSecondary },
   contact: { fontSize: 11.5, color: Colors.textLight, marginTop: 6 },
+  moreLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface,
+    borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.md, paddingVertical: 11, marginBottom: Spacing.md,
+  },
+  moreLinkText: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.primary },
   filterBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
   filterBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7,
