@@ -23,6 +23,7 @@ import {
   Figures, Panel, Facts, Pill, PersonRow, NoteBox, Blank, Ledger, NetBar,
   MiniRow, MiniStat, saveAndShare, money, compactMoney, shortDate, PAYMENT_MODE, STRUCTURE_TYPE,
 } from '@/components/payroll/parts';
+import MyClaimsTab from '@/components/payroll/MyClaimsTab';
 
 export default function MyPayrollScreen() {
   const [tab, setTab] = useState('salary');
@@ -34,6 +35,7 @@ export default function MyPayrollScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -72,15 +74,17 @@ export default function MyPayrollScreen() {
       <ScrollView
         style={{ flex: 1, backgroundColor: Colors.background }}
         contentContainerStyle={{ padding: Spacing.md, paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); setRefreshKey(k => k + 1); load(); }} tintColor={Colors.primary} />}
       >
         <View style={{ marginBottom: Spacing.sm }}>
           <SegTabs
-            tabs={[{ key: 'salary', label: 'My Salary' }, { key: 'slips', label: `Payslips (${slips.length})` }]}
+            tabs={[{ key: 'salary', label: 'My Salary' }, { key: 'slips', label: `Payslips (${slips.length})` }, { key: 'claims', label: 'Claims & Tax' }]}
             active={tab} onChange={setTab} />
         </View>
 
-        {loading ? <LoaderView /> : tab === 'salary' ? (
+        {loading ? <LoaderView /> : tab === 'claims' ? (
+          <MyClaimsTab refreshKey={refreshKey} />
+        ) : tab === 'salary' ? (
           // `hasSalary` is the flag, not the truthiness of the payload: the
           // endpoint answers with the employee's own details either way.
           !d || d.hasSalary === false ? (
@@ -225,13 +229,14 @@ export default function MyPayrollScreen() {
                           {detail.lopDays} unpaid {detail.lopDays === 1 ? 'day' : 'days'} reduced your earnings by {money(detail.lopAmount)} this month.
                         </Text>
                       )}
-                      {(detail.arrears > 0 || detail.bonus > 0 || detail.reimbursement > 0) && (
+                      {(detail.arrears > 0 || detail.bonus > 0 || detail.reimbursement > 0 || detail.settlementAmount > 0) && (
                         <Ledger title="Additions"
-                          total={detail.arrears + detail.bonus + detail.reimbursement}
+                          total={detail.arrears + detail.bonus + detail.reimbursement + (detail.settlementAmount || 0)}
                           rows={[
                             ...(detail.arrears > 0 ? [{ name: 'Arrears', amount: detail.arrears }] : []),
                             ...(detail.bonus > 0 ? [{ name: 'Bonus', amount: detail.bonus }] : []),
                             ...(detail.reimbursement > 0 ? [{ name: 'Expenses reimbursed', amount: detail.reimbursement }] : []),
+                            ...(detail.settlementAmount > 0 ? [{ name: 'Final settlement', amount: detail.settlementAmount }] : []),
                           ]} />
                       )}
                       <Ledger title="Deductions" tone="red"

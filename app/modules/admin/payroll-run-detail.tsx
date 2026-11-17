@@ -37,6 +37,10 @@ export default function AdminPayrollRunDetailScreen() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  // An action that has to be explained (send back, reverse), and a payment record.
+  const [asking, setAsking] = useState<null | { title: string; body: string; label: string; run: (why: string) => Promise<any>; done: string }>(null);
+  const [why, setWhy] = useState('');
+  const [paying, setPaying] = useState<null | { paidOn: string; reference: string }>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -49,10 +53,20 @@ export default function AdminPayrollRunDetailScreen() {
 
   const act = async (fn: () => Promise<any>, okTitle?: string, okBody?: string) => {
     setBusy(true);
-    try { await fn(); await load(); if (okTitle) Alert.alert(okTitle, okBody || ''); }
+    try {
+      const res: any = await fn();
+      await load();
+      // A change to a run that had been signed off takes the sign-off with it.
+      const reopened = res?.data?.reopened ?? res?.reopened;
+      if (reopened) Alert.alert(okTitle || 'Saved', 'This run had already been signed off, so it has gone back to draft. It needs review and approval again.');
+      else if (okTitle) Alert.alert(okTitle, okBody || '');
+      return res;
+    }
     catch (err: any) { Alert.alert('Could not do that', err.message); }
     finally { setBusy(false); }
   };
+  const ask = (a: NonNullable<typeof asking>) => { setWhy(''); setAsking(a); };
+  const bankReady = run?.status === 'approved' || run?.status === 'published';
 
   /** The single button that moves this run on, exactly as the web decides it. */
   const next = (() => {
@@ -61,7 +75,7 @@ export default function AdminPayrollRunDetailScreen() {
     if (run.status === 'reviewed') return { label: 'Approve Run', run: () => payrollApi.updateRunStatus(id!, 'approved'), msg: 'Approved' };
     if (run.status === 'approved') return {
       label: 'Publish & Pay', run: () => payrollApi.publishRun(id!), msg: 'Published',
-      confirm: [`Publish ${run.runName}?`, `${run.totalEmployees} payslips will be issued and every employee told their net pay. A published run is locked.`, 'Publish'] as [string, string, string],
+      confirm: [`Publish ${run.runName}?`, `${run.totalEmployees} payslips will be issued and every employee told theirs is ready. A published run is locked.`, 'Publish'] as [string, string, string],
     };
     return null;
   })();
@@ -182,12 +196,21 @@ export default function AdminPayrollRunDetailScreen() {
                       act(next.run, next.msg);
                     }} />
                 )}
+                {(run.status === 'reviewed' || run.status === 'approved') && (
+                  <ActionBtn label="Send back" tone="neutral" small disabled={busy}
+                    onPress={() => ask({
+                      title: 'Send back to draft', label: 'Send back', done: 'Sent back to draft',
+                      body: `${run.runName} loses its review and approval and goes back to whoever prepared it.`,
+                      run: (w) => payrollApi.updateRunStatus(id!, 'draft', w),
+                    })} />
+                )}
                 {run.status === 'published' && (
                   <ActionBtn label="Reverse publish" tone="danger" small disabled={busy}
-                    onPress={async () => {
-                      if (!(await confirmAsync('Reverse the publish?', `The ${run.totalEmployees} payslips issued for ${run.runName} will be withdrawn and the run returned to approved.`, 'Reverse'))) return;
-                      act(() => payrollApi.unpublishRun(id!), 'Reversed');
-                    }} />
+                    onPress={() => ask({
+                      title: 'Reverse the publish', label: 'Reverse', done: 'Reversed',
+                      body: `The ${run.totalEmployees} payslips issued for ${run.runName} will be withdrawn and the run returned to approved. Everyone who was sent one is told.`,
+                      run: (w) => payrollApi.unpublishRun(id!, w),
+                    })} />
                 )}
                 {!locked && (
                   <ActionBtn label="Recompute" tone="neutral" small disabled={busy}
@@ -198,9 +221,37 @@ export default function AdminPayrollRunDetailScreen() {
               <View style={st.actions}>
                 <ActionBtn label="Salary register" tone="neutral" small
                   onPress={() => saveAndShare(() => payrollApi.downloadRunExport(id!), `salary_register_${run.period.replace(' ', '_')}.csv`, 'text/csv')} />
-                <ActionBtn label="Bank file" tone="neutral" small
-                  onPress={() => saveAndShare(() => payrollApi.downloadBankFile(id!), `bank_transfer_${run.period.replace(' ', '_')}.csv`, 'text/csv')} />
+                {/* An instruction to a bank: only for figures somebody has approved. */}
+                {bankReady && (
+                  <ActionBtn label="Bank file" tone="neutral" small
+                    onPress={() => saveAndShare(() => payrollApi.downloadBankFile(id!), `bank_transfer_${run.period.replace(' ', '_')}.csv`, 'text/csv')} />
+                )}
               </View>
+              {run.status === 'published' && (
+                <>
+                  <Facts items={[
+                    ['Paid', run.paidOn ? `${new Date(run.paidOn).toLocaleDateString('en-IN')}${run.paymentRef ? ` · ${run.paymentRef}` : ''}` : 'Not recorded yet'],
+                  ] as [string, React.ReactNode][]} />
+                  <View style={st.actions}>
+                    <ActionBtn label={run.paidOn ? 'Change payment' : 'Record payment'} tone="neutral" small
+                      onPress={() => setPaying({
+                        paidOn: (run.paidOn ? new Date(run.paidOn) : new Date()).toISOString().slice(0, 10),
+                        reference: run.paymentRef || '',
+                      })} />
+                    <ActionBtn label="All payslips" tone="neutral" small
+                      onPress={() => saveAndShare(() => payrollApi.downloadRunPayslips(id!), `payslips_${run.period.replace(' ', '_')}.pdf`)} />
+                    <ActionBtn label="Send unsent payslips" tone="neutral" small disabled={busy}
+                      onPress={async () => {
+                        const res: any = await act(() => payrollApi.resendPayslips(id!));
+                        const queued = res?.data?.queued ?? 0;
+                        Alert.alert('Payslips', queued ? `Sent again to ${queued} employee${queued === 1 ? '' : 's'}.` : 'Everyone has already been sent their payslip.');
+                      }} />
+                  </View>
+                </>
+              )}
+              {!!run.reversalReason && run.status !== 'published' && run.status !== 'cancelled' && (
+                <NoteBox tone="blue" icon="information-circle">Came back for a reason: {run.reversalReason}</NoteBox>
+              )}
             </Panel>
 
             <View style={{ marginBottom: Spacing.sm }}>
@@ -230,10 +281,25 @@ export default function AdminPayrollRunDetailScreen() {
         submitLabel={locked ? '' : 'Save Entry'}>
         {!!editing && (
           <>
-            {locked && (
+            {locked && !(run.status === 'published' && editing.isOnHold) && (
               <NoteBox tone="slate" icon="lock-closed">
                 This run is {run.status === 'published' ? 'published and locked' : 'cancelled'}. Reverse the publish to change an entry.
               </NoteBox>
+            )}
+            {run.status === 'published' && editing.isOnHold && (
+              <>
+                <NoteBox tone="amber" icon="pause-circle">
+                  Held back when the run was published — no payslip was issued and nothing was recovered or reimbursed.
+                  Releasing it now issues the payslip and tells {editing.employee.name}.
+                </NoteBox>
+                <View style={st.actions}>
+                  <ActionBtn label="Release and issue payslip" tone="primary" small disabled={busy}
+                    onPress={async () => {
+                      await act(() => payrollApi.holdRunEntry(id!, editing._id, { hold: false }), 'Released', 'The payslip has been issued.');
+                      setEditing(null);
+                    }} />
+                </View>
+              </>
             )}
 
             <MiniRow>
@@ -313,6 +379,39 @@ export default function AdminPayrollRunDetailScreen() {
               </View>
             )}
           </>
+        )}
+      </FormModal>
+
+      <FormModal visible={!!asking} title={asking?.title || ''} onClose={() => setAsking(null)}
+        submitting={busy} submitLabel={asking?.label || 'Confirm'}
+        onSubmit={async () => {
+          if (why.trim().length < 3) { Alert.alert('Reason', 'Say why — it is kept with the audit trail.'); return; }
+          const a = asking!;
+          setAsking(null);
+          await act(() => a.run(why.trim()), a.done);
+        }}>
+        <NoteBox tone="amber">{asking?.body}</NoteBox>
+        <Input text="sentence" label="Reason" value={why} onChange={setWhy} multiline placeholder="What has to be corrected?" />
+      </FormModal>
+
+      <FormModal visible={!!paying} title="Record payment" onClose={() => setPaying(null)}
+        submitting={busy} submitLabel="Save"
+        onSubmit={async () => {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(paying?.paidOn || '')) { Alert.alert('Date', 'Enter the date as YYYY-MM-DD.'); return; }
+          const p = paying!;
+          setPaying(null);
+          await act(() => payrollApi.recordPayment(id!, { paidOn: p.paidOn, reference: p.reference.trim() }), 'Payment recorded');
+        }}>
+        <Input text="date" label="Paid on (YYYY-MM-DD)" value={paying?.paidOn || ''}
+          onChange={(v: string) => setPaying(p => (p ? { ...p, paidOn: v } : p))} />
+        <Input text="code" label="Bank reference (UTR)" value={paying?.reference || ''}
+          onChange={(v: string) => setPaying(p => (p ? { ...p, reference: v } : p))} />
+        <NoteBox tone="blue" icon="information-circle">
+          Marks every payslip in the run as paid on that date. It does not move money — the transfer is made at the bank.
+        </NoteBox>
+        {!!run?.paidOn && (
+          <ActionBtn label="Clear the payment record" tone="danger" small
+            onPress={async () => { setPaying(null); await act(() => payrollApi.recordPayment(id!, { clear: true }), 'Payment record cleared'); }} />
         )}
       </FormModal>
     </>

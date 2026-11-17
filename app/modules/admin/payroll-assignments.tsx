@@ -145,10 +145,15 @@ export default function AdminPayrollAssignmentsScreen() {
   const applySettle = async () => {
     setSaving(true);
     try {
+      // The server prices the leaver's whole last month again — the days, the
+      // advances in full, the claims once. Only the two figures a school may
+      // argue with are sent; totals are not the phone's to post (it used to
+      // add the claims a second time, and the advances on top of the month's
+      // instalment).
       await payrollApi.applySettlement(settling._id, {
         runId: settleForm.runId,
-        addition: settlement.leaveEncashment.amount + settlement.gratuity.amount + settlement.claims.amount,
-        recovery: settlement.advances.outstanding,
+        leaveEncashment: settlement.leaveEncashment.amount,
+        gratuity: settlement.gratuity.amount,
         lastDay: settleForm.lastDay,
         note: settleForm.note,
       });

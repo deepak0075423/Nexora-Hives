@@ -135,7 +135,14 @@ export default function AdminPayrollSettingsScreen() {
 
             <Panel icon="cash" tone="green" title="Income tax" sub="Nothing is withheld until you choose a regime">
               <Select label="Regime" value={form.tax?.regime || 'none'}
-                onChange={(v: string) => setForm((f: any) => ({ ...f, tax: { ...(f.tax || {}), regime: v } }))}
+                // Each regime carries its own table; switching used to keep the
+                // other regime's slabs under the new name.
+                onChange={(v: string) => setForm((f: any) => ({
+                  ...f,
+                  tax: v !== 'none' && v !== f.tax?.regime && f.taxDefaults?.[v]
+                    ? { ...f.taxDefaults[v], regime: v }
+                    : { ...(f.tax || {}), regime: v },
+                }))}
                 options={[
                   { label: 'Deduct no tax', value: 'none' },
                   { label: 'New regime', value: 'new' },
@@ -167,7 +174,9 @@ export default function AdminPayrollSettingsScreen() {
               <Toggle label="Someone else must approve" value={form.separateApprover} onChange={set('separateApprover')}
                 sub="Whoever processed a run cannot sign it off as well. A school where only one account can reach payroll is let through regardless." />
               <Toggle label="Tell employees when a run is published" value={form.notifyOnPublish} onChange={set('notifyOnPublish')}
-                sub="An in-app notice and an email, with the payslip itself attached." />
+                sub="An in-app notice and an email, with the payslip itself attached. The notice does not state the amount." />
+              <Toggle label="Lock the emailed payslip with a password" value={form.protectPayslipPdf} onChange={set('protectPayslipPdf')}
+                sub="Opens with the employee's PAN in capitals, or their employee ID where no PAN is on file. Tell staff first." />
               <Toggle label="Open the month automatically" value={form.autoOpenRun} onChange={set('autoOpenRun')}
                 sub="Creates the run as a draft once the month has ended. Nothing automatic ever approves or publishes." />
               {form.autoOpenRun && (
@@ -185,7 +194,11 @@ export default function AdminPayrollSettingsScreen() {
             <Panel icon="business" tone="slate" title="Payslips and the bank">
               <Input text="code" label="Payslip prefix" value={form.payslipPrefix} onChange={set('payslipPrefix')} />
               <Input text="account" label="School bank account" value={form.bankAccountNumber} onChange={set('bankAccountNumber')} />
-              <Input label="Payslip footer note" value={form.payslipNote} onChange={set('payslipNote')} multiline />
+              <Input text="sentence" label="Payslip footer note" value={form.payslipNote} onChange={set('payslipNote')} multiline />
+              <Input text="upper" label="Employer TAN" value={form.employerTan || ''} placeholder="DELA12345B"
+                onChange={(v: string) => set('employerTan')(v.toUpperCase())} />
+              <Input text="pan" label="Employer PAN" value={form.employerPan || ''} placeholder="AAACS1234K"
+                onChange={(v: string) => set('employerPan')(v.toUpperCase())} />
             </Panel>
 
             <NoteBox tone="slate" icon="information-circle">

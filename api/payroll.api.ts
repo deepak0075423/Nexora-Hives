@@ -50,9 +50,12 @@ export const getPayrollRuns  = (p?: object) => api.get(`/payroll/admin/runs${qs(
 export const getRunDetail    = (id: string, p?: object) => api.get(`/payroll/admin/runs/${id}${qs(p)}`);
 export const createRun       = (data: object) => api.post('/payroll/admin/runs', data);
 export const recomputeRun    = (id: string, data?: object) => api.post(`/payroll/admin/runs/${id}/recompute`, data || {});
-export const updateRunStatus = (id: string, status: string) => api.patch(`/payroll/admin/runs/${id}/status`, { status });
+// `reason` is required to send a run back to draft and to reverse a publish.
+export const updateRunStatus = (id: string, status: string, reason?: string) => api.patch(`/payroll/admin/runs/${id}/status`, { status, reason });
 export const publishRun      = (id: string) => api.post(`/payroll/admin/runs/${id}/publish`, {});
-export const unpublishRun    = (id: string) => api.post(`/payroll/admin/runs/${id}/unpublish`, {});
+export const unpublishRun    = (id: string, reason?: string) => api.post(`/payroll/admin/runs/${id}/unpublish`, { reason });
+export const recordPayment   = (id: string, data: object) => api.patch(`/payroll/admin/runs/${id}/paid`, data);
+export const resendPayslips  = (id: string, data?: object) => api.post(`/payroll/admin/runs/${id}/notify`, data || {});
 export const cancelRun       = (id: string, data?: object) => api.patch(`/payroll/admin/runs/${id}/cancel`, data || {});
 export const deleteRun       = (id: string) => api.delete(`/payroll/admin/runs/${id}`);
 export const updateRunEntry  = (id: string, entryId: string, data: object) => api.put(`/payroll/admin/runs/${id}/entries/${entryId}`, data);
@@ -81,6 +84,10 @@ export const deleteReport   = (id: string) => api.delete(`/payroll/admin/reports
 export const getMyCtc         = () => api.get('/payroll/me/ctc');
 export const getMyPayslips    = (p?: object) => api.get(`/payroll/me/payslips${qs(p)}`);
 export const getPayslipDetail = (id: string) => api.get(`/payroll/me/payslips/${id}`);
+export const getMyTax         = (p?: object) => api.get(`/payroll/me/tax${qs(p)}`);
+export const getMyClaims      = () => api.get('/payroll/me/claims');
+export const createMyClaim    = (data: object) => api.post('/payroll/me/claims', data);
+export const deleteMyClaim    = (id: string) => api.delete(`/payroll/me/claims/${id}`);
 
 /**
  * Downloads come back as a Blob and are handed to the phone's share sheet —
@@ -90,6 +97,8 @@ export const getPayslipDetail = (id: string) => api.get(`/payroll/me/payslips/${
  */
 export const downloadMyPayslip   = (id: string) => api.get(`/payroll/me/payslips/${id}/download`, { responseType: 'blob' });
 export const downloadMyStatement = (p?: object) => api.get(`/payroll/me/statement${qs(p)}`, { responseType: 'blob' });
+export const downloadMyTaxStatement = (p?: object) => api.get(`/payroll/me/tax/statement${qs(p)}`, { responseType: 'blob' });
+export const downloadRunPayslips = (id: string) => api.get(`/payroll/admin/runs/${id}/payslips`, { responseType: 'blob' });
 export const downloadRunExport   = (id: string) => api.get(`/payroll/admin/runs/${id}/export`, { responseType: 'blob' });
 export const downloadBankFile    = (id: string) => api.get(`/payroll/admin/runs/${id}/bank-file`, { responseType: 'blob' });
 export const downloadReport      = (id: string) => api.get(`/payroll/admin/reports/${id}/download`, { responseType: 'blob' });
