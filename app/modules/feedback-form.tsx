@@ -57,7 +57,7 @@ export default function FeedbackFormScreen() {
   const [confirm, setConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendErr, setSendErr] = useState('');
-  const [sent, setSent] = useState<{ next: any } | null>(null);
+  const [sent, setSent] = useState<{ next: any; left: number; other: any } | null>(null);
   const ready = useRef(false);
 
   const questions: any[] = useMemo(() => q.data?.questions ?? [], [q.data]);
@@ -66,6 +66,15 @@ export default function FeedbackFormScreen() {
   const steps = [step1.length ? 'ratings' : null, step2.length ? 'more' : null].filter(Boolean) as string[];
   const current = steps[step - 1] === 'more' ? step2 : step1;
   const last = step >= steps.length;
+  // Ratings are shown grouped by category and the rest after them, so the order
+  // on screen is not the campaign's own: questions are numbered 1, 2, 3 … in the
+  // order the student reads them, straight through both steps.
+  const ratingGroups = useMemo(() => byCategory(step1), [step1]);
+  const numberOf = useMemo(() => {
+    const m = new Map<string, number>();
+    [...ratingGroups.flatMap(([, qs]) => qs), ...step2].forEach((x, i) => m.set(x._id, i + 1));
+    return m;
+  }, [ratingGroups, step2]);
 
   // Bring back anything started earlier, once the questions are known — a draft
   // answer to a question the campaign no longer has is simply dropped.
@@ -136,13 +145,29 @@ export default function FeedbackFormScreen() {
         }),
       });
       clearDraft(String(id));
+      // The next teacher in THIS campaign is offered as "up next". Once the
+      // campaign is finished, another open campaign is only ever asked about —
+      // moving into a different campaign is the student's decision.
       let next = null;
+      let left = 0;
+      let other: any = null;
       try {
-        const list: any[] = ((await fb.getPending()) as any)?.data ?? [];
-        next = list.find((r) => r._id !== id && r.campaign?._id === q.data.campaign?._id) || list.find((r) => r._id !== id) || null;
+        const list: any[] = (((await fb.getPending()) as any)?.data ?? []).filter((r: any) => r._id !== id);
+        const same = list.filter((r) => r.campaign?._id === q.data.campaign?._id);
+        next = same[0] || null;
+        left = same.length;
+        if (!same.length && list.length) {
+          const byCamp = new Map<string, any>();
+          for (const r of list) {
+            const k = r.campaign?._id || 'none';
+            if (!byCamp.has(k)) byCamp.set(k, { ...r.campaign, first: r, count: 0 });
+            byCamp.get(k).count += 1;
+          }
+          other = [...byCamp.values()].sort((x, y) => new Date(x.endDate || 8.64e15).getTime() - new Date(y.endDate || 8.64e15).getTime())[0] || null;
+        }
       } catch { /* the thank-you screen works without it */ }
       setConfirm(false);
-      setSent({ next });
+      setSent({ next, left, other });
       scroll.current?.scrollTo({ y: 0, animated: false });
     } catch (e) {
       setSendErr(errText(e));
@@ -184,7 +209,7 @@ export default function FeedbackFormScreen() {
             </Text>
             {sent.next ? (
               <View style={st.next}>
-                <Text style={st.nextLabel}>UP NEXT</Text>
+                <Text style={st.nextLabel}>UP NEXT IN {String(c.name || '').toUpperCase()} · {sent.left} LEFT</Text>
                 <View style={st.nextWho}>
                   <Avatar name={sent.next.teacher?.name} src={sent.next.teacher?.photo} size={42} />
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -196,9 +221,24 @@ export default function FeedbackFormScreen() {
                   onPress={() => router.replace({ pathname: '/modules/feedback-form', params: { id: sent.next._id } } as any)} />
               </View>
             ) : (
-              <Text style={st.allDone}>✨ That was the last one — you are all caught up.</Text>
+              <Text style={st.allDone}>✨ You have finished {c.name} — every teacher in it has your feedback.</Text>
             )}
-            <Btn label="Back to my feedback" onPress={() => router.back()} />
+            {!sent.next && sent.other ? (
+              <View style={st.ask}>
+                <Text style={st.askTitle}>Another feedback campaign is open</Text>
+                <Text style={st.askText}>
+                  <Text style={{ fontWeight: '800', color: Colors.text }}>{sent.other.name || 'Teacher feedback'}</Text> has {sent.other.count} teacher
+                  {sent.other.count === 1 ? '' : 's'} waiting for you. Would you like to start it now? You can also come back to it later.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                  <Btn label="Not now" onPress={() => router.back()} />
+                  <Btn kind="primary" label="Yes, start it" icon="arrow-forward"
+                    onPress={() => router.replace({ pathname: '/modules/feedback-form', params: { id: sent.other.first._id } } as any)} />
+                </View>
+              </View>
+            ) : (
+              <Btn label="Back to my feedback" onPress={() => router.back()} />
+            )}
           </View>
         </ScrollView>
       </>
@@ -257,7 +297,7 @@ export default function FeedbackFormScreen() {
           </View>
 
           {steps[step - 1] === 'ratings'
-            ? byCategory(step1).map(([cat, qs]) => (
+            ? ratingGroups.map(([cat, qs]) => (
               <View key={cat} style={st.qcard}>
                 <View style={st.qcardHead}>
                   <View style={st.qcardIcon}><Ionicons name={categoryIcon(cat)} size={15} color="#7C3AED" /></View>
@@ -265,7 +305,7 @@ export default function FeedbackFormScreen() {
                   <Text style={st.qcardCount}>{qs.filter((x) => isAnswered(x, answers[x._id])).length} / {qs.length}</Text>
                 </View>
                 {qs.map((x) => (
-                  <Question key={x._id} q={x} n={questions.indexOf(x) + 1} value={answers[x._id]} error={errors[x._id]}
+                  <Question key={x._id} q={x} n={numberOf.get(x._id) ?? 0} value={answers[x._id]} error={errors[x._id]}
                     set={set} toggleOption={toggleOption} />
                 ))}
               </View>
@@ -278,7 +318,7 @@ export default function FeedbackFormScreen() {
                   <Text style={st.qcardCount}>Optional ones can be skipped</Text>
                 </View>
                 {step2.map((x) => (
-                  <Question key={x._id} q={x} n={questions.indexOf(x) + 1} value={answers[x._id]} error={errors[x._id]}
+                  <Question key={x._id} q={x} n={numberOf.get(x._id) ?? 0} value={answers[x._id]} error={errors[x._id]}
                     set={set} toggleOption={toggleOption} />
                 ))}
               </View>
@@ -328,7 +368,23 @@ function Question({ q, n, value = {}, error, set, toggleOption }: {
         </View>
       </View>
 
-      {RATING_TYPES.includes(q.questionType) ? (
+      {q.questionType === 'rating_5' ? (
+        <View style={st.stars} accessibilityRole="radiogroup" accessibilityLabel={q.questionText}>
+          {[1, 2, 3, 4, 5].map((v) => {
+            const lit = (value.ratingValue ?? 0) >= v;
+            return (
+              <TouchableOpacity key={v} hitSlop={6} onPress={() => set(q._id, { ratingValue: value.ratingValue === v ? null : v })}
+                accessibilityRole="radio" accessibilityState={{ checked: value.ratingValue === v }}
+                accessibilityLabel={`${v} star${v === 1 ? '' : 's'} ${RATING_LABELS[v]}`}>
+                <Ionicons name={lit ? 'star' : 'star-outline'} size={34} color={lit ? '#F59E0B' : '#CBD5E1'} />
+              </TouchableOpacity>
+            );
+          })}
+          <Text style={[st.starWord, value.ratingValue != null && { color: '#B45309' }]}>
+            {value.ratingValue != null ? `${value.ratingValue} / 5 · ${RATING_LABELS[value.ratingValue]}` : 'Tap a star'}
+          </Text>
+        </View>
+      ) : RATING_TYPES.includes(q.questionType) ? (
         <View style={st.rates} accessibilityRole="radiogroup" accessibilityLabel={q.questionText}>
           {[1, 2, 3, 4, 5].map((v) => {
             const on = value.ratingValue === v;
@@ -450,6 +506,11 @@ const st = StyleSheet.create({
   rates: { flexDirection: 'row', gap: 5 },
   rate: { flex: 1, minHeight: 64, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', paddingVertical: 5, paddingHorizontal: 2 },
   rateEmoji: { fontSize: 17 },
+  stars: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  starWord: { fontSize: 12, color: Colors.textSecondary, marginLeft: 6, fontWeight: '600' },
+  ask: { alignSelf: 'stretch', borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 14, padding: 12, gap: 8 },
+  askTitle: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  askText: { fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 },
   rateN: { fontSize: 14, fontWeight: '800', color: Colors.text },
   rateL: { fontSize: 9, color: Colors.textSecondary, textAlign: 'center' },
   yn: { width: 110, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
