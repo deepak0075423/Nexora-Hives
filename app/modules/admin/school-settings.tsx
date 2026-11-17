@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useModules } from '@/hooks/useModules';
 import { schoolLogoUrl } from '@/utils/branding';
 import { isEmail, isPhone, isURL } from '@/utils/validators';
 import {
@@ -24,6 +25,7 @@ const EMPTY_SMTP: SmtpForm = {
 
 export default function AdminSchoolSettingsScreen() {
   const { user: me, reload } = useAuth();
+  const { isEnabled, ready: modulesReady } = useModules();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -310,12 +312,17 @@ export default function AdminSchoolSettingsScreen() {
             <Input label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} phone />
             <Input text="token" label="Website" value={form.website} onChange={v => setForm(f => ({ ...f, website: v }))} placeholder="https://…" />
 
-            {/* ── Privacy & cookies (Oct 2026): the school's own cookie policy, on its own screen ── */}
-            <SectionTitle>Privacy & cookies</SectionTitle>
-            <Card>
-              <RowItem icon="shield-checkmark-outline" title="Cookie policy" sub="The banner on the admission portal, optional cookies, what is stored, the policy's words"
-                onPress={() => router.push('/modules/admin/cookie-policy' as any)} />
-            </Card>
+            {/* ── Privacy & cookies (Oct 2026): the school's own cookie policy, on its own screen.
+                It is the admission portal's, so only a school with Admission on sees it. ── */}
+            {modulesReady && isEnabled('admission') ? (
+              <>
+                <SectionTitle>Privacy & cookies</SectionTitle>
+                <Card>
+                  <RowItem icon="shield-checkmark-outline" title="Cookie policy" sub="The banner on the admission portal, optional cookies, what is stored, the policy's words"
+                    onPress={() => router.push('/modules/admin/cookie-policy' as any)} />
+                </Card>
+              </>
+            ) : null}
 
             {/* ── Admission number format ── */}
             <SectionTitle>Admission Number Format</SectionTitle>

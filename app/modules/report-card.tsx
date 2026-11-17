@@ -5,6 +5,7 @@
  * are out it is a Progress Report: the marks so far, the teacher's remarks to
  * come. "Share PDF" hands the school's own PDF to the phone's share sheet.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -22,7 +23,7 @@ export default function ReportCardScreen() {
   const { user } = useAuth();
   const parent = user?.role === 'parent';
   const params = useLocalSearchParams<{ child?: string }>();
-  const [childId, setChildId] = useState(String(params.child || ''));
+  const [childId, setChildId] = useChildChoice(params.child as any);
   const [year, setYear] = useState('');
   const [term, setTerm] = useState('');
   const [d, setD] = useState<any>(null);

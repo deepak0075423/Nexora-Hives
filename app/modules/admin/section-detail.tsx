@@ -115,8 +115,8 @@ export default function AdminSectionDetailScreen() {
   const candidates       = pool?.students ?? [];
   const freeCandidates   = candidates.filter((c: any) => c.assignable);
   const takenCount       = candidates.length - freeCandidates.length;
-  // Students another section holds cannot be picked, so they stay out of the
-  // way until asked for.
+  // Students another section holds this year stay out of the way until asked
+  // for; picked, they are MOVED here for this year (never by "select all").
   const visibleCandidates = showTaken ? candidates : freeCandidates;
   const allFreePicked    = freeCandidates.length > 0 && freeCandidates.every((c: any) => picked.includes(c._id));
   // null when the section has no capacity set, which the server reads as unlimited
@@ -199,6 +199,13 @@ export default function AdminSectionDetailScreen() {
           d?.enrolled?.length ? 'Partly enrolled' : 'Could not enroll',
           failed.map((f: any) => `${f.name}: ${f.reason}`).join('\n'),
         );
+      }
+      const moved = d?.moved ?? [];
+      if (moved.length && !failed.length) {
+        Alert.alert('Done', [
+          d.enrolled.length - moved.length ? `${d.enrolled.length - moved.length} enrolled` : '',
+          `${moved.length} moved from another section`,
+        ].filter(Boolean).join(', '));
       }
       if (d?.enrolled?.length) {
         setShowAssignStudent(false); setPicked([]);
@@ -444,10 +451,10 @@ export default function AdminSectionDetailScreen() {
           <RowItem
             key={st._id}
             title={st.name}
-            sub={`${st.email}${st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}${st.enrolledIn ? ` · in ${st.enrolledIn}` : ''}`}
-            icon={picked.includes(st._id) ? 'checkbox' : st.assignable ? 'square-outline' : 'lock-closed-outline'}
-            iconColor={st.assignable ? Colors.primary : Colors.textLight}
-            onPress={st.assignable ? () => togglePick(st._id) : undefined}
+            sub={`${st.email}${st.admissionNumber ? ` · Adm. ${st.admissionNumber}` : ''}${st.enrolledIn ? ` · moves from ${st.enrolledIn}` : ''}`}
+            icon={picked.includes(st._id) ? 'checkbox' : (st.assignable || st.movable) ? 'square-outline' : 'lock-closed-outline'}
+            iconColor={(st.assignable || st.movable) ? Colors.primary : Colors.textLight}
+            onPress={(st.assignable || st.movable) ? () => togglePick(st._id) : undefined}
           />
         ))}
 
@@ -456,7 +463,7 @@ export default function AdminSectionDetailScreen() {
             onPress={() => setShowTaken(v => !v)}>
             {showTaken
               ? 'Hide students enrolled elsewhere'
-              : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} enrolled in another section`}
+              : `Show ${takenCount} student${takenCount === 1 ? '' : 's'} in another section this year (pick to move)`}
           </Text>
         )}
         {pool?.truncated && (

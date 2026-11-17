@@ -1,3 +1,4 @@
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
@@ -902,8 +903,9 @@ export default function DashboardScreen() {
   const [holidays, setHolidays] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // Which child a parent is looking at. Empty means "whichever the server picks".
-  const [childId, setChildId] = useState('');
+  // Which child a parent is looking at — the one chosen on any parent screen;
+  // empty means "whichever the server picks".
+  const [childId, setChildId] = useChildChoice();
 
   const fetchDashboard = useCallback(async () => {
     if (!user?.role) return; // wait for the user record — role decides which dashboard to call

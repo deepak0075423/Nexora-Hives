@@ -6,6 +6,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { isEmail, isPhone } from '@/utils/validators';
 import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
+import { GENDERS, snapToOption, isOptionOrBlank } from '@/utils/formOptions';
 import {
   FormModal, Input, Select, SectionTitle, ActionBtn, Toggle, SegTabs, RowItem, unwrap,
 } from '@/components/ui/kit';
@@ -203,15 +204,18 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       setForm((f: any) => ({
         ...f,
         dob: p.dob ? String(p.dob).slice(0, 10) : '',
-        gender: p.gender ?? '', bloodGroup: p.bloodGroup ?? '', category: p.category ?? '',
+        // Snapped onto the Selects' own spelling ("female" → "Female", "B-" →
+        // "B−"): an off-list value looked unpicked yet passed Next.
+        gender: snapToOption(p.gender, GENDERS), bloodGroup: snapToOption(p.bloodGroup, BLOOD_GROUPS),
+        category: snapToOption(p.category, CATEGORIES),
         religion: p.religion ?? '', nationality: p.nationality || 'Indian',
         emergencyContactName: p.emergencyContactName ?? '',
         emergencyContactPhone: p.emergencyContactPhone ?? '',
         emergencyContactRelation: p.emergencyContactRelation ?? '',
-        address: p.address ?? '', city: p.city ?? '', state: p.state ?? '',
+        address: p.address ?? '', city: p.city ?? '', state: snapToOption(p.state, STATES_AND_UTS),
         pincode: p.pincode ?? '', country: p.country || 'India',
         permanentAddress: p.permanentAddress ?? '', permanentCity: p.permanentCity ?? '',
-        permanentState: p.permanentState ?? '', permanentPincode: p.permanentPincode ?? '',
+        permanentState: snapToOption(p.permanentState, STATES_AND_UTS), permanentPincode: p.permanentPincode ?? '',
         permanentCountry: p.permanentCountry || 'India',
         sameAsCurrent: !!p.sameAsCurrent,
         aadhaarNumber: p.aadhaarNumber ?? '',
@@ -219,7 +223,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         isTransferStudent: !!p.isTransferStudent,
         previousSchoolName: p.previousSchoolName ?? '', previousSchoolContact: p.previousSchoolContact ?? '',
         previousSchoolAddress: p.previousSchoolAddress ?? '', previousSchoolCity: p.previousSchoolCity ?? '',
-        previousSchoolState: p.previousSchoolState ?? '', previousSchoolPincode: p.previousSchoolPincode ?? '',
+        previousSchoolState: snapToOption(p.previousSchoolState, STATES_AND_UTS), previousSchoolPincode: p.previousSchoolPincode ?? '',
         previousSchoolCountry: p.previousSchoolCountry || 'India',
         previousSchoolMedium: medium, previousSchoolMediumOther: mediumOther,
         previousSchoolBoard: board, previousSchoolBoardOther: boardOther,
@@ -271,7 +275,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
       setForm((f: any) => ({
         ...f,
         [k('country')]: d.country || 'India',
-        [k('state')]:   d.state   || f[k('state')],
+        [k('state')]:   snapToOption(d.state, STATES_AND_UTS) || f[k('state')],
         [k('city')]:    d.city    || f[k('city')],
       }));
     } catch { /* offline — the admin fills city/state by hand */ }
@@ -282,12 +286,18 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
   const stepError = (n: number): string | null => {
     if (n === 8) return withHealth && health.doctorPhone.trim() && !isPhone(health.doctorPhone.trim()) ? 'The doctor’s phone number must be a valid 10-digit mobile number' : null;
     const need = (key: string, label: string) => (!String(form[key] ?? '').trim() ? `${label} is required` : null);
+    // A Select's value must be one it can show — see utils/formOptions.
+    const oneOf = (key: string, options: readonly string[], msg: string) => (!isOptionOrBlank(form[key], options) ? msg : null);
     const address = (prefix: '' | 'permanent' | 'previousSchool', label: string) => {
       const k = (base: string) => (prefix ? prefix + base[0].toUpperCase() + base.slice(1) : base);
       return need(k('address'), `${label} address`)
         || (!isPincode(form[k('pincode')]) ? `${label} PIN code must be 6 digits` : null)
         || need(k('city'), `${label} city`)
-        || need(k('state'), `${label} state`);
+        || need(k('state'), `${label} state`)
+        || oneOf(k('state'), STATES_AND_UTS, `Pick the ${label.toLowerCase()} state from the list`)
+        // "Country *" in all three blocks, and now checked like it — an emptied
+        // box used to pass Next and be saved as "India".
+        || need(k('country'), `${label} country`);
     };
 
     if (n === 1) {
@@ -299,8 +309,10 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
     if (n === 2) {
       return need('dob', 'Date of birth')
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.dob) ? 'Date of birth must be YYYY-MM-DD' : null)
-        || need('gender', 'Gender') || need('bloodGroup', 'Blood group')
-        || need('category', 'Category') || need('nationality', 'Nationality')
+        || need('gender', 'Gender') || oneOf('gender', GENDERS, 'Pick Male, Female or Other')
+        || need('bloodGroup', 'Blood group') || oneOf('bloodGroup', BLOOD_GROUPS, 'Pick the blood group from the list')
+        || need('category', 'Category') || oneOf('category', CATEGORIES, 'Pick the category from the list')
+        || need('nationality', 'Nationality')
         || need('emergencyContactName', 'Emergency contact name')
         || need('emergencyContactPhone', 'Emergency contact phone')
         || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone must be a valid 10-digit mobile number' : null)
@@ -340,7 +352,13 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         || (!/^\d{4}-\d{2}-\d{2}$/.test(form.tcDate) ? 'TC date must be YYYY-MM-DD' : null)
         || (!files.tc && !docs?.tcFile ? 'Transfer Certificate upload is required' : null);
     }
-    if (n === 6) return need('classId', 'Class');
+    if (n === 6) {
+      // The class has to be one the list offers (this year's) — one it cannot
+      // show looked unpicked yet passed Next.
+      return need('classId', 'Class')
+        || (classOptions.length && !classOptions.some((o: any) => o.value === form.classId) ? "Pick the class from this year's list" : null)
+        || (form.currentSection && !sectionOptions.some((o: any) => o.value === form.currentSection) ? 'Pick the section from the list, or leave it to assign later' : null);
+    }
     if (n === 7) {
       if (parentMode === 'search') return parentId ? null : 'Link a parent, or switch to entering their details';
       const roles = newParent.accountFor === 'Guardian' ? ['father', 'mother', 'guardian'] : ['father', 'mother'];
@@ -501,7 +519,7 @@ export default function StudentFormModal({ visible, student, onClose, onSaved }:
         <>
           <Input text="date" label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
           <Select label="Gender *" value={form.gender} onChange={set('gender')}
-            options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
+            options={GENDERS.map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
           <Select label="Category *" value={form.category} onChange={set('category')}

@@ -13,6 +13,7 @@
  * Notices open this screen with `?tab=` (marks, validation, tests). The exam
  * schedule is its own screen, from the header.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -267,7 +268,7 @@ function TeacherResults() {
 function FamilyResults({ parent }: { parent: boolean }) {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string; child?: string }>();
-  const [childId, setChildId] = useState(String(params.child || ''));
+  const [childId, setChildId] = useChildChoice(params.child as any);
   const [tab, setTab] = useState(() => tabFrom(['exams', 'tests'], params.tab));
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);

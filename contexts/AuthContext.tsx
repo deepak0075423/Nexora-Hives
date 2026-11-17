@@ -1,3 +1,4 @@
+import { forgetChild } from '@/utils/childChoice';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import storage from '@/utils/storage';
 import { clearOffline } from '@/utils/medicalOffline';
@@ -184,6 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await unregisterPush().catch(() => {});
     // Medical emergency cards saved for offline use leave with the account.
     await clearOffline().catch(() => {});
+    // The child a parent was looking at is theirs alone.
+    forgetChild();
     const list = (await readAccounts()).filter(a => a._id !== user?._id);
     await writeAccounts(list);
     setAccounts(list);

@@ -1,3 +1,4 @@
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
@@ -51,7 +52,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
   const [tab, setTab] = useState('overview');
   const [lists, setLists] = useState<Record<string, any>>({});
   const [children, setChildren] = useState<any[]>([]);
-  const [child, setChild] = useState('');
+  const [child, setChild] = useChildChoice();
   const [disabled, setDisabled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -74,7 +75,7 @@ export default function HostelResident({ role }: { role: 'student' | 'parent' | 
       .then((r: any) => {
         const list = unwrap(r) ?? [];
         setChildren(list);
-        if (list.length) setChild((c) => c || list[0]._id);
+        if (list.length) setChild((c: string) => childIn(list, c));
       })
       .catch(() => setChildren([]));
   }, [role]);

@@ -130,11 +130,19 @@ export default function StudentAnalyticsScreen() {
   useEffect(() => { setLoading(true); loadData(1); }, [loadData]);
 
   const sections = scope?.sections ?? [];
+  // Every class of the year (the server's list — a class with no section yet
+  // is offered too), in class order.
   const classes = useMemo(() => {
-    const map = new Map<string, string>();
-    sections.forEach((s: any) => { if (!map.has(s.classId)) map.set(s.classId, s.className); });
-    return [...map].map(([value, label]) => ({ value, label }));
-  }, [sections]);
+    const map = new Map<string, { value: string; label: string; n: any }>();
+    (scope?.classes ?? []).forEach((c: any) => map.set(String(c._id), { value: String(c._id), label: c.className, n: c.classNumber }));
+    sections.forEach((s: any) => {
+      if (s.classId && !map.has(String(s.classId))) map.set(String(s.classId), { value: String(s.classId), label: s.className, n: s.classNumber });
+    });
+    const num = (v: any) => (v === null || v === undefined || v === '' ? Infinity : Number(v));
+    return [...map.values()]
+      .sort((a, b) => (num(a.n) - num(b.n) || 0) || String(a.label).localeCompare(String(b.label), 'en', { numeric: true }))
+      .map(({ value, label }) => ({ value, label }));
+  }, [scope, sections]);
   // Sections follow the class: the picker appears once a class is chosen,
   // with only that class's sections (the server sends this year's only).
   const pickedClass = classes.find((c) => c.value === classId);

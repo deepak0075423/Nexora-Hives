@@ -8,6 +8,7 @@
  *
  * One child at a time; a parent with a single child never sees a switch.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +22,7 @@ import {
 export default function ParentFeedback({ onBlocked }: { onBlocked: () => void }) {
   const q = useLoad<any>(() => parentApi.getChildrenFeedback(), [], { onBlocked });
   const children: any[] = useMemo(() => q.data?.children ?? [], [q.data]);
-  const [childId, setChildId] = useState('');
+  const [childId, setChildId] = useChildChoice();
 
   // Start on the first child — the server sorts the one with most still to do first.
   useEffect(() => {

@@ -9,6 +9,7 @@
  *
  * The body is the same component the child sees on their own My Class screen.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
@@ -24,7 +25,7 @@ const firstName = (n?: string) => String(n ?? '').trim().split(/\s+/)[0] || 'you
 
 export default function ChildClassScreen() {
   const [children, setChildren] = useState<any[]>([]);
-  const [childId, setChildId] = useState('');
+  const [childId, setChildId] = useChildChoice();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);

@@ -10,6 +10,7 @@
  * `LibraryParentScreen` loads and picks; `ParentLibraryBody` draws, and is kept
  * pure so it can be rendered and checked without a device.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Stack } from 'expo-router';
@@ -37,7 +38,7 @@ const firstName = (n?: string) => String(n ?? '').trim().split(/\s+/)[0] || 'you
 
 export default function LibraryParentScreen() {
   const [children, setChildren] = useState<any[]>([]);
-  const [childId, setChildId] = useState('');
+  const [childId, setChildId] = useChildChoice();
   const [year, setYear] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

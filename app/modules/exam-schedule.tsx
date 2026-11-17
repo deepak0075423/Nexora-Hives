@@ -14,6 +14,7 @@
  * invigilation duties lead their screen, and a student's room and seat sit
  * beside each paper; a family shares the school's admit card for an exam.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -85,7 +86,7 @@ export default function ExamScheduleScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ child?: string }>();
   const role = user?.role;
-  const [childId, setChildId] = useState(String(params.child || ''));
+  const [childId, setChildId] = useChildChoice(params.child as any);
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

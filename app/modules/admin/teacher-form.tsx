@@ -6,6 +6,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as adminApi from '@/api/admin.api';
 import { isEmail, isPhone } from '@/utils/validators';
 import { STATES_AND_UTS, isPincode } from '@/utils/indiaStates';
+import { GENDERS, snapToOption, isOptionOrBlank } from '@/utils/formOptions';
 import { fatherOrHusbandLabel } from '@/utils/fatherOrHusband';
 import { FormModal, Input, Select, SectionTitle, ActionBtn } from '@/components/ui/kit';
 import ExistingDoc from '@/components/ExistingDoc';
@@ -112,22 +113,29 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
         const u = d?.user ?? {};
         const p = d?.profile ?? {};
         const iso = (v: any) => (v ? new Date(v).toISOString().slice(0, 10) : '');
+        // An off-list value goes to the list's "Other" with its text, as on the web.
+        const pick = (value: any, list: string[]) => snapToOption(value, list) || (value ? 'Other' : '');
+        const qual = pick(p.qualification, QUALIFICATIONS);
+        const degree = pick(p.teachingDegree, TEACHING_DEGREES);
         setForm({
           ...EMPTY_TEACHER,
           name: u.name || '', email: u.email || '', phone: u.phone || '',
-          dob: iso(p.dob), gender: p.gender || '', bloodGroup: p.bloodGroup || '',
+          // Snapped onto the Selects' own spelling ("male" → "Male", "A-" → "A−"):
+          // an off-list value looked unpicked yet passed Next.
+          dob: iso(p.dob), gender: snapToOption(p.gender, GENDERS), bloodGroup: snapToOption(p.bloodGroup, BLOOD_GROUPS),
           fatherOrHusbandName: p.fatherOrHusbandName || '',
           emergencyContactName: p.emergencyContactName || '',
           emergencyContactPhone: p.emergencyContactPhone || '',
           alternatePhone: p.alternatePhone || '',
           currentAddress: p.currentAddress || '', currentCity: p.currentCity || '',
-          currentState: p.currentState || '', currentPincode: p.currentPincode || '',
+          currentState: snapToOption(p.currentState, STATES_AND_UTS), currentPincode: p.currentPincode || '',
           currentCountry: p.currentCountry || 'India',
           permanentAddress: p.permanentAddress || '', permanentCity: p.permanentCity || '',
-          permanentState: p.permanentState || '', permanentPincode: p.permanentPincode || '',
+          permanentState: snapToOption(p.permanentState, STATES_AND_UTS), permanentPincode: p.permanentPincode || '',
           permanentCountry: p.permanentCountry || 'India',
           aadhaarNumber: p.aadhaarNumber || '', panNumber: p.panNumber || '', uanNumber: p.uanNumber || '',
-          qualification: p.qualification || '', teachingDegree: p.teachingDegree || '',
+          qualification: qual, qualificationOther: qual === 'Other' ? p.qualification : '',
+          teachingDegree: degree, teachingDegreeOther: degree === 'Other' ? p.teachingDegree : '',
           employmentType: p.employmentType || '', totalExperience: p.totalExperience || '',
           previousSchool: p.previousSchool || '', lastDesignation: p.lastDesignation || '',
           bankAccountHolder: p.bankAccountHolder || '', bankAccountNumber: p.bankAccountNumber || '',
@@ -169,7 +177,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       setForm((f: any) => ({
         ...f,
         [`${prefix}Country`]: d.country || 'India',
-        [`${prefix}State`]:   d.state   || f[`${prefix}State`],
+        [`${prefix}State`]:   snapToOption(d.state, STATES_AND_UTS) || f[`${prefix}State`],
         [`${prefix}City`]:    d.city    || f[`${prefix}City`],
       }));
     } catch { /* offline — typed by hand */ }
@@ -179,6 +187,8 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
   /** First problem on this step, or null. */
   const stepError = (n: number): string | null => {
     const need = (key: string, label: string) => (!String(form[key] ?? '').trim() ? `${label} is required` : null);
+    // A Select's value must be one it can show — see utils/formOptions.
+    const oneOf = (key: string, options: readonly string[], msg: string) => (!isOptionOrBlank(form[key], options) ? msg : null);
     // A document already on the record counts as supplied, so an edit never
     // forces the admin to re-photograph paperwork to fix a typo.
     const hasFile = (key: string) => !!files[key] || !!onFile[key];
@@ -186,11 +196,14 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
       need(`${prefix}Address`, `${label} address`)
       || (!isPincode(form[`${prefix}Pincode`]) ? `${label} PIN code must be 6 digits` : null)
       || need(`${prefix}City`, `${label} city`)
-      || need(`${prefix}State`, `${label} state`);
+      || need(`${prefix}State`, `${label} state`)
+      || oneOf(`${prefix}State`, STATES_AND_UTS, `Pick the ${label.toLowerCase()} state from the list`);
 
     if (n === 1) {
-      return need('name', 'Full name') || need('dob', 'Date of birth') || need('gender', 'Gender')
-        || need('bloodGroup', 'Blood group') || need('fatherOrHusbandName', fatherOrHusbandLabel(form.gender, 'sentence'))
+      return need('name', 'Full name') || need('dob', 'Date of birth')
+        || need('gender', 'Gender') || oneOf('gender', GENDERS, 'Pick Male, Female or Other')
+        || need('bloodGroup', 'Blood group') || oneOf('bloodGroup', BLOOD_GROUPS, 'Pick the blood group from the list')
+        || need('fatherOrHusbandName', fatherOrHusbandLabel(form.gender, 'sentence'))
         || need('emergencyContactName', 'Emergency contact name')
         || need('emergencyContactPhone', 'Emergency contact phone')
         || (!isPhone(form.emergencyContactPhone) ? 'Emergency contact phone must be a valid 10-digit mobile number' : null)
@@ -216,6 +229,8 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
     }
     if (n === 4) {
       return need('qualification', 'Highest qualification')
+        || oneOf('qualification', QUALIFICATIONS, 'Pick the qualification from the list')
+        || oneOf('teachingDegree', TEACHING_DEGREES, 'Pick the teaching degree from the list')
         || (form.qualification === 'Other' && !String(form.qualificationOther).trim() ? 'Please type the other qualification' : null)
         || (form.teachingDegree === 'Other' && !String(form.teachingDegreeOther).trim() ? 'Please type the other teaching degree' : null);
     }
@@ -267,8 +282,12 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
   };
 
   const submit = async () => {
-    const problem = stepError(7);
-    if (problem) return Alert.alert('Required', problem);
+    // Every step is re-checked and the first with a problem opened — this used
+    // to check the last step only, leaving earlier mistakes to the server.
+    for (let n = 1; n <= STEPS.length; n += 1) {
+      const problem = stepError(n);
+      if (problem) { setStep(n); return Alert.alert('Required', problem); }
+    }
     setSaving(true);
     try {
       const fd = new FormData();
@@ -325,7 +344,7 @@ export default function TeacherFormModal({ visible, onClose, onCreated, designat
           <Input text="name" label="Full Name *" value={form.name} onChange={set('name')} placeholder="Anita Sharma" />
           <Input text="date" label="Date of Birth *" value={form.dob} onChange={set('dob')} placeholder="YYYY-MM-DD" />
           <Select label="Gender *" value={form.gender} onChange={set('gender')}
-            options={['Male', 'Female', 'Other'].map(g => ({ label: g, value: g }))} />
+            options={GENDERS.map(g => ({ label: g, value: g }))} />
           <Select label="Blood Group *" value={form.bloodGroup} onChange={set('bloodGroup')}
             options={BLOOD_GROUPS.map(g => ({ label: g, value: g }))} />
           <Input text="name" label={`${fatherOrHusbandLabel(form.gender)} *`} value={form.fatherOrHusbandName} onChange={set('fatherOrHusbandName')} />

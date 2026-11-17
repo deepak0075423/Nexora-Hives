@@ -1,3 +1,4 @@
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ import {
 const err = (e: any) => e?.data?.message ?? e?.message ?? 'Something went wrong';
 
 export default function ParentExams({ onBlocked }: { onBlocked: () => void }) {
-  const [child, setChild] = useState('');
+  const [child, setChild] = useChildChoice();
   const [res, setRes] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

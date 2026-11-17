@@ -73,7 +73,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 const planTotal = (p: any) => (p.subjectsToCreate ?? 0) + p.classesToCreate + p.sectionsToCreate
-  + p.linksToCreate + p.assignmentsToCreate + p.classTeachersToSet;
+  + p.linksToCreate + p.assignmentsToCreate + (p.subjectTeachersToAdd ?? 0) + p.classTeachersToSet;
 
 /**
  * Why nothing can be created — the source had none of it, something it depends
@@ -163,12 +163,13 @@ export default function ImportYearStructureSheet({
       });
       const d = unwrap(res);
       const made = (d.createdSubjects ?? 0) + d.createdClasses + d.createdSections
-        + d.createdLinks + d.createdAssignments;
+        + d.createdLinks + d.createdAssignments + (d.addedSubjectTeachers ?? 0) + (d.setClassTeachers ?? 0);
       onImported();
       onClose();
       Alert.alert('Imported', made
         ? `${d.createdSubjects ?? 0} subject(s), ${d.createdClasses} class(es), ${d.createdSections} section(s), `
-          + `${d.createdLinks} curriculum link(s) and ${d.createdAssignments} teacher assignment(s).`
+          + `${d.createdLinks} curriculum link(s), ${d.createdAssignments} section teacher assignment(s) and `
+          + `${d.addedSubjectTeachers ?? 0} teacher(s) onto subjects.`
         : 'Nothing to import — that structure is already in this year.');
     } catch (err: any) { setError(err.message ?? 'Could not import'); }
     finally { setSaving(false); }
@@ -231,7 +232,7 @@ export default function ImportYearStructureSheet({
           <Text style={s.summary}>
             {plan.subjectsToCreate ?? 0} subject(s) · {plan.classesToCreate} class(es) ·{' '}
             {plan.sectionsToCreate} section(s) · {plan.linksToCreate} curriculum link(s) ·{' '}
-            {plan.assignmentsToCreate} subject teacher(s)
+            {plan.assignmentsToCreate} subject teacher(s) in sections · {plan.subjectTeachersToAdd ?? 0} on subject lists
             {withTeachers ? ` · ${plan.classTeachersToSet} class teacher(s)` : ''}
           </Text>
           {zeroReason(plan, parts) ? <Text style={s.err}>{zeroReason(plan, parts)}</Text> : null}

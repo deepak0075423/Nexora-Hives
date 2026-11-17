@@ -1,3 +1,4 @@
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { Stack } from 'expo-router';
@@ -57,7 +58,7 @@ export default function FeesScreen() {
   const isParent = user?.role === 'parent';
 
   const [children, setChildren] = useState<any[]>([]);
-  const [childId, setChildId] = useState('');
+  const [childId, setChildId] = useChildChoice();
   const [book, setBook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,9 +89,10 @@ export default function FeesScreen() {
           kids = unwrap(await feesApi.getMyChildren()) ?? [];
           setChildren(kids);
         }
-        const target = cid || kids[0]?._id;
+        // The child chosen on any parent screen, if this family still has them.
+        const target = childIn(kids, cid);
         if (!target) { setBook(null); return; }
-        if (!cid) setChildId(target);
+        if (target !== cid) setChildId(target);
         setBook(unwrap(await feesApi.getChildFees(target)));
       } else {
         setBook(unwrap(await feesApi.getMyFees()));

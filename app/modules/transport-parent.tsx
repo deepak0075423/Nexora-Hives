@@ -1,3 +1,4 @@
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Linking, Alert } from 'react-native';
 import { Stack } from 'expo-router';
@@ -22,7 +23,7 @@ const REQ_TYPES = [
 export default function ParentTransportScreen() {
   const { user } = useAuth();
   const [children, setChildren] = useState<any[]>([]);
-  const [childId, setChildId] = useState('');
+  const [childId, setChildId] = useChildChoice();
   const [info, setInfo] = useState<any>(null);
   const [track, setTrack] = useState<any>(null);
   const [att, setAtt] = useState<any[]>([]);
@@ -51,7 +52,8 @@ export default function ParentTransportScreen() {
     try {
       const kids = unwrap(await t.parentChildren()) ?? [];
       setChildren(kids);
-      const first = kids[0]?.studentId || '';
+      // The child chosen on any parent screen, else the first.
+      const first = childIn(kids, childId, 'studentId');
       setChildId(first);
       setReqs(unwrap(await t.parentRequests()) ?? []);
       if (first) await loadChild(first); else setLoading(false);

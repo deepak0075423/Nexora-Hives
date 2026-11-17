@@ -10,6 +10,7 @@
  * (that month, that day picked), an alert ?focus=<student>; a parent's also carry ?child=.
  * Teachers are sent on to their own workspace.
  */
+import { useChildChoice, childIn } from '@/utils/childChoice';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -49,7 +50,7 @@ export default function AttendanceScreen() {
   const [tab, setTab] = useState(['overview', 'ranking', 'requests'].includes(String(params.tab)) ? String(params.tab) : 'overview');
   const [month, setMonth] = useState((linkDate || todayKey()).slice(0, 7));
   const [day, setDay] = useState(linkDate || todayKey());
-  const [child, setChild] = useState(params.child ? String(params.child) : '');
+  const [child, setChild] = useChildChoice(params.child as any);
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
