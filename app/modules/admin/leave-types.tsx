@@ -14,7 +14,7 @@ import { textError } from '@/utils/textRules';
 // forward, day limits, approvals) lives in Leave → Policies, so there is one
 // place to look and nothing silently overrides.
 
-const EMPTY: any = { name: '', code: '', category: 'general', annualAllocation: '12', isActive: true };
+const EMPTY: any = { name: '', code: '', category: 'general', annualAllocation: '12', isPaid: true, isActive: true };
 
 export default function AdminLeaveTypesScreen() {
   const [types, setTypes] = useState<any[]>([]);
@@ -52,6 +52,7 @@ export default function AdminLeaveTypesScreen() {
     setForm({
       name: t.name, code: t.code, category: t.category ?? 'general',
       annualAllocation: String(t.annualAllocation ?? 0), isActive: t.isActive !== false,
+      isPaid: t.isPaid !== false,
     });
     setEditOpen(true);
   };
@@ -73,6 +74,7 @@ export default function AdminLeaveTypesScreen() {
         code: form.code.trim().toUpperCase(),
         category: form.category,
         annualAllocation: Number(form.annualAllocation) || 0,
+        isPaid: form.category === 'compoff' ? true : form.isPaid !== false,
         isActive: form.isActive,
       };
       if (editing) await adminApi.updateLeaveType(editing._id, payload);
@@ -167,6 +169,15 @@ export default function AdminLeaveTypesScreen() {
           <Text style={s.note}>
             Not applicable — Comp Off days are credited only when a Comp Off request is approved.
           </Text>
+        ) : null}
+        {/* Unpaid (leave without pay): no allocation, every day is loss of pay. */}
+        {form.category !== 'compoff' ? (
+          <Select label="Pay" value={form.isPaid === false ? 'unpaid' : 'paid'}
+            onChange={(v: string) => setForm((f: any) => ({ ...f, isPaid: v !== 'unpaid' }))}
+            options={[
+              { label: 'Paid — drawn from an allocated balance', value: 'paid' },
+              { label: 'Unpaid — no allocation; every day is loss of pay', value: 'unpaid' },
+            ]} />
         ) : null}
         <Toggle label="Accepting applications" value={form.isActive}
           onChange={(v: boolean) => setForm((f: any) => ({ ...f, isActive: v }))} />

@@ -22,7 +22,11 @@ const EMPTY_ALLOC = {
 };
 const EMPTY_CLEAR = { leaveTypeId: '', teacherMode: 'all' as Mode, checked: [] as string[] };
 
-/** Mirrors the server's proration in adminAllocate. */
+/**
+ * The share of the year left from today, to the half day — the figure for a
+ * teacher starting now. The server prorates each teacher from their own
+ * joining date when it has one.
+ */
 function computeProration(annual: number, ay: any) {
   if (!ay?.startDate || !ay?.endDate || !annual) return annual;
   const now = Date.now();
@@ -30,7 +34,9 @@ function computeProration(annual: number, ay: any) {
   const start = new Date(ay.startDate).getTime();
   if (now <= start) return annual;
   if (now >= end) return 0;
-  return Math.max(1, Math.ceil(annual * (end - now) / (end - start)));
+  const span = (end - start) / 86400000 + 1;
+  const left = (end - now) / 86400000 + 1;
+  return Math.min(annual, Math.ceil((annual * left / span) * 2) / 2);
 }
 
 export default function AdminLeaveAllocationsScreen() {
@@ -38,6 +44,8 @@ export default function AdminLeaveAllocationsScreen() {
   const [balances, setBalances] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [years, setYears] = useState<any[]>([]);
+  // The year the allocations shown belong to — every action below writes it.
+  const [year, setYear] = useState('');
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +71,9 @@ export default function AdminLeaveAllocationsScreen() {
       // types, so this screen never needs the general-admin academic-year
       // endpoint that a designation-scoped leave admin cannot reach.
       setBalances((aRes as any)?.data ?? []);
-      setTypes(((aRes as any)?.leaveTypes ?? []).filter((t: any) => t.isActive));
+      // Comp off is earned, never allocated — the server refuses it.
+      setTypes(((aRes as any)?.leaveTypes ?? []).filter((t: any) => t.isActive && t.category !== 'compoff' && String(t.code).toUpperCase() !== 'COMPOFF'));
+      setYear((aRes as any)?.academicYear ?? '');
       setYears((aRes as any)?.academicYears ?? []);
       setTeachers(unwrap(tRes) ?? []);
     } catch (err: any) {
@@ -108,6 +118,7 @@ export default function AdminLeaveAllocationsScreen() {
         giveFullAllocation: alloc.amount !== 'accrue',
         useProration: alloc.amount === 'prorated',
         ...(alloc.overrideDays !== '' ? { overrideDays: Number(alloc.overrideDays) } : {}),
+        ...(year ? { academicYear: year } : {}),
       });
       setAllocOpen(false); setAlloc(EMPTY_ALLOC); load();
       Alert.alert('Allocated', (res as any)?.message ?? 'Leave allocated');
@@ -131,6 +142,7 @@ export default function AdminLeaveAllocationsScreen() {
         teacherIds: clear.teacherMode === 'select' ? clear.checked : 'all',
         excludeIds: clear.teacherMode === 'except' ? clear.checked : [],
         leaveTypeId: clear.leaveTypeId,
+        ...(year ? { academicYear: year } : {}),
       });
       setClearOpen(false); setClear(EMPTY_CLEAR); load();
       Alert.alert('Cleared', (res as any)?.message ?? 'Allocation cleared');
@@ -163,7 +175,7 @@ export default function AdminLeaveAllocationsScreen() {
     try {
       const res: any = await adminApi.runCarryForward(cf);
       setCfOpen(false); load();
-      Alert.alert('Carry-forward complete', `${(res as any)?.processed ?? 0} balance(s) updated`);
+      Alert.alert('Carry-forward complete', (res as any)?.message ?? `${(res as any)?.processed ?? 0} balance(s) updated`);
     } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
     finally { setBusy(false); }
   };
@@ -180,9 +192,15 @@ export default function AdminLeaveAllocationsScreen() {
 
   if (disabled) return (<><Stack.Screen options={{ title: 'Allocations' }} /><ModuleDisabled /></>);
 
-  // One card per teacher, their types inline
+  // One card per TEACHER, their types inline — built from the staff list, so
+  // a teacher with no allocation is shown (it is who the office came here to
+  // allocate to), plus anyone holding a balance who has since left the list.
   const grouped: any[] = [];
   const byTeacher: Record<string, any> = {};
+  for (const t of teachers) {
+    byTeacher[String(t._id)] = { teacher: t, ay: year, rows: [] };
+    grouped.push(byTeacher[String(t._id)]);
+  }
   for (const b of balances) {
     const id = String(b.teacher?._id ?? 'unknown');
     if (!byTeacher[id]) { byTeacher[id] = { teacher: b.teacher, ay: b.academicYear, rows: [] }; grouped.push(byTeacher[id]); }
@@ -250,15 +268,17 @@ export default function AdminLeaveAllocationsScreen() {
             </Card>
           ))
         ) : grouped.length === 0 ? (
-          <Empty icon="wallet-outline" text="No allocations yet" />
+          <Empty icon="wallet-outline" text="No teachers yet" />
         ) : grouped.map((g: any, i: number) => (
           <Card key={i}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={s.name}>{g.teacher?.name ?? 'Removed employee'}</Text>
               <Text style={s.muted}>{g.ay}</Text>
             </View>
+            {!g.rows.length ? <Text style={s.muted}>Not allocated yet</Text> : null}
             {g.rows.map((b: any) => {
-              const rem = Math.max(0, (b.totalAllocated ?? 0) + (b.carriedForward ?? 0) - (b.used ?? 0) - (b.pending ?? 0) - (b.expired ?? 0));
+              // The server's figure — net of lapsed and carried-out days too.
+              const rem = b.remaining ?? Math.max(0, (b.totalAllocated ?? 0) + (b.carriedForward ?? 0) - (b.used ?? 0) - (b.pending ?? 0) - (b.expired ?? 0) - (b.carriedOut ?? 0));
               return (
                 <View key={b._id} style={s.balRow}>
                   <Text style={s.balCode}>{b.leaveType?.code}</Text>
@@ -309,7 +329,7 @@ export default function AdminLeaveAllocationsScreen() {
             {isMidYear ? (
               <TouchableOpacity style={s.radioRow} onPress={() => setAlloc(a => ({ ...a, amount: 'prorated', overrideDays: '' }))} activeOpacity={0.7}>
                 <Ionicons name={alloc.amount === 'prorated' && alloc.overrideDays === '' ? 'radio-button-on' : 'radio-button-off'} size={18} color={Colors.primary} />
-                <Text style={s.radioText}>Prorated ({prorated} days — based on remaining months)</Text>
+                <Text style={s.radioText}>Prorated — by the part of the year left from each teacher's joining date ({prorated} days for anyone starting today)</Text>
               </TouchableOpacity>
             ) : null}
 

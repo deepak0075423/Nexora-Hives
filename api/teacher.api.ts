@@ -49,10 +49,13 @@ export const saveMarks           = (examId: string, subjectId: string, data: obj
 export const getClassTests       = () => api.get('/teacher/results/class-tests');
 export const createClassTest     = (data: object) => api.post('/teacher/results/class-tests', data);
 export const saveTestMarks       = (id: string, data: object) => api.post(`/teacher/results/class-tests/${id}/marks/save`, data);
-export const getLeaves           = () => api.get('/teacher/leave');
+export const getLeaves           = (params?: object) => api.get('/teacher/leave', { params });
 export const getLeaveBalance     = () => api.get('/teacher/leave/balance');
 export const applyLeave          = (data: FormData) => api.post('/teacher/leave/apply', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+// Withdraws a pending request, or approved leave that has not started yet
 export const cancelLeave         = (id: string) => api.delete(`/teacher/leave/${id}`);
+// Back early from approved leave: { toDate } is the new last day
+export const endLeaveEarly       = (id: string, data: object) => api.post(`/teacher/leave/${id}/end-early`, data);
 
 // The rules behind each leave type, and whether I qualify for it
 export const getLeaveTypePolicies = ()                 => api.get('/teacher/leave/policies');

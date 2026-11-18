@@ -35,7 +35,10 @@ export default function AdminLeaveScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
   // One modal serves both destructive actions — each just needs a comment
-  const [action, setAction] = useState<{ type: 'reject' | 'reverse'; leave: any } | null>(null);
+  const [action, setAction] = useState<{ type: 'approve' | 'reject' | 'reverse'; leave: any } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [moreLoading, setMoreLoading] = useState(false);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +53,10 @@ export default function AdminLeaveScreen() {
 
   const load = async (st = status) => {
     try {
-      const res: any = await adminApi.getLeaveRequests({ ...(st ? { status: st } : {}), page: 1, limit: 50 });
+      const res: any = await adminApi.getLeaveRequests({ ...(st ? { status: st } : {}), page: 1, limit: 20 });
       setList((res as any)?.data ?? unwrap(res) ?? []);
+      setPage(1);
+      setPages((res as any)?.pages ?? 1);
       // Comp Off belongs to the same module — surface its pending count here so
       // the queue is not hidden behind a second navigation guess.
       const co: any = await adminApi.getCompOffRequests({ status: 'pending', limit: 1 }).catch(() => null);
@@ -76,9 +81,17 @@ export default function AdminLeaveScreen() {
   useEffect(() => { load(); }, []);
   const changeTab = (st: string) => { setStatus(st); setLoading(true); load(st); };
 
-  const approve = async (r: any) => {
-    try { await adminApi.approveLeave(r._id); load(); }
-    catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
+  // The list used to stop at the first 50 — older requests were unreachable.
+  const loadMore = async () => {
+    if (moreLoading || page >= pages) return;
+    setMoreLoading(true);
+    try {
+      const next = page + 1;
+      const res: any = await adminApi.getLeaveRequests({ ...(status ? { status } : {}), page: next, limit: 20 });
+      setList((l) => [...l, ...((res as any)?.data ?? [])]);
+      setPage(next); setPages((res as any)?.pages ?? next);
+    } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
+    finally { setMoreLoading(false); }
   };
 
   const selType   = types.find((t: any) => t._id === form.leaveTypeId);
@@ -134,13 +147,17 @@ export default function AdminLeaveScreen() {
 
   const submitAction = async () => {
     if (!action) return;
+    // The employee is owed a reason for a refusal.
+    if (action.type === 'reject' && !comment.trim()) { Alert.alert('Reason needed', 'Say why this request is being rejected.'); return; }
     setSaving(true);
     try {
-      if (action.type === 'reject') {
+      if (action.type === 'approve') {
+        await adminApi.approveLeave(action.leave._id, { adminComment: comment });
+      } else if (action.type === 'reject') {
         await adminApi.rejectLeave(action.leave._id, { reason: comment, adminComment: comment });
       } else {
-        await adminApi.reverseApprovedLeave(action.leave._id, { adminComment: comment });
-        Alert.alert('Done', `Leave reversed — ${action.leave.totalDays ?? 0} day(s) restored to the balance`);
+        const res: any = await adminApi.reverseApprovedLeave(action.leave._id, { adminComment: comment });
+        Alert.alert('Done', `Leave reversed — ${res?.restored ?? 0} day(s) restored to the balance`);
       }
       setAction(null); setComment('');
       load();
@@ -210,10 +227,17 @@ export default function AdminLeaveScreen() {
                 ? <KV label="Loss of pay" value={`${lv.lopDays} day(s)`} /> : null}
               {lv.reason ? <KV label="Reason" value={lv.reason} /> : null}
               <KV label="Status" value={<Badge label={lv.status} />} />
-              {lv.status === 'pending' && (
+              {/* What the requester has of this type, before and after — the
+                  one fact a decision needs. */}
+              {lv.status === 'pending' && lv.balance ? (
+                <KV label="Balance" value={lv.balance.allocated || lv.balance.paidDays
+                  ? `${lv.balance.available} → ${lv.balance.after} after`
+                  : 'Not allocated'} />
+              ) : null}
+              {lv.status === 'pending' && lv.canDecide !== false && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <ActionBtn label="Approve" tone="success" onPress={() => approve(lv)} />
+                    <ActionBtn label="Approve" tone="success" onPress={() => { setComment(''); setAction({ type: 'approve', leave: lv }); }} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <ActionBtn label="Reject" tone="danger" onPress={() => { setComment(''); setAction({ type: 'reject', leave: lv }); }} />
@@ -223,7 +247,7 @@ export default function AdminLeaveScreen() {
               {/* Undoing an approval is the only way to hand the days back — and
                   the Comp Off screen refuses to withdraw a credit until the
                   leave that spent it has been reversed here. */}
-              {lv.status === 'approved' && (
+              {lv.status === 'approved' && lv.canReverse && (
                 <View style={{ marginTop: 10 }}>
                   <ActionBtn label="Reverse" tone="danger" onPress={() => { setComment(''); setAction({ type: 'reverse', leave: lv }); }} />
                 </View>
@@ -231,6 +255,9 @@ export default function AdminLeaveScreen() {
             </Card>
             </FocusRow>
           ))
+        )}
+        {!loading && page < pages && (
+          <ActionBtn label={moreLoading ? 'Loading…' : 'Show older requests'} onPress={loadMore} />
         )}
       </ScrollView>
 
@@ -283,29 +310,35 @@ export default function AdminLeaveScreen() {
 
       <FormModal
         visible={!!action}
-        title={action?.type === 'reverse' ? 'Reverse Approved Leave' : 'Reject Leave'}
+        title={action?.type === 'reverse' ? 'Reverse Approved Leave' : action?.type === 'approve' ? 'Approve Leave' : 'Reject Leave'}
         onClose={() => setAction(null)}
         onSubmit={submitAction}
         submitting={saving}
-        submitLabel={action?.type === 'reverse' ? 'Reverse' : 'Reject'}
+        submitLabel={action?.type === 'reverse' ? 'Reverse' : action?.type === 'approve' ? 'Approve' : 'Reject'}
       >
         {action && (
           <>
             <KV label="Teacher" value={action.leave.teacher?.name ?? '--'} />
             <KV label="Dates" value={`${fmtDate(action.leave.fromDate)} – ${fmtDate(action.leave.toDate)}`} />
+            <KV label="Days" value={`${action.leave.totalDays ?? 0}${action.leave.lopDays > 0 ? ` (${action.leave.lopDays} loss of pay)` : ''}`} />
+            {action.type === 'approve' && action.leave.balance ? (
+              <Text style={s.note}>
+                {action.leave.balance.available} day(s) available now, {action.leave.balance.after} after approval.
+              </Text>
+            ) : null}
             {action.type === 'reverse' ? (
               <Text style={s.note}>
-                This undoes the approval and returns {action.leave.totalDays ?? 0} day(s) to the teacher's balance.
+                This undoes the approval and returns the paid days to the teacher's balance. Its attendance rows and any substitute cover raised for it are removed.
                 {action.leave.leaveType?.category === 'compoff'
                   ? ' The Comp Off days go back into the lots they were spent from.'
                   : ''}
               </Text>
             ) : null}
             <Input
-              label="Reason"
+              label={action.type === 'reject' ? 'Reason (required)' : action.type === 'approve' ? 'Comment (optional)' : 'Reason'}
               value={comment}
               onChange={setComment}
-              placeholder={action.type === 'reverse' ? 'Why is this being reversed?' : 'Why is this rejected?'}
+              placeholder={action.type === 'reverse' ? 'Why is this being reversed?' : action.type === 'approve' ? 'Anything the teacher should know' : 'Why is this rejected?'}
               multiline
             />
           </>

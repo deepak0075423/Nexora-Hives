@@ -37,7 +37,9 @@ export default function LeavePreviewPanel({ preview, loading }: { preview: any; 
           <Text style={s.muted}>{b.academicYear ?? '—'}</Text>
         </View>
 
-        {b.allocated ? (
+        {b.unpaid ? (
+          <Text style={s.muted}>Unpaid leave — no allocation needed; every day of it is loss of pay.</Text>
+        ) : b.allocated ? (
           <View style={s.stats}>
             {([
               ['Allocated', allocated],
@@ -56,16 +58,18 @@ export default function LeavePreviewPanel({ preview, loading }: { preview: any; 
           </View>
         ) : (
           <Text style={s.muted}>
-            No allocation this year — 0 day(s) available.
+            No allocation for {b.academicYear ?? 'this year'} — 0 day(s) available.
             {preview.leaveType?.category === 'compoff'
               ? ' Comp Off days are credited only when a Comp Off request is approved.'
               : ''}
           </Text>
         )}
 
-        {b.allocated && b.spendable > b.remaining ? (
+        {b.allocated && (b.unlimited || b.spendable > b.remaining) ? (
           <Text style={[s.muted, { marginTop: 6 }]}>
-            Policy allows applying up to {b.spendable} day(s) (negative balance permitted).
+            {b.unlimited
+              ? 'Policy allows a negative balance with no limit.'
+              : `Policy allows applying up to ${b.spendable} day(s) (negative balance permitted).`}
           </Text>
         ) : null}
       </View>
@@ -95,7 +99,7 @@ export default function LeavePreviewPanel({ preview, loading }: { preview: any; 
             ) : null}
             {preview.sufficient === false ? (
               <Text style={[s.alertText, { color: Colors.danger, fontWeight: '600', marginTop: 4 }]}>
-                Insufficient balance — {d.totalDays} needed, {b.spendable ?? 0} available.
+                Insufficient balance — {d.totalDays} needed, {b.unlimited ? 'no limit' : (b.spendable ?? 0)} available.
               </Text>
             ) : null}
           </View>
@@ -114,7 +118,7 @@ export default function LeavePreviewPanel({ preview, loading }: { preview: any; 
 /** Why the charged count differs from the number of calendar days picked. */
 function describeDays(d: any): string {
   if (d.sandwiched)
-    return 'Sandwich rule is on — every calendar day in the range is charged, weekly offs and holidays included.';
+    return `Sandwich rule is on — ${d.sandwichDays} weekly off/holiday day(s) between leave days (or joining it to other leave) are charged.`;
   const skipped = [
     d.weeklyOffDays > 0 && `${d.weeklyOffDays} non-working day(s) — weekly offs`,
     d.holidayDays   > 0 && `${d.holidayDays} school holiday(s)`,

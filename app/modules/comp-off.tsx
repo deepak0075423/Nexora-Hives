@@ -252,7 +252,9 @@ export default function CompOffScreen() {
               {DAY_LABEL[preview.dayCategory] ?? preview.dayCategory}{preview.dayLabel ? ` — ${preview.dayLabel}` : ''}
             </Text>
             {preview.workedHours > 0 ? (
-              <Text style={s.previewText}>{preview.workedHours} hour(s) → {preview.compOffDays ?? 0} Comp Off day(s)</Text>
+              <Text style={s.previewText}>
+                {preview.workedHours} hour(s){preview.hoursSource === 'attendance' ? ` (from your attendance, ${preview.checkIn}–${preview.checkOut})` : ''} → {preview.compOffDays ?? 0} Comp Off day(s)
+              </Text>
             ) : null}
             {!preview.eligible ? <Text style={s.previewText}>{preview.message}</Text> : null}
           </View>

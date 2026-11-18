@@ -61,6 +61,8 @@ export default function AdminCompOffScreen() {
   const [saving, setSaving] = useState(false);
 
   const run = async () => {
+    // A refusal needs a reason the employee can act on.
+    if (action?.type === 'reject' && !comment.trim()) { Alert.alert('Reason needed', 'Say why this claim is being rejected.'); return; }
     setSaving(true);
     try {
       const { type, request } = action;
@@ -139,7 +141,7 @@ export default function AdminCompOffScreen() {
                   ? <KV label="Sign-off" value={`${r.approvalLevel ?? 0} of ${r.approvalsRequired}`} /> : null}
                 {r.reason ? <KV label="Reason" value={r.reason} /> : null}
 
-                {r.status === 'pending' && (
+                {r.status === 'pending' && r.canDecide !== false && (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                     <View style={{ flex: 1 }}>
                       <ActionBtn label="Approve" tone="success" onPress={() => { setComment(''); setAction({ type: 'approve', request: r }); }} />
@@ -216,7 +218,8 @@ export default function AdminCompOffScreen() {
                 Removes the credited days. Refused if they have already been used — reverse the leave first.
               </Text>
             ) : null}
-            <Input label="Comment" value={comment} onChange={setComment} placeholder="Optional note" multiline />
+            <Input label={action?.type === 'reject' ? 'Reason (required)' : 'Comment'} value={comment} onChange={setComment}
+              placeholder={action?.type === 'reject' ? 'Why is this rejected?' : 'Optional note'} multiline />
           </>
         )}
       </FormModal>

@@ -37,9 +37,10 @@ export default function LeaveApprovalsScreen() {
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [moreLoading, setMoreLoading] = useState(false);
   const load = async (st = status) => {
     try {
-      const res: any = await teacherApi.getLeaveApprovals(st ? { status: st } : {});
+      const res: any = await teacherApi.getLeaveApprovals({ ...(st ? { status: st } : {}), page: 1, limit: 20 });
       setData(unwrap(res));
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
@@ -49,8 +50,22 @@ export default function LeaveApprovalsScreen() {
   useEffect(() => { load(); }, []);
   const changeTab = (st: string) => { setStatus(st); setLoading(true); load(st); };
 
+  // The queue pages now — it used to stop silently at 100.
+  const loadMore = async () => {
+    if (moreLoading || !data || (data.page ?? 1) >= (data.pages ?? 1)) return;
+    setMoreLoading(true);
+    try {
+      const next = (data.page ?? 1) + 1;
+      const res: any = unwrap(await teacherApi.getLeaveApprovals({ ...(status ? { status } : {}), page: next, limit: 20 }));
+      setData((d: any) => ({ ...res, items: [...(d?.items ?? []), ...(res?.items ?? [])] }));
+    } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
+    finally { setMoreLoading(false); }
+  };
+
   const run = async () => {
     if (!action) return;
+    // A refusal needs a reason the employee can act on.
+    if (action.type === 'reject' && !comment.trim()) { Alert.alert('Reason needed', 'Say why this request is being rejected.'); return; }
     setSaving(true);
     try {
       if (action.type === 'approve') {
@@ -101,7 +116,12 @@ export default function LeaveApprovalsScreen() {
                 {lv.reason ? <KV label="Reason" value={lv.reason} /> : null}
                 {lv.approvalsRequired > 1 && lv.status === 'pending'
                   ? <KV label="Sign-off" value={`${lv.approvalLevel ?? 0} of ${lv.approvalsRequired}`} /> : null}
-                {lv.status === 'pending' && (
+                {lv.status === 'pending' && lv.balance ? (
+                  <KV label="Balance" value={lv.balance.allocated || lv.balance.paidDays
+                    ? `${lv.balance.available} → ${lv.balance.after} after${lv.balance.lopDays ? ` · ${lv.balance.lopDays} LOP` : ''}`
+                    : 'Not allocated'} />
+                ) : null}
+                {lv.status === 'pending' && lv.canDecide !== false && (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                     <View style={{ flex: 1 }}>
                       <ActionBtn label="Approve" tone="success"
@@ -116,6 +136,9 @@ export default function LeaveApprovalsScreen() {
               </Card>
               </FocusRow>
             ))}
+            {(data?.page ?? 1) < (data?.pages ?? 1) ? (
+              <ActionBtn label={moreLoading ? 'Loading…' : 'Show more'} onPress={loadMore} />
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -140,7 +163,8 @@ export default function LeaveApprovalsScreen() {
                 This is the first of two sign-offs — the leave is not approved and no balance moves until the second one.
               </Text>
             ) : null}
-            <Input label="Comment" value={comment} onChange={setComment} placeholder="Optional note" multiline />
+            <Input label={action.type === 'reject' ? 'Reason (required)' : 'Comment'} value={comment} onChange={setComment}
+              placeholder={action.type === 'reject' ? 'Why is this rejected?' : 'Optional note'} multiline />
           </>
         )}
       </FormModal>
