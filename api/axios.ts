@@ -34,9 +34,11 @@ api.interceptors.response.use(
 
     // Network error — no response received at all (server down, wrong IP, timeout)
     if (!err.response) {
+      // A file that is still on its way when time runs out is a slow line, not a server that is down.
+      const upload = typeof FormData !== 'undefined' && err.config?.data instanceof FormData;
       const networkMsg =
         err.code === 'ECONNABORTED'
-          ? 'Request timed out. Is the backend running?'
+          ? (upload ? 'The upload took too long and was stopped — try again, or send fewer files at a time' : 'Request timed out. Is the backend running?')
           : `Cannot connect to server (${BASE_URL}). Check that the backend is running and reachable.`;
       return Promise.reject({ message: networkMsg, status: 0, data: null });
     }

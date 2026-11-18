@@ -25,7 +25,8 @@ export const getDocuments     = (params?: object) => api.get('/student/documents
 // "I have opened this", and handing work in (a multipart form, field `files`).
 export const markDocumentRead   = (id: string) => api.post(`/student/documents/${id}/read`);
 export const markDocumentsRead  = (ids: string[]) => api.post('/student/documents/read', { ids });
-export const submitAssignment   = (id: string, data: FormData) => api.post(`/student/documents/${id}/submit`, data);
+// PDF only, up to 5 of 10 MB each — longer than the 30-second default on mobile data.
+export const submitAssignment   = (id: string, data: FormData) => api.post(`/student/documents/${id}/submit`, data, { timeout: 5 * 60 * 1000 });
 export const getDocument      = (id: string) => api.get(`/student/documents/${id}`);
 // The discussion under a document: read, ask, and edit or delete your own.
 export const getDocumentComments   = (id: string)       => api.get(`/student/documents/${id}/comments`);

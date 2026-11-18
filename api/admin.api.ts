@@ -219,8 +219,10 @@ export const deleteDocument        = (id: string)       => api.delete(`/admin/do
 export const archiveDocument       = (id: string, archived = true) => api.post(`/admin/documents/${id}/archive`, { archived });
 export const getDocumentOverview   = ()                 => api.get('/admin/documents/overview');
 export const getDocumentClasses    = ()                 => api.get('/admin/documents/classes');
-export const uploadDocument        = (data: FormData)   => api.post('/admin/documents', data);
-export const updateDocument        = (id: string, data: FormData) => api.put(`/admin/documents/${id}`, data);
+// Files take longer than the 30-second default on mobile data (teacher.api.ts, DOC_SEND).
+const DOC_SEND = { timeout: 5 * 60 * 1000 };
+export const uploadDocument        = (data: FormData)   => api.post('/admin/documents', data, DOC_SEND);
+export const updateDocument        = (id: string, data: FormData) => api.put(`/admin/documents/${id}`, data, DOC_SEND);
 export const getDocumentTeachers   = ()                 => api.get('/admin/documents/teachers');
 export const getAssignmentAnalytics = (id: string)      => api.get(`/admin/documents/${id}/assignment/analytics`);
 // A draft shared, earlier sets of files, and who has opened the document.

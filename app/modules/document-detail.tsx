@@ -44,7 +44,7 @@ import {
   ActionBtn, FormModal, Input, confirmAsync, fmtDate, MODULE_BLOCKED_CODES,
 } from '@/components/ui/kit';
 import { CommentsPanel, FileList, type CommentApi } from '@/components/documents/commentParts';
-import { DocPick, appendDocFiles, type Picked } from '@/components/documents/filePick';
+import { DocPick, appendDocFiles, HANDIN_TYPES, type Picked } from '@/components/documents/filePick';
 import { ShareSheet } from '@/components/documents/ShareSheet';
 
 type Side = 'admin' | 'teacher' | 'student' | 'parent';
@@ -116,10 +116,9 @@ function apisFor(side: Side | null) {
     detail: null, one: parentApi.getDocument, markRead: parentApi.markDocumentRead,
     analytics: null, update: null, publish: null, versions: null, restore: null, readers: null,
     review: null, remind: null, archive: null, remove: null,
-    // A parent asks about what was shared and reads the answers — their own
-    // comments to edit and delete, no likes (as for a student).
-    comments: { list: parentApi.getDocumentComments, add: parentApi.addDocumentComment, update: parentApi.updateDocumentComment,
-      remove: parentApi.deleteDocumentComment } as CommentApi,
+    // A parent reads the discussion and writes nothing in it (Nov 2026) — no
+    // box, no reply, no edit or delete; the server has no write route for them.
+    comments: { list: parentApi.getDocumentComments } as CommentApi,
   };
   return {
     detail: null, one: null, markRead: null, analytics: null, update: null, publish: null, versions: null, restore: null, readers: null,
@@ -312,9 +311,11 @@ export default function DocumentDetailScreen() {
   };
 
   // ── Marking ────────────────────────────────────────────────────────────────
-  const questions: any[] = head?.questions || [];
-  const byQuestion = questions.length > 0;
+  // Set with no "Out of", it takes feedback only (Nov 2026): whoever set it
+  // chose no marks, so the form offers none and the server refuses any.
   const outOf = Number(head?.totalMarks) > 0 ? Number(head.totalMarks) : null;
+  const questions: any[] = outOf ? (head?.questions || []) : [];
+  const byQuestion = questions.length > 0;
   const named = questions.reduce((n, x) => n + (Number(x.maxMarks) > 0 ? Number(x.maxMarks) : 0), 0);
   // What the named questions leave over, when each says what it is worth.
   const room = byQuestion && outOf && questions.every((x) => Number(x.maxMarks) > 0)
@@ -342,9 +343,11 @@ export default function DocumentDetailScreen() {
     if (!A.review || !openSub) return;
     setSaving(true);
     try {
-      await A.review(String(id), String(openSub._id), byQuestion
-        ? { feedback: note, questionScores: labels.map((l) => ({ label: l, score: scores[l] })) }
-        : { feedback: note, marks });
+      await A.review(String(id), String(openSub._id), !outOf
+        ? { feedback: note }
+        : byQuestion
+          ? { feedback: note, questionScores: labels.map((l) => ({ label: l, score: scores[l] })) }
+          : { feedback: note, marks });
       setOpenSub(null);
       setAna(null);      // worked out before this mark existed
       await load();
@@ -445,8 +448,9 @@ export default function DocumentDetailScreen() {
                   options={[
                     { value: '', label: 'All sections' },
                     // A student with no section has no id to filter by.
+                    // The section alone — the line under the filters says how many.
                     ...(roster.sections || []).filter((x: any) => x._id)
-                      .map((x: any) => ({ value: String(x._id), label: `${x.label} (${x.total})` })),
+                      .map((x: any) => ({ value: String(x._id), label: String(x.label) })),
                   ]} />
                 <Select label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
                 <SearchBar value={search} onChange={setSearch} placeholder="Search by name or roll no…" />
@@ -542,7 +546,8 @@ export default function DocumentDetailScreen() {
       </FormModal>
 
       <FormModal visible={!!openSub} title={openSub ? `${openSub.name}’s work` : ''} onClose={() => setOpenSub(null)}
-        onSubmit={canManage && A.review ? saveMarks : undefined} submitting={saving} submitLabel="Save marks & feedback">
+        onSubmit={canManage && A.review ? saveMarks : undefined} submitting={saving}
+        submitLabel={outOf ? 'Save marks & feedback' : 'Save feedback'}>
         {openSub ? (
           <View>
             <KV label="Status" value={(STATE[openSub.state] || STATE.pending).label} />
@@ -555,14 +560,17 @@ export default function DocumentDetailScreen() {
 
             {canManage && A.review ? (
               <View style={{ marginTop: Spacing.md }}>
-                <SectionTitle>Mark it</SectionTitle>
+                <SectionTitle>{outOf ? 'Mark it' : 'Feedback'}</SectionTitle>
                 {!handedIn ? (
                   <Text style={s.warn}>
-                    Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a
-                    zero — the list still shows it as not submitted.
+                    {outOf
+                      ? 'Nothing was handed in here. Marks and feedback are recorded for work done on paper, or as a zero — the list still shows it as not submitted.'
+                      : 'Nothing was handed in here. Feedback can still be recorded for work done on paper — the list still shows it as not submitted.'}
                   </Text>
                 ) : null}
-                {byQuestion ? (
+                {!outOf ? (
+                  <Text style={s.muted}>This assignment was set without marks, so it takes feedback only.</Text>
+                ) : byQuestion ? (
                   <>
                     {labels.map((l) => {
                       const max = l === OTHER_MARKS ? room : questions.find((x) => String(x.label) === l)?.maxMarks;
@@ -809,8 +817,9 @@ function Details({ head, side, busy, canAct, onEdit, onArchive, onDelete, onPubl
           ) : (
             <View style={{ marginTop: 10 }}>
               <DocPick files={files} onFiles={setFiles} max={5}
+                types={HANDIN_TYPES} typeRule="assignments are handed in as PDF files only"
                 label={handed ? 'Replace what you handed in' : 'Attach your work'}
-                hint="Up to 5 files, 10 MB each — PDFs, documents or photos" />
+                hint="PDF only — up to 5 files, 10 MB each" />
               {pastDue ? (
                 <Text style={s.warn}>
                   {handed && sub.status !== 'late'

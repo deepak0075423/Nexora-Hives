@@ -45,6 +45,9 @@ const STATE: Record<string, { label: string; tone: any }> = {
   closed:    { label: 'Closed',         tone: 'neutral' },
 };
 
+/** Work that has come in — its card says so instead of when it was due. */
+const HANDED_IN = ['submitted', 'late', 'marked'];
+
 const TABS = [
   { key: 'all', label: 'All' },
   { key: 'assignments', label: 'Assignments' },
@@ -241,12 +244,19 @@ export default function DocumentsScreen() {
 
             <SegTabs tabs={TABS} active={tab} onChange={setTab} />
             <SearchBar value={search} onChange={setSearch} placeholder="Search documents…" />
-            {years.length > 1 && (
-              <Select label="Academic year" value={year}
-                options={[{ value: '', label: 'This year' }, { value: 'all', label: 'All years' },
-                  ...years.map((y) => ({ value: String(y._id), label: y.name }))]}
-                onChange={setYear} />
-            )}
+            {/* Opens on the current year, named and marked "(current)" — there
+                is no "This year" beside it any more. '' is what the server reads
+                as the current year, so picking it again goes back to ''. */}
+            {years.length > 1 && (() => {
+              const current = years.find((y) => y.status === 'active');
+              const currentId = current ? String(current._id) : '';
+              return (
+                <Select label="Academic year" value={year || currentId || 'all'}
+                  options={[{ value: 'all', label: 'All years' },
+                    ...years.map((y) => ({ value: String(y._id), label: y.status === 'active' ? `${y.name} (current)` : y.name }))]}
+                  onChange={(v: string) => setYear(currentId && v === currentId ? '' : v)} />
+              );
+            })()}
 
             {unread.length > 0 && (role !== 'teacher' || scope === 'shared') && (
               <View style={s.unread}>
@@ -263,13 +273,18 @@ export default function DocumentsScreen() {
                 text={search || tab !== 'all' ? 'No documents match that' : 'Nothing has been shared here yet'} />
             ) : list.map((doc) => {
               const cfg = TYPE[doc.docType] || TYPE.other;
-              const st = doc.state ? STATE[doc.state] : null;
-              const due = doc.isAssignment ? dueLine(doc.dueDate, doc.state) : null;
               const isNew = doc.isRead === false;
               // Each child's own standing, when all of them are on screen and it differs.
-              const kids = role === 'parent' && !who && children.length > 1
+              const allKids = role === 'parent' && !who && children.length > 1;
+              const kids = allKids
                 ? (doc.forChildren || []).filter((id: string) => doc.forChildren.length !== children.length || doc.perChild?.[id]?.state)
                 : [];
+              // With every child on screen the chips say where each stands, so
+              // the row's own (most urgent) state is not said a second time.
+              const st = doc.state && !allKids ? STATE[doc.state] : null;
+              // Handed in, its due date is history: the "Submitted" badge is the
+              // answer. A parent read "Due in 2 days" on work already handed in.
+              const due = doc.isAssignment && !HANDED_IN.includes(doc.state) ? dueLine(doc.dueDate, doc.state) : null;
               return (
                 // The card opens the document — its files, details and comments;
                 // the download button beside it fetches the first file straight

@@ -168,7 +168,8 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       // Only a date that was changed is held to "not in the past".
       if (f.dueDate && f.dueDate !== dueWas && new Date(`${f.dueDate}T23:59:59`) < new Date()) return 'That due date has already passed';
       if (f.totalMarks && !(Number(f.totalMarks) > 0)) return 'Marks must be more than zero';
-      const labels = f.questions.map((q) => q.label.trim().toLowerCase());
+      // The breakdown is only there, and only sent, once there is an "Out of".
+      const labels = Number(f.totalMarks) > 0 ? f.questions.map((q) => q.label.trim().toLowerCase()) : [];
       if (labels.some((l) => !l)) return 'Every question needs a name';
       if (new Set(labels).size !== labels.length) return 'Two questions share a name';
       if (labels.includes(RESERVED_QUESTION)) return '“Other marks” is kept for what the questions leave over — call the question something else';
@@ -193,7 +194,8 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       fd.append('dueDate', assigned ? f.dueDate : '');
       fd.append('totalMarks', assigned ? f.totalMarks : '');
       fd.append('assignmentType', f.assignmentType);
-      fd.append('questions', JSON.stringify(assigned ? f.questions.map((q) => ({ label: q.label.trim(), maxMarks: q.maxMarks })) : []));
+      // A breakdown splits the "Out of"; with none there is nothing to split.
+      fd.append('questions', JSON.stringify(assigned && Number(f.totalMarks) > 0 ? f.questions.map((q) => ({ label: q.label.trim(), maxMarks: q.maxMarks })) : []));
       if (mode === 'teacher') {
         fd.append('sectionIds', JSON.stringify(f.sectionIds));
       } else {
@@ -347,10 +349,13 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
           <Text style={s.hint}>It is due at the end of that day.</Text>
           <Input label="Out of (optional)" value={f.totalMarks} onChange={(v) => set({ totalMarks: v })}
             placeholder="e.g. 50" keyboardType="decimal-pad" />
+          <Text style={s.hint}>Leave empty for feedback only, no marks.</Text>
           <Select label="Kind of work" value={f.assignmentType} options={KINDS} onChange={(v) => set({ assignmentType: v })} />
 
-          {/* Optional: with questions, marking asks for a score per question
-              and the analytics can say which one the class lost marks on. */}
+          {/* Optional, and only with an "Out of" — it splits that total. With
+              questions, marking asks for a score per question and the
+              analytics can say which one the class lost marks on. */}
+          {Number(f.totalMarks) > 0 ? (<>
           <Text style={s.label}>Break the marks down by question (optional)</Text>
           {f.questions.map((q, i) => (
             <View key={i} style={s.qRow}>
@@ -383,6 +388,7 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
               </Text>
             );
           })()}
+          </>) : null}
 
           <Toggle label="Accept submissions" value={f.allowSubmission} onChange={(v) => set({ allowSubmission: v })}
             sub="Turn this off to close it without deleting anything already handed in" />

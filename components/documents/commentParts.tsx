@@ -94,9 +94,13 @@ export function FileList({ files, compact }: { files: any[]; compact?: boolean }
 
 export interface CommentApi {
   list: (id: string) => Promise<any>;
-  add: (id: string, data: object) => Promise<any>;
-  update: (cid: string, data: object) => Promise<any>;
-  remove: (cid: string) => Promise<any>;
+  /**
+   * Writing. Left out for a reader who may only read the thread — a parent
+   * (Nov 2026): no box to write in, no Reply, no Edit or Delete.
+   */
+  add?: (id: string, data: object) => Promise<any>;
+  update?: (cid: string, data: object) => Promise<any>;
+  remove?: (cid: string) => Promise<any>;
   /** Staff only — a student's route has no likes. */
   like?: (cid: string) => Promise<any>;
 }
@@ -249,9 +253,12 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
 
   const say = (e: any) => Alert.alert('Could not do that', e?.message || 'Something went wrong');
 
+  // Nothing to write with: the thread is read and nothing else.
+  const readOnly = !api.add;
+
   const post = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || !api.add) return;
     setPosting(true);
     try {
       await api.add(docId, replyTo ? { body, parent: replyTo._id } : { body });
@@ -263,6 +270,7 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
   const saveEdit = async () => {
     const body = editText.trim();
     if (!body && !editing?.files?.length) return Alert.alert('Nothing to save', 'Write something, or delete the comment instead.');
+    if (!api.update) return;
     setSaving(true);
     try { await api.update(editing._id, { body }); setEditing(null); await load(); }
     catch (e) { say(e); } finally { setSaving(false); }
@@ -271,12 +279,14 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
   const h: Handlers = {
     // Replying under a deleted comment answers the reply itself — there is no
     // one to name on the deleted one. The server keeps it in the same thread.
-    onReply: (cm, parent) => setReplyTo(parent && !parent.deleted ? parent : cm),
-    onEdit: (cm) => { setEditing(cm); setEditText(cm.body || ''); },
+    onReply: readOnly ? undefined : (cm, parent) => setReplyTo(parent && !parent.deleted ? parent : cm),
+    onEdit: (cm) => { if (!api.update) return; setEditing(cm); setEditText(cm.body || ''); },
     onPin: async (cm) => {
+      if (!api.update) return;
       try { await api.update(cm._id, { isPinned: !cm.isPinned }); await load(); } catch (e) { say(e); }
     },
     onDelete: async (cm) => {
+      if (!api.remove) return;
       const title = cm.deleted ? 'Remove thread' : 'Delete comment';
       if (!(await confirmAsync(title, deleteText(cm, adminSide), 'Delete'))) return;
       try {
@@ -292,6 +302,7 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
 
   return (
     <View>
+      {readOnly ? null : (
       <View style={c.composer}>
         {replyTo ? (
           <View style={c.replyTo}>
@@ -314,6 +325,7 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
           {posting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={c.postText}>{replyTo ? 'Post reply' : 'Post comment'}</Text>}
         </TouchableOpacity>
       </View>
+      )}
 
       {failed ? <Text style={c.failed}>{failed}</Text> : null}
       {!threads && !failed ? <LoaderView /> : null}

@@ -79,8 +79,11 @@ export const approveCompOff      = (id: string, data?: object) => api.post(`/tea
 export const rejectCompOff       = (id: string, data?: object) => api.post(`/teacher/leave/compoff/${id}/reject`, data ?? {});
 export const getDocuments        = (params?: object) => api.get('/teacher/documents', { params });
 export const getDocumentCategories = () => api.get('/teacher/document-categories');
-export const uploadDocument      = (data: FormData) => api.post('/teacher/documents', data);
-export const updateDocument      = (id: string, data: FormData) => api.put(`/teacher/documents/${id}`, data);
+// Up to 10 files of 10 MB each: the 30-second default cut a Word file or a
+// photo off part-way on mobile data, while a small PDF got through in time.
+const DOC_SEND = { timeout: 5 * 60 * 1000 };
+export const uploadDocument      = (data: FormData) => api.post('/teacher/documents', data, DOC_SEND);
+export const updateDocument      = (id: string, data: FormData) => api.put(`/teacher/documents/${id}`, data, DOC_SEND);
 export const getAssignmentAnalytics = (id: string) => api.get(`/teacher/documents/${id}/assignment/analytics`);
 export const publishDocument        = (id: string) => api.post(`/teacher/documents/${id}/publish`);
 export const getDocumentVersions    = (id: string) => api.get(`/teacher/documents/${id}/versions`);

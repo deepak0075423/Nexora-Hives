@@ -15,6 +15,8 @@ import { Colors, Radius } from '@/constants/theme';
 export type Picked = { uri: string; name: string; mimeType?: string; size?: number; file?: any };
 
 export const UPLOAD_TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+/** What a student hands in for an assignment: PDF only (middleware/upload.js, uploadSubmission). */
+export const HANDIN_TYPES = ['pdf'];
 const MAX_BYTES = 10 * 1024 * 1024;
 
 const size = (n?: number) => {
@@ -26,24 +28,35 @@ const size = (n?: number) => {
 /** The picked files, as the multipart field the document routes read (`files`). */
 export function appendDocFiles(body: FormData, files: Picked[]) {
   files.forEach((f) => {
-    if (Platform.OS === 'web' && f.file) body.append('files', f.file);
+    if (Platform.OS === 'web' && f.file) body.append('files', f.file, f.name);
     else body.append('files', { uri: f.uri, name: f.name, type: f.mimeType || 'application/octet-stream' } as any);
   });
 }
 
-export function DocPick({ files, onFiles, max = 10, label = 'Attach files', hint }: {
+/**
+ * `types` is what this box takes (the share sheet: every UPLOAD_TYPES kind; a
+ * student's hand-in: HANDIN_TYPES, PDF only) and `typeRule` says so when
+ * something else is picked.
+ */
+export function DocPick({ files, onFiles, max = 10, label = 'Attach files', hint, types = UPLOAD_TYPES, typeRule }: {
   files: Picked[]; onFiles: (f: Picked[]) => void; max?: number; label?: string; hint?: string;
+  types?: string[]; typeRule?: string;
 }) {
+  const pdfOnly = types.length === 1 && types[0] === 'pdf';
   const pick = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
+      // PDF only: the system picker shows PDFs alone, so nothing else can be chosen.
+      const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true, ...(pdfOnly ? { type: 'application/pdf' } : {}) });
       if (res.canceled || !res.assets?.length) return;
       const refused: string[] = [];
       const good: Picked[] = [];
       for (const a of res.assets as any[]) {
-        const name = a.name || 'file';
+        let name = a.name || 'file';
+        // A PDF from a cloud drive can arrive named without ".pdf"; the server
+        // reads the name, then checks the file really is a PDF.
+        if (a.mimeType === 'application/pdf' && !/\.pdf$/i.test(name)) name = `${name}.pdf`;
         const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-        if (!UPLOAD_TYPES.includes(ext)) refused.push(`${name} — use a PDF, a Word, Excel or PowerPoint file, a text file or a photo`);
+        if (!types.includes(ext)) refused.push(`${name} — ${typeRule || 'use a PDF, a Word, Excel or PowerPoint file, a text file or a photo'}`);
         else if ((a.size || 0) > MAX_BYTES) refused.push(`${name} is ${size(a.size)} — the limit is 10 MB a file`);
         else good.push({ uri: a.uri, name, mimeType: a.mimeType, size: a.size, file: a.file });
       }

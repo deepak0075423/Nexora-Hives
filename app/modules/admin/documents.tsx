@@ -39,6 +39,8 @@ export default function AdminDocumentsScreen() {
   const [tab, setTab] = useState('all');
   // null until the summary says which year is current; '' is "all years".
   const [year, setYear] = useState<string | null>(null);
+  // The school's own filing label — '' is every category.
+  const [category, setCategory] = useState('');
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
 
@@ -51,7 +53,8 @@ export default function AdminDocumentsScreen() {
 
   const query = useCallback((pg: number) => ({
     tab, page: pg, limit: PAGE, search: term || undefined, academicYear: year || 'all',   // '' is "All years" here; the list's own default is the year in view
-  }), [tab, term, year]);
+    category: category || undefined,
+  }), [tab, term, year, category]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -126,20 +129,30 @@ export default function AdminDocumentsScreen() {
       >
         <SegTabs tabs={tabs} active={tab} onChange={(v) => { setTab(v); setLoading(true); }} />
         <SearchBar value={search} onChange={setSearch} placeholder="Search documents…" />
+        {/* The year by name, the current one marked — no count beside each:
+            the line over the list already says how many are showing. */}
         {(over?.academicYears || []).length > 0 && (
           <Select label="Academic year" value={year || ''}
             options={[
               { value: '', label: 'All academic years' },
-              ...(over.academicYears as any[]).map((y) => ({ value: String(y._id), label: `${y.name}${y.status === 'active' ? ' (current)' : ''} · ${y.count}` })),
-              ...(over.unfiledYear > 0 ? [{ value: 'none', label: `No academic year · ${over.unfiledYear}` }] : []),
+              ...(over.academicYears as any[]).map((y) => ({ value: String(y._id), label: `${y.name}${y.status === 'active' ? ' (current)' : ''}` })),
+              ...(over.unfiledYear > 0 ? [{ value: 'none', label: 'No academic year' }] : []),
             ]}
             onChange={(v) => { setYear(v); setLoading(true); }} />
+        )}
+        {(over?.categories || []).length > 0 && (
+          <Select label="Category" value={category}
+            options={[
+              { value: '', label: 'All categories' },
+              ...(over.categories as any[]).map((c) => ({ value: String(c.name), label: String(c.name) })),
+            ]}
+            onChange={(v) => { setCategory(v); setLoading(true); }} />
         )}
 
         {loading ? <LoaderView /> : failed ? (
           <Empty icon="cloud-offline-outline" text={failed} />
         ) : rows.length === 0 ? (
-          <Empty icon="folder-open-outline" text={term || tab !== 'all' ? 'No documents match that' : 'No documents in this year yet'} />
+          <Empty icon="folder-open-outline" text={term || category || tab !== 'all' ? 'No documents match that' : 'No documents in this year yet'} />
         ) : (
           <>
             <Text style={s.count}>Showing {rows.length} of {total} document{total === 1 ? '' : 's'}</Text>
@@ -148,7 +161,9 @@ export default function AdminDocumentsScreen() {
                 key={doc._id}
                 icon={doc.isAssignment ? 'document-text' : 'document'} iconColor="#EA580C" iconBg="#FFEDD5"
                 title={doc.title ?? 'Document'}
-                sub={[doc.sharedWith?.label, fmtDate(doc.createdAt), doc.uploadedBy?.name ? `by ${doc.uploadedBy.name}` : ''].filter(Boolean).join(' · ')}
+                // The category leads the line: it is the school's own word for
+                // the shelf the document sits on.
+                sub={[doc.category, doc.sharedWith?.label, fmtDate(doc.createdAt), doc.uploadedBy?.name ? `by ${doc.uploadedBy.name}` : ''].filter(Boolean).join(' · ')}
                 // What it is, or that it has been put away — this read "active" on every row.
                 right={<Badge label={doc.isDraft ? 'Draft' : doc.isArchived ? 'Archived' : (TYPE_LABEL[doc.docType] || 'Document')}
                   tone={doc.isDraft ? 'warning' : doc.isArchived ? 'neutral' : 'info'} />}
