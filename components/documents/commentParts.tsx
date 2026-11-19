@@ -208,7 +208,8 @@ function CommentCard({ cm, parent, depth = 0, h }: { cm: any; parent?: any; dept
           <Chip icon={cm.likedByMe ? 'heart' : 'heart-outline'} label={String(cm.likes || 0)} on={cm.likedByMe}
             onPress={() => h.onLike!(cm)} a11y={cm.likedByMe ? 'Unlike' : 'Like'} />
         ) : null}
-        {h.onReply ? <Chip icon="return-down-forward-outline" label="Reply" onPress={() => h.onReply!(cm, parent)} /> : null}
+        {/* Two levels and no more (Nov 2026): a reply has no Reply of its own. */}
+        {h.onReply && !depth ? <Chip icon="return-down-forward-outline" label="Reply" onPress={() => h.onReply!(cm, parent)} /> : null}
         {cm.canEdit ? <Chip icon="create-outline" label="Edit" onPress={() => h.onEdit(cm)} a11y="Edit comment" /> : null}
         {cm.canPin && !depth ? (
           <Chip icon={cm.isPinned ? 'star' : 'star-outline'} label={cm.isPinned ? 'Unpin' : 'Pin'} on={cm.isPinned} onPress={() => h.onPin(cm)} />

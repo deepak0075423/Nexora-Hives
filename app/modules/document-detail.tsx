@@ -308,7 +308,14 @@ export default function DocumentDetailScreen() {
       const r: any = await A.remind(String(id), student ? { studentIds: [String(student._id)] } : {});
       Alert.alert('Reminder', r?.sent ? `Sent to ${r.sent} student${r.sent === 1 ? '' : 's'} and their parents.` : (r?.message || 'Nobody to remind.'));
     } catch (e: any) { Alert.alert('Not sent', said(e)); }
+    // Sent or refused, read back when each button may be pressed again.
+    finally { if (student) setOpenSub(null); await load(); }
   };
+  // Held until the server's `remindAgainAt` (Nov 2026): everyone once an hour,
+  // one student once in ten minutes — the buttons used to be pressed and refused.
+  const waiting = (at?: string | null) => !!at && new Date(at).getTime() > Date.now();
+  const clockOf = (d?: string | null) => (d
+    ? new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() : '');
 
   // ── Marking ────────────────────────────────────────────────────────────────
   // Set with no "Out of", it takes feedback only (Nov 2026): whoever set it
@@ -439,8 +446,11 @@ export default function DocumentDetailScreen() {
 
                 {canManage && A.remind && (
                   <View style={{ marginBottom: 10 }}>
-                    <ActionBtn label={`Remind everyone still to hand in${outstanding ? ` (${outstanding})` : ''}`}
-                      onPress={() => remind()} />
+                    <ActionBtn
+                      label={waiting(head?.remindAgainAt)
+                        ? `Reminded at ${clockOf(head?.remindedAt)} — again after ${clockOf(head?.remindAgainAt)}`
+                        : `Remind everyone still to hand in${outstanding ? ` (${outstanding})` : ''}`}
+                      disabled={waiting(head?.remindAgainAt)} onPress={() => remind()} />
                   </View>
                 )}
 
@@ -588,7 +598,11 @@ export default function DocumentDetailScreen() {
                 <Input label="Feedback" value={note} onChange={(v) => setNote(v.slice(0, 600))} multiline
                   placeholder="What they did well, and what to fix next time" />
                 {!handedIn ? (
-                  <ActionBtn label="Send this student a reminder" onPress={() => remind(openSub)} />
+                  <ActionBtn
+                    label={waiting(openSub.remindAgainAt)
+                      ? `Reminded at ${clockOf(openSub.remindedAt)} — again after ${clockOf(openSub.remindAgainAt)}`
+                      : 'Send this student a reminder'}
+                    disabled={waiting(openSub.remindAgainAt)} onPress={() => remind(openSub)} />
                 ) : null}
               </View>
             ) : null}
