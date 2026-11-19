@@ -367,7 +367,9 @@ export default function DocumentDetailScreen() {
     { key: 'details', label: 'Details' },
     ...(staff && roster ? [{ key: 'submissions', label: `Submissions (${roster.counts?.total ?? 0})` }] : []),
     ...(staff && roster && A.analytics ? [{ key: 'analytics', label: 'Analytics' }] : []),
-    ...(A.comments ? [{ key: 'comments', label: comments == null ? 'Comments' : `Comments (${comments})` }] : []),
+    // The thread's own figure once it has loaded; until then the count the
+    // document came with (staff), so the tab says it before it is opened.
+    ...(A.comments ? [{ key: 'comments', label: (comments ?? head?.commentCount) == null ? 'Comments' : `Comments (${comments ?? head.commentCount})` }] : []),
   ];
   const active = tabs.some((t) => t.key === tab) ? tab : 'details';
   const handedIn = openSub && (openSub.state === 'submitted' || openSub.state === 'late');
