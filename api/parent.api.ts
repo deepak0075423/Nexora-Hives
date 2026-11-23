@@ -21,7 +21,8 @@ export const markDocumentsRead  = (ids: string[]) => api.post('/parent/documents
 // only: a parent has no route to write, edit or delete a comment.
 export const getDocumentComments   = (id: string)       => api.get(`/parent/documents/${id}/comments`);
 export const getDocument        = (id: string) => api.get(`/parent/documents/${id}`);
-export const getHolidays        = () => api.get('/parent/holidays');
+// `{ year }`: a year id or 'all'; omitted = this academic year (Nov 2026).
+export const getHolidays        = (params?: { year?: string }) => api.get('/parent/holidays', { params });
 
 // Timetable — ONE child's week. `child` picks which; the reply lists `children`
 // to switch between and always names the child it answered for, so one child's

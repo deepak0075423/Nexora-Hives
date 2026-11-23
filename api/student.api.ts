@@ -33,7 +33,8 @@ export const getDocumentComments   = (id: string)       => api.get(`/student/doc
 export const addDocumentComment    = (id: string, data: object) => api.post(`/student/documents/${id}/comments`, data);
 export const updateDocumentComment = (cid: string, data: object) => api.patch(`/student/documents/comments/${cid}`, data);
 export const deleteDocumentComment = (cid: string)      => api.delete(`/student/documents/comments/${cid}`);
-export const getHolidays      = () => api.get('/student/holidays');
+// `{ year }`: a year id or 'all'; omitted = this academic year (Nov 2026).
+export const getHolidays      = (params?: { year?: string }) => api.get('/student/holidays', { params });
 export const getResults       = () => api.get('/student/results');
 export const getResultDetail  = (id: string) => api.get(`/student/results/${id}`);
 export const getClassTests    = () => api.get('/student/results/class-tests');

@@ -19,6 +19,9 @@
  *            letters, digits and spaces, starting with a letter
  *   sentence a short line of description with no symbols (a leave type's
  *            description): English letters, digits, spaces and . , ' - ( ) /
+ *   phrase   a holiday's name or description: English letters, digits, spaces
+ *            and . , ' - ( ) / & — at least one letter (never only a number),
+ *            starting with a letter or a digit
  *   code     an ID or a number with letters: English letters, digits and - / _ .
  *   upper    capital letters and digits; small letters typed become capitals
  *   digits   digits only;  decimal  digits and one decimal point
@@ -34,7 +37,7 @@
  * browser starts a tag (<script, </b, <!--), so that "<" is dropped.
  */
 export type TextKind =
-  | 'text' | 'name' | 'letters' | 'place' | 'title' | 'words' | 'sentence' | 'code' | 'upper' | 'digits' | 'decimal'
+  | 'text' | 'name' | 'letters' | 'place' | 'title' | 'words' | 'sentence' | 'phrase' | 'code' | 'upper' | 'digits' | 'decimal'
   | 'email' | 'token' | 'any'
   | 'pincode' | 'aadhaar' | 'pan' | 'ifsc' | 'gstin' | 'account' | 'uan' | 'hsn' | 'otp' | 'date' | 'time';
 
@@ -47,7 +50,7 @@ const L = /[A-Z]/, D = /[0-9]/, X = /[A-Z0-9]/;
 
 interface Rule {
   keep?: RegExp; upper?: boolean; mask?: (RegExp | string)[]; pad?: boolean; max?: number; oneDot?: boolean;
-  ok?: RegExp; msg?: (label: string) => string;
+  ok?: RegExp; msg?: (label: string, value?: string) => string;
 }
 
 /**
@@ -67,6 +70,8 @@ export const KINDS: Record<TextKind, Rule> = {
   title:   { keep: /[^A-Za-z0-9 .,&'()/+:#%-]/g, ok: /^[A-Za-z0-9 .,&'()/+:#%-]+$/, msg: (l) => `${l} can only have English letters, numbers, spaces and . , - & ' ( ) / + : # %` },
   words:   { keep: /[^A-Za-z0-9 ]/g, ok: /^[A-Za-z][A-Za-z0-9 ]*$/, msg: (l) => `${l} must start with a letter and can only have English letters, numbers and spaces` },
   sentence: { keep: /[^A-Za-z0-9 .,'()/-]/g, ok: /^[A-Za-z0-9][A-Za-z0-9 .,'()/-]*$/, msg: (l) => `${l} must start with a letter or a number and can only have English letters, numbers, spaces and . , ' - ( ) /` },
+  // A holiday's name or description (Nov 2026): a few symbols, and at least one letter — never only a number.
+  phrase:  { keep: /[^A-Za-z0-9 .,'()\/&-]/g, ok: /^(?=[^A-Za-z]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9 .,'()\/&-]*$/, msg: (l: string, v = '') => (!/[A-Za-z]/.test(v) ? `${l} must have at least one letter — it cannot be only numbers or symbols` : /^[^A-Za-z0-9]/.test(v) ? `${l} must start with a letter or a number` : `${l} can only have English letters, numbers, spaces and . , ' - ( ) / &`) },
   code:    { keep: /[^A-Za-z0-9/._-]/g, ok: /^[A-Za-z0-9/._-]+$/, msg: (l) => `${l} can only have English letters, numbers and - / _ .` },
   author:  { keep: /[^A-Za-z .,'-]/g, ok: /^[A-Za-z][A-Za-z .,'-]*$/, msg: (l) => `${l} can only have English letters, spaces and . ' - (commas between names)` },
   isbn:    { keep: /[^0-9Xx -]/g, ok: /^[0-9Xx -]+$/, msg: (l) => `${l} can only have digits, hyphens, spaces and X` },
@@ -139,7 +144,7 @@ export function textError(value: string | null | undefined, label = 'This field'
   const rule = KINDS[kind];
   if (!rule?.ok || !rule.msg) return null;
   if (rule.upper) v = v.toUpperCase();
-  return rule.ok.test(v) ? null : rule.msg(label);
+  return rule.ok.test(v) ? null : rule.msg(label, v);
 }
 
 /** The longest value a field of `kind` holds, for a TextInput's maxLength. */
@@ -158,7 +163,7 @@ export function kindCapitalize(kind: TextKind | null): 'none' | 'sentences' | 'w
   if (!kind) return 'none';
   if (KINDS[kind]?.upper) return 'characters';
   if (kind === 'name' || kind === 'letters' || kind === 'place' || kind === 'title' || kind === 'words') return 'words';
-  if (kind === 'text' || kind === 'any' || kind === 'sentence') return 'sentences';
+  if (kind === 'text' || kind === 'any' || kind === 'sentence' || kind === 'phrase') return 'sentences';
   return 'none';
 }
 

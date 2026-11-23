@@ -9,7 +9,7 @@ import * as teacherApi from '@/api/teacher.api';
 import * as parentApi from '@/api/parent.api';
 import ModuleDisabled from '@/components/ModuleDisabled';
 import { FocusRow } from '@/components/FocusHighlight';
-import { MODULE_BLOCKED_CODES } from '@/components/ui/kit';
+import { MODULE_BLOCKED_CODES, Select } from '@/components/ui/kit';
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   public:    { bg: '#DCFCE7', color: '#16A34A' },
@@ -26,14 +26,24 @@ export default function HolidaysScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [disabled, setDisabled] = useState(false);
+  // Which academic year (Nov 2026). A teacher follows the header's year
+  // switcher; a student or a parent has no switcher, so the screen carries
+  // its own picker. 'current' = this academic year.
+  const [year, setYear] = useState('current');
+  const [years, setYears] = useState<{ _id: string; name: string }[]>([]);
+  const [currentYear, setCurrentYear] = useState('');
+  const picksYear = user?.role === 'student' || user?.role === 'parent';
 
   const load = async () => {
     try {
       let res: any;
+      const params = year === 'current' ? undefined : { year };
       if (user?.role === 'teacher') res = await teacherApi.getHolidays();
-      else if (user?.role === 'parent') res = await parentApi.getHolidays();
-      else res = await studentApi.getHolidays();
+      else if (user?.role === 'parent') res = await parentApi.getHolidays(params);
+      else res = await studentApi.getHolidays(params);
       setHolidays((res as any)?.data ?? res ?? []);
+      if (Array.isArray(res?.years)) setYears(res.years);
+      if (res?.currentYear !== undefined) setCurrentYear(res.currentYear || '');
     } catch (err: any) {
       if (MODULE_BLOCKED_CODES.includes(err?.data?.code)) setDisabled(true);
     }
@@ -41,7 +51,7 @@ export default function HolidaysScreen() {
   };
 
   // Wait for the user record — firing before role is known would hit the wrong role's API
-  useEffect(() => { if (user?.role) load(); }, [user?.role]);
+  useEffect(() => { if (user?.role) load(); }, [user?.role, year]);
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const upcoming = holidays.filter((h: any) => new Date(h.endDate ?? h.date) >= new Date());
@@ -64,6 +74,14 @@ export default function HolidaysScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
+        {picksYear && years.length > 0 && (
+          <Select label="Academic year" value={year === 'current' ? currentYear : year}
+            onChange={(v) => { setLoading(true); setYear(v); }}
+            options={[
+              ...years.map((y) => ({ label: y._id === currentYear ? `${y.name} (current)` : y.name, value: y._id })),
+              { label: 'All years', value: 'all' },
+            ]} />
+        )}
         {loading ? (
           <View style={s.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
         ) : holidays.length === 0 ? (
