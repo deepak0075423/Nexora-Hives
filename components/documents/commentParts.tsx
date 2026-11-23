@@ -101,8 +101,7 @@ export interface CommentApi {
   add?: (id: string, data: object) => Promise<any>;
   update?: (cid: string, data: object) => Promise<any>;
   remove?: (cid: string) => Promise<any>;
-  /** Staff only — a student's route has no likes. */
-  like?: (cid: string) => Promise<any>;
+  // No `like`: comments have no likes (Nov 23 2026).
 }
 
 const ROLE_LABEL: Record<string, string> = { school_admin: 'Admin', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
@@ -154,7 +153,6 @@ type Handlers = {
   onEdit: (cm: any) => void;
   onPin: (cm: any) => void;
   onDelete: (cm: any) => void;
-  onLike?: (cm: any) => void;
 };
 
 function CommentCard({ cm, parent, depth = 0, h }: { cm: any; parent?: any; depth?: number; h: Handlers }) {
@@ -204,10 +202,6 @@ function CommentCard({ cm, parent, depth = 0, h }: { cm: any; parent?: any; dept
       <FileList files={cm.files || []} compact />
 
       <View style={c.actions}>
-        {h.onLike ? (
-          <Chip icon={cm.likedByMe ? 'heart' : 'heart-outline'} label={String(cm.likes || 0)} on={cm.likedByMe}
-            onPress={() => h.onLike!(cm)} a11y={cm.likedByMe ? 'Unlike' : 'Like'} />
-        ) : null}
         {/* Two levels and no more (Nov 2026): a reply has no Reply of its own. */}
         {h.onReply && !depth ? <Chip icon="return-down-forward-outline" label="Reply" onPress={() => h.onReply!(cm, parent)} /> : null}
         {cm.canEdit ? <Chip icon="create-outline" label="Edit" onPress={() => h.onEdit(cm)} a11y="Edit comment" /> : null}
@@ -296,9 +290,6 @@ export function CommentsPanel({ docId, api, adminSide, onCount }: {
         await load();
       } catch (e) { say(e); }
     },
-    onLike: api.like ? async (cm) => {
-      try { await api.like!(cm._id); await load(); } catch (e) { say(e); }
-    } : undefined,
   };
 
   return (

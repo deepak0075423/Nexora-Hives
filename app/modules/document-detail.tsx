@@ -93,7 +93,7 @@ function apisFor(side: Side | null) {
     review: adminApi.reviewSubmission, remind: adminApi.remindAssignment,
     archive: adminApi.archiveDocument, remove: adminApi.deleteDocument,
     comments: { list: adminApi.getDocumentComments, add: adminApi.addDocumentComment, update: adminApi.updateDocumentComment,
-      remove: adminApi.deleteDocumentComment, like: adminApi.likeDocumentComment } as CommentApi,
+      remove: adminApi.deleteDocumentComment } as CommentApi,
   };
   if (side === 'teacher') return {
     detail: teacherApi.getAssignmentDetail, one: null, markRead: teacherApi.markDocumentRead,
@@ -103,7 +103,7 @@ function apisFor(side: Side | null) {
     review: teacherApi.reviewAssignment, remind: teacherApi.remindAssignment,
     archive: teacherApi.archiveDocument, remove: teacherApi.deleteDocument,
     comments: { list: teacherApi.getDocumentComments, add: teacherApi.addDocumentComment, update: teacherApi.updateDocumentComment,
-      remove: teacherApi.deleteDocumentComment, like: teacherApi.likeDocumentComment } as CommentApi,
+      remove: teacherApi.deleteDocumentComment } as CommentApi,
   };
   if (side === 'student') return {
     detail: null, one: studentApi.getDocument, markRead: studentApi.markDocumentRead,
@@ -276,8 +276,10 @@ export default function DocumentDetailScreen() {
     if (!A.archive) return;
     const back = !!head?.isArchived;
     if (!(await confirmAsync(
-      back ? 'Restore document' : 'Archive document',
-      back ? `Put “${head?.title}” back on the shelf?` : `Archive “${head?.title}”? It stays, but leaves everyone’s list.`,
+      back ? 'Restore document' : 'Archive this document?',
+      back ? `Put “${head?.title}” back on the shelf?`
+        // The same warning the web gives (Nov 23 2026).
+        : `“${head?.title}” will be taken off the shelf of everyone it was shared with — students, parents and teachers will no longer see it. You can restore it later.`,
       back ? 'Restore' : 'Archive',
     ))) return;
     setBusy(true);

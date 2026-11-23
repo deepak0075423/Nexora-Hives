@@ -241,7 +241,6 @@ export const getDocumentComments   = (id: string)       => api.get(`/admin/docum
 export const addDocumentComment    = (id: string, data: object) => api.post(`/admin/documents/${id}/comments`, data);
 export const updateDocumentComment = (cid: string, data: object) => api.patch(`/admin/documents/comments/${cid}`, data);
 export const deleteDocumentComment = (cid: string)      => api.delete(`/admin/documents/comments/${cid}`);
-export const likeDocumentComment   = (cid: string)      => api.post(`/admin/documents/comments/${cid}/like`);
 export const getDocumentCategories = ()                 => api.get('/admin/document-categories');
 export const createDocumentCategory = (data: object)    => api.post('/admin/document-categories', data);
 export const deleteDocumentCategory = (id: string)      => api.delete(`/admin/document-categories/${id}`);
