@@ -38,7 +38,13 @@ const AUDIENCES = [
   { value: 'all_teachers', label: 'All teachers' },
   { value: 'specific_teachers', label: 'Specific teachers' },
 ];
-const STAFF_AUDIENCES = ['all_teachers', 'specific_teachers'];
+/**
+ * Who an assignment cannot go to, here and on the server alike (Nov 24 2026):
+ * teachers alone hand nothing in, and the whole school is every parent and
+ * teacher too. With one of these chosen the sheet does not offer an assignment.
+ */
+const NO_ASSIGNMENT = ['whole_school', 'all_teachers', 'specific_teachers'];
+const CLASSES_ONLY = 'An assignment is set for classes or sections — pick Whole classes or Specific sections';
 
 const KINDS = [
   { value: 'homework', label: 'Homework' }, { value: 'classwork', label: 'Classwork' },
@@ -162,7 +168,7 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
     if (mode === 'admin' && f.targetType === 'class_sections' && !f.sectionIds.length) return 'Pick at least one section';
     if (mode === 'admin' && f.targetType === 'specific_teachers' && !f.teacherIds.length) return 'Pick at least one teacher';
     if (assigned) {
-      if (mode === 'admin' && STAFF_AUDIENCES.includes(f.targetType)) return 'Only students hand work in — pick classes, sections or the whole school for an assignment';
+      if (mode === 'admin' && NO_ASSIGNMENT.includes(f.targetType)) return CLASSES_ONLY;
       if (!files.length && !kept.length) return 'Attach the assignment or its instructions — students need a file to work from';
       if (f.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(f.dueDate)) return 'Write the due date as YYYY-MM-DD, for example 2026-12-05';
       // Only a date that was changed is held to "not in the past".
@@ -219,17 +225,22 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
     } finally { setSaving(false); }
   };
 
+  // Whether this audience can be set work. An assignment already on the form
+  // (one opened for editing) stays offered, and the save says why it cannot go.
+  const showAssign = mode !== 'admin' || !NO_ASSIGNMENT.includes(f.targetType) || f.isAssignment;
+  const types = TYPES.filter((t) => t.value !== 'assignment' || showAssign);
+
   return (
     <FormModal visible={visible} title={editing ? 'Edit document' : 'Share a document'} onClose={onClose} onSubmit={submit}
       submitting={saving} submitLabel={editing ? 'Save changes' : 'Share it'}>
-      <Select label="What is it?" value={f.docType} options={TYPES}
+      <Select label="What is it?" value={f.docType} options={types}
         onChange={(v) => set({
           docType: v,
           // The type and the flag move together: an assignment is one, a notice
           // or circular never is, and anything else keeps what it had.
           isAssignment: v === 'assignment' ? true : ['notice', 'circular'].includes(v) ? false : f.isAssignment,
         })} />
-      {['study_material', 'other'].includes(f.docType) && (
+      {showAssign && ['study_material', 'other'].includes(f.docType) && (
         <Toggle label="Students hand work in against this" value={f.isAssignment}
           onChange={(v) => set({ isAssignment: v })} sub="Turns it into an assignment with submissions and marking" />
       )}
@@ -258,7 +269,18 @@ export function ShareSheet({ visible, onClose, onDone, mode, sections = [], clas
       ) : (
         <>
           <Select label="How wide" value={f.targetType} options={AUDIENCES}
-            onChange={(v) => { set({ targetType: v, classIds: [], sectionIds: [], teacherIds: [] }); setFind(''); }} />
+            onChange={(v) => {
+              // An audience that cannot be set work takes the assignment off.
+              const off = NO_ASSIGNMENT.includes(v) && f.isAssignment;
+              set({
+                targetType: v, classIds: [], sectionIds: [], teacherIds: [],
+                ...(off ? { isAssignment: false, docType: f.docType === 'assignment' ? 'other' : f.docType } : {}),
+              });
+              setFind('');
+            }} />
+          {!showAssign && (
+            <Text style={s.note}>Assignments are set for classes or sections — pick Whole classes or Specific sections to set one.</Text>
+          )}
           {f.targetType === 'class' && (
             <View style={s.chips}>
               {classes.map((c: any) => (
