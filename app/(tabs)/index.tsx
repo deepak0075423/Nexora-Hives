@@ -176,7 +176,7 @@ const TEACHER_ADMIN_MODULES = [
   { key: 'verify',     label: 'Verify*',     icon: 'shield-checkmark', route: '/modules/employee-verification', adminOf: 'employeeDirectory' },
   // A nurse: the medical room's desk, beside the teacher's own Medical Room tile.
   { key: 'medicalDesk', label: 'Medical Desk*', icon: 'medkit',       route: '/modules/admin/medical',    adminOf: 'medical' },
-  { key: 'sendAlert',  label: 'Send Alert',  icon: 'megaphone',       route: '/modules/send-notification', adminOf: 'notification' },
+  { key: 'sendAlert',  label: 'Send Alert',  icon: 'megaphone',       route: '/modules/send-notification?as=admin', adminOf: 'notification' },
 ];
 
 // Returns only modules that are enabled for the school (or have no flag = always on).

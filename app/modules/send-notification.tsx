@@ -4,7 +4,7 @@ import {
   ScrollView, ActivityIndicator, Alert, Switch, Platform,
 } from 'react-native';
 import { TextInput } from '@/components/ui/TextInput';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,11 +51,16 @@ export default function SendNotificationScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { isAdmin } = useModules();
+  const { as } = useLocalSearchParams<{ as?: string }>();
   const role = user?.role ?? 'student';
   // A teacher whose designation grants ADMIN on Notifications writes to the
   // whole school, exactly as the school admin does — they were held to their
-  // own section here, though the server allowed the rest.
-  const side = role === 'teacher' && isAdmin('notification') ? 'admin' : role;
+  // own section here, though the server allowed the rest. That is the module's
+  // admin side, so only the "Send Alert" tile under Module Admin opens it
+  // (`?as=admin`); the send button on their own Alerts screen stays a
+  // teacher's — their sections only (Nov 25 2026, the user's call; web does
+  // the same with /admin/notifications vs /teacher/notifications).
+  const side = role === 'teacher' && isAdmin('notification') && as === 'admin' ? 'admin' : role;
 
   // form state
   const [title, setTitle]     = useState('');
