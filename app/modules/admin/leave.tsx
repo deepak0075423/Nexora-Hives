@@ -13,7 +13,13 @@ import {
 import LeavePreviewPanel from '@/components/LeavePreviewPanel';
 import { validateLeaveDates, dateRuleHint, todayStr } from '@/utils/leaveDates';
 
-const EMPTY_APPLY = { teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+const EMPTY_APPLY = { academicYear: '', teacherId: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+// The academic years (each with its first and last day, from the request list)
+// — the apply form's year picker and date limits, and the list's year (Nov 2026).
+type LeaveYear = { label: string; start?: string; end?: string; closed?: boolean };
+const outsideYear = (y: LeaveYear | undefined, from: string, to: string) =>
+  !!y && !!from && !!to && ((!!y.start && from < y.start) || (!!y.end && to > y.end));
+
 
 const STATUS_TABS = [
   { key: 'pending', label: 'Pending' },
@@ -50,13 +56,19 @@ export default function AdminLeaveScreen() {
   const [applying, setApplying] = useState(false);
   const [preview, setPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Which year's requests are listed ('' = the active one, 'all' = every year).
+  const [listYear, setListYear] = useState('');
+  const [years, setYears] = useState<LeaveYear[]>([]);
+  const [activeYear, setActiveYear] = useState('');
 
-  const load = async (st = status) => {
+  const load = async (st = status, year = listYear) => {
     try {
-      const res: any = await adminApi.getLeaveRequests({ ...(st ? { status: st } : {}), page: 1, limit: 20 });
+      const res: any = await adminApi.getLeaveRequests({ ...(st ? { status: st } : {}), ...(year ? { academicYear: year } : {}), page: 1, limit: 20 });
       setList((res as any)?.data ?? unwrap(res) ?? []);
       setPage(1);
       setPages((res as any)?.pages ?? 1);
+      if (Array.isArray(res?.academicYears)) setYears(res.academicYears);
+      if (res?.activeAcademicYear !== undefined) setActiveYear(res.activeAcademicYear || '');
       // Comp Off belongs to the same module — surface its pending count here so
       // the queue is not hidden behind a second navigation guess.
       const co: any = await adminApi.getCompOffRequests({ status: 'pending', limit: 1 }).catch(() => null);
@@ -87,19 +99,23 @@ export default function AdminLeaveScreen() {
     setMoreLoading(true);
     try {
       const next = page + 1;
-      const res: any = await adminApi.getLeaveRequests({ ...(status ? { status } : {}), page: next, limit: 20 });
+      const res: any = await adminApi.getLeaveRequests({ ...(status ? { status } : {}), ...(listYear ? { academicYear: listYear } : {}), page: next, limit: 20 });
       setList((l) => [...l, ...((res as any)?.data ?? [])]);
       setPage(next); setPages((res as any)?.pages ?? next);
     } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
     finally { setMoreLoading(false); }
   };
 
+  const formYear = years.find((y) => y.label === form.academicYear);
+  const pickListYear = (v: string) => { const y = v === activeYear ? '' : v; setListYear(y); setLoading(true); load(status, y); };
   const selType   = types.find((t: any) => t._id === form.leaveTypeId);
   // Admin files on behalf: back-dating still binds, the notice period does not.
   const dateRules = selType ? { ...selType, advanceNoticeDays: 0 } : null;
   const dateHint  = dateRuleHint(dateRules);
   const dateError = (form.fromDate || form.toDate)
-    ? validateLeaveDates(form.fromDate, form.toDate, dateRules)
+    ? (validateLeaveDates(form.fromDate, form.toDate, dateRules)
+      || (outsideYear(formYear, form.fromDate, form.toDate)
+        ? `A leave in ${formYear?.label} must fall between ${formYear?.start} and ${formYear?.end}.` : ''))
     : '';
 
   useEffect(() => {
@@ -113,15 +129,17 @@ export default function AdminLeaveScreen() {
           leaveTypeId: form.leaveTypeId,
           ...(dateError ? {} : { fromDate: form.fromDate, toDate: form.toDate }),
           leaveMode: form.leaveMode,
+          ...(form.academicYear ? { academicYear: form.academicYear } : {}),
         });
         if (live) setPreview(unwrap(res));
       } catch { if (live) setPreview(null); }
       finally { if (live) setPreviewLoading(false); }
     }, 300);
     return () => { live = false; clearTimeout(t); };
-  }, [applyOpen, form.teacherId, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, dateError]);
+  }, [applyOpen, form.teacherId, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, form.academicYear, dateError]);
 
   const submitApply = async () => {
+    if (years.length && !formYear) { Alert.alert('Academic year', 'Choose the academic year of this leave.'); return; }
     if (dateError) { Alert.alert('Check the dates', dateError); return; }
     if (!form.reason.trim()) { Alert.alert('Reason required', 'Please give a reason.'); return; }
     // Every warning the preview returns is a rule the POST would reject anyway.
@@ -130,6 +148,7 @@ export default function AdminLeaveScreen() {
     setApplying(true);
     try {
       const fd = new FormData();
+      if (form.academicYear) fd.append('academicYear', form.academicYear);
       fd.append('teacherId',   form.teacherId);
       fd.append('leaveTypeId', form.leaveTypeId);
       fd.append('fromDate',    form.fromDate);
@@ -138,8 +157,13 @@ export default function AdminLeaveScreen() {
       if (form.leaveMode === 'half_day') fd.append('halfDaySession', form.halfDaySession);
       fd.append('reason',      form.reason);
       await adminApi.adminApplyLeave(fd);
+      // Listed under its own year: the list moves there.
+      const filedIn = form.academicYear;
+      const nextYear = filedIn && listYear !== 'all' && filedIn !== (listYear || activeYear)
+        ? (filedIn === activeYear ? '' : filedIn) : listYear;
+      setListYear(nextYear);
       setApplyOpen(false); setForm(EMPTY_APPLY); setPreview(null);
-      load();
+      load(status, nextYear);
       Alert.alert('Applied', 'Leave has been filed for the teacher.');
     } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
     finally { setApplying(false); }
@@ -207,6 +231,13 @@ export default function AdminLeaveScreen() {
             onPress={() => router.push('/modules/admin/comp-off' as any)}
           />
         )}
+        {years.length > 0 && (
+          <Select label="Academic year" value={listYear || activeYear} onChange={pickListYear}
+            options={[
+              ...years.map((y) => ({ label: y.label === activeYear ? `${y.label} (current)` : y.label, value: y.label })),
+              { label: 'All years', value: 'all' },
+            ]} />
+        )}
         <SegTabs tabs={STATUS_TABS} active={status} onChange={changeTab} />
         {loading ? <LoaderView /> : list.length === 0 ? (
           <Empty icon="airplane-outline" text="No leave requests" />
@@ -261,7 +292,7 @@ export default function AdminLeaveScreen() {
         )}
       </ScrollView>
 
-      {!loading && <FAB icon="add" onPress={() => { setForm(EMPTY_APPLY); setPreview(null); setApplyOpen(true); }} />}
+      {!loading && <FAB icon="add" onPress={() => { setForm({ ...EMPTY_APPLY, academicYear: (listYear && listYear !== 'all' ? listYear : activeYear) || '' }); setPreview(null); setApplyOpen(true); }} />}
 
       <FormModal
         visible={applyOpen}
@@ -271,6 +302,14 @@ export default function AdminLeaveScreen() {
         submitting={applying}
         submitLabel="Apply"
       >
+        {years.length > 0 && (
+          <Select label="Academic year" value={form.academicYear} placeholder="Select year…"
+            onChange={(v: string) => setForm(f => ({ ...f, academicYear: v }))}
+            options={years.filter((y) => !y.closed).map((y) => ({ label: y.label === activeYear ? `${y.label} (current)` : y.label, value: y.label }))} />
+        )}
+        {formYear?.start && formYear?.end ? (
+          <Text style={s.note}>{formYear.label} runs from {formYear.start} to {formYear.end} — pick days in between.</Text>
+        ) : null}
         <Select label="Teacher" value={form.teacherId} placeholder="Select teacher…"
           onChange={(v: string) => setForm(f => ({ ...f, teacherId: v }))}
           options={teachers.map((t: any) => ({ label: t.name, value: t._id }))} />

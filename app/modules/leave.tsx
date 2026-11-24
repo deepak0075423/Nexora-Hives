@@ -13,7 +13,13 @@ import { MODULE_BLOCKED_CODES, FormModal, Input, Select, FAB, unwrap } from '@/c
 import LeavePreviewPanel from '@/components/LeavePreviewPanel';
 import { validateLeaveDates, dateRuleHint, todayStr } from '@/utils/leaveDates';
 
-const EMPTY_APPLY = { leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+const EMPTY_APPLY = { academicYear: '', leaveTypeId: '', fromDate: '', toDate: '', leaveMode: 'full_day', halfDaySession: 'first', reason: '' };
+// The academic years (each with its first and last day, from the leave list)
+// — the apply form's year picker and date limits, and the list's year (Nov 2026).
+type LeaveYear = { label: string; start?: string; end?: string; closed?: boolean };
+const outsideYear = (y: LeaveYear | undefined, from: string, to: string) =>
+  !!y && !!from && !!to && ((!!y.start && from < y.start) || (!!y.end && to > y.end));
+
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   pending:   { bg: Colors.warningLight, color: Colors.warning },
@@ -57,14 +63,18 @@ export default function LeaveScreen() {
   // from the phone at all before.
   const [doc, setDoc] = useState<Picked | null>(null);
   // End early: the leave and its new last day
+  // Which year's applications are listed ('' = the active one, 'all' = every year).
+  const [listYear, setListYear] = useState('');
+  const [years, setYears] = useState<LeaveYear[]>([]);
+  const [activeYear, setActiveYear] = useState('');
   const [early, setEarly] = useState<any>(null);
   const [earlyDay, setEarlyDay] = useState('');
   const [earlySaving, setEarlySaving] = useState(false);
 
-  const load = async () => {
+  const load = async (year = listYear) => {
     try {
       const [lv, bal, co, appr, pol]: [any, any, any, any, any] = await Promise.all([
-        teacherApi.getLeaves({ page: 1, limit: PAGE }),
+        teacherApi.getLeaves({ page: 1, limit: PAGE, ...(year ? { academicYear: year } : {}) }),
         teacherApi.getLeaveBalance(),
         // Comp Off lives inside Leave Management — pull just enough to show the
         // entry point with its balance and any ready-to-apply count.
@@ -78,6 +88,8 @@ export default function LeaveScreen() {
       setLeaves((lv as any)?.data ?? lv ?? []);
       setLeavePage(1);
       setLeavePages((lv as any)?.pages ?? 1);
+      if (Array.isArray(lv?.academicYears)) setYears(lv.academicYears);
+      if (lv?.activeAcademicYear !== undefined) setActiveYear(lv.activeAcademicYear || '');
       setBalance((bal as any)?.data ?? bal);
       setCompOff((co as any)?.data ?? co);
       const apprData = (appr as any)?.data ?? appr;
@@ -98,7 +110,7 @@ export default function LeaveScreen() {
     setMoreLoading(true);
     try {
       const next = leavePage + 1;
-      const res: any = await teacherApi.getLeaves({ page: next, limit: PAGE });
+      const res: any = await teacherApi.getLeaves({ page: next, limit: PAGE, ...(listYear ? { academicYear: listYear } : {}) });
       setLeaves((l) => [...l, ...(res?.data ?? [])]);
       setLeavePage(next);
       setLeavePages(res?.pages ?? next);
@@ -119,11 +131,15 @@ export default function LeaveScreen() {
     } catch (err: any) { Alert.alert('Error', err?.message ?? 'Could not open the file'); }
   };
 
+  const formYear = years.find((y) => y.label === form.academicYear);
+  const pickListYear = (v: string) => { const y = v === activeYear ? '' : v; setListYear(y); setLoading(true); load(y); };
   const selPolicy = policies.find((p: any) => p.leaveType?._id === form.leaveTypeId);
   const docNeeded = !!preview?.dateRules?.documentNeeded;
   const dateHint  = dateRuleHint(selPolicy);
   const dateError = (form.fromDate || form.toDate)
-    ? validateLeaveDates(form.fromDate, form.toDate, selPolicy)
+    ? (validateLeaveDates(form.fromDate, form.toDate, selPolicy)
+      || (outsideYear(formYear, form.fromDate, form.toDate)
+        ? `A leave in ${formYear?.label} must fall between ${formYear?.start} and ${formYear?.end}.` : ''))
     : '';
 
   // Ask the server what these dates cost rather than reimplementing weekend,
@@ -138,15 +154,17 @@ export default function LeaveScreen() {
           leaveTypeId: form.leaveTypeId,
           ...(dateError ? {} : { fromDate: form.fromDate, toDate: form.toDate }),
           leaveMode: form.leaveMode,
+          ...(form.academicYear ? { academicYear: form.academicYear } : {}),
         });
         if (live) setPreview(unwrap(res));
       } catch { if (live) setPreview(null); }
       finally { if (live) setPreviewLoading(false); }
     }, 300);
     return () => { live = false; clearTimeout(t); };
-  }, [applyOpen, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, dateError]);
+  }, [applyOpen, form.leaveTypeId, form.fromDate, form.toDate, form.leaveMode, form.academicYear, dateError]);
 
   const submitApply = async () => {
+    if (years.length && !formYear) { Alert.alert('Academic year', 'Choose the academic year of this leave.'); return; }
     if (dateError) { Alert.alert('Check the dates', dateError); return; }
     if (!form.reason.trim() || form.reason.trim().length < 10) {
       Alert.alert('Reason required', 'Please give a reason of at least 10 characters.'); return;
@@ -160,6 +178,7 @@ export default function LeaveScreen() {
     setSaving(true);
     try {
       const fd = new FormData();
+      if (form.academicYear) fd.append('academicYear', form.academicYear);
       fd.append('leaveTypeId', form.leaveTypeId);
       fd.append('fromDate',    form.fromDate);
       fd.append('toDate',      form.toDate);
@@ -171,8 +190,13 @@ export default function LeaveScreen() {
         else fd.append('document', { uri: doc.uri, name: doc.name, type: doc.mimeType || 'application/octet-stream' } as any);
       }
       await teacherApi.applyLeave(fd);
+      // Listed under its own year: the list moves there.
+      const filedIn = form.academicYear;
+      const nextYear = filedIn && listYear !== 'all' && filedIn !== (listYear || activeYear)
+        ? (filedIn === activeYear ? '' : filedIn) : listYear;
+      setListYear(nextYear);
       setApplyOpen(false); setForm(EMPTY_APPLY); setPreview(null); setDoc(null);
-      load();
+      load(nextYear);
       Alert.alert('Applied', 'Your leave application has been submitted.');
     } catch (err: any) { Alert.alert('Error', err?.data?.message ?? err.message); }
     finally { setSaving(false); }
@@ -292,6 +316,13 @@ export default function LeaveScreen() {
 
             {/* Leaves */}
             <Text style={s.groupLabel}>My Leaves</Text>
+            {years.length > 0 && (
+              <Select label="Academic year" value={listYear || activeYear} onChange={pickListYear}
+                options={[
+                  ...years.map((y) => ({ label: y.label === activeYear ? `${y.label} (current)` : y.label, value: y.label })),
+                  { label: 'All years', value: 'all' },
+                ]} />
+            )}
             {leaves.length === 0 ? (
               <View style={s.empty}>
                 <Ionicons name="airplane-outline" size={48} color={Colors.textLight} />
@@ -346,7 +377,7 @@ export default function LeaveScreen() {
       </ScrollView>
 
       {/* Applying was the one thing a teacher could not do from the phone. */}
-      {!loading && !disabled && <FAB icon="add" onPress={() => { setForm(EMPTY_APPLY); setPreview(null); setDoc(null); setApplyOpen(true); }} />}
+      {!loading && !disabled && <FAB icon="add" onPress={() => { setForm({ ...EMPTY_APPLY, academicYear: (listYear && listYear !== 'all' ? listYear : activeYear) || '' }); setPreview(null); setDoc(null); setApplyOpen(true); }} />}
 
       <FormModal
         visible={applyOpen}
@@ -356,6 +387,14 @@ export default function LeaveScreen() {
         submitting={saving}
         submitLabel="Apply"
       >
+        {years.length > 0 && (
+          <Select label="Academic year" value={form.academicYear} placeholder="Select year…"
+            onChange={(v: string) => setForm(f => ({ ...f, academicYear: v }))}
+            options={years.filter((y) => !y.closed).map((y) => ({ label: y.label === activeYear ? `${y.label} (current)` : y.label, value: y.label }))} />
+        )}
+        {formYear?.start && formYear?.end ? (
+          <Text style={s.applyNote}>{formYear.label} runs from {formYear.start} to {formYear.end} — pick days in between.</Text>
+        ) : null}
         <Select
           label="Leave Type"
           value={form.leaveTypeId}
