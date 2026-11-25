@@ -146,8 +146,6 @@ export default function AdminLeavePoliciesScreen() {
                 <Text style={s.group}>Shape of an application</Text>
                 <Card>
                   <Text style={s.hint}>0 means no limit</Text>
-                  <Input label="Minimum days per application" value={numVal('minDaysPerApplication')}
-                    onChange={numSet('minDaysPerApplication')} keyboardType="numeric" />
                   <Input label="Max consecutive days" value={numVal('maxConsecutiveDays')}
                     onChange={numSet('maxConsecutiveDays')} keyboardType="numeric" />
                   <Input text="digits" label="Advance notice (days)" value={numVal('advanceNoticeDays')}

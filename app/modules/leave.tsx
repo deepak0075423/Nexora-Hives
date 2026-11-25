@@ -204,16 +204,18 @@ export default function LeaveScreen() {
 
   const handleCancel = (lv: any) => {
     const approved = lv.status === 'approved';
-    Alert.alert(approved ? 'Withdraw Leave' : 'Cancel Leave',
+    // Approved leave is withdrawn only once the school admin confirms it (Nov 26 2026).
+    Alert.alert(approved ? 'Ask to Withdraw Leave' : 'Cancel Leave',
       approved
-        ? 'Withdraw this approved leave? The days go back to your balance and your approvers are told.'
+        ? 'Ask the school admin to withdraw this approved leave? It stays approved — and its days stay used — until they confirm; then the days go back to your balance.'
         : 'Are you sure you want to cancel this leave?', [
       { text: 'No', style: 'cancel' },
       {
-        text: approved ? 'Withdraw' : 'Cancel Leave', style: 'destructive',
+        text: approved ? 'Send Request' : 'Cancel Leave', style: 'destructive',
         onPress: async () => {
           try {
-            await teacherApi.cancelLeave(lv._id);
+            const res: any = await teacherApi.cancelLeave(lv._id);
+            if (res?.requested) Alert.alert('Request sent', 'The school admin will confirm the withdrawal.');
             load();
           } catch (err: any) {
             Alert.alert('Error', err?.data?.message ?? err.message);
@@ -353,7 +355,11 @@ export default function LeaveScreen() {
                     </View>
                     {lv.reason && <Text style={s.reason}>{lv.reason}</Text>}
                     {lv.adminComment ? <Text style={s.reason}>Office: {lv.adminComment}</Text> : null}
-                    {(lv.status === 'pending' || (lv.status === 'approved' && notStarted(lv))) && (
+                    {lv.status === 'approved' && lv.withdrawalRequestedAt && !lv.withdrawalDecision
+                      ? <Text style={s.reason}>Withdrawal requested — waiting for the school admin</Text> : null}
+                    {lv.status === 'approved' && lv.withdrawalDecision === 'declined'
+                      ? <Text style={s.reason}>Withdrawal declined{lv.withdrawalComment ? `: ${lv.withdrawalComment}` : ''}</Text> : null}
+                    {(lv.status === 'pending' || (lv.status === 'approved' && notStarted(lv) && !(lv.withdrawalRequestedAt && !lv.withdrawalDecision))) && (
                       <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancel(lv)}>
                         <Text style={s.cancelBtnText}>{lv.status === 'pending' ? 'Cancel' : 'Withdraw'}</Text>
                       </TouchableOpacity>
