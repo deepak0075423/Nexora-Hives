@@ -9,6 +9,7 @@ import { Colors, Spacing, Radius } from '@/constants/theme';
 import * as studentApi from '@/api/student.api';
 import { LoaderView } from '@/components/ui/kit';
 import { ExamMark, QUESTION_TYPE_LABEL, plural } from '@/components/exams/parts';
+import { ExamImage } from '@/components/exams/media';
 
 /**
  * Student → sitting an aptitude exam.
@@ -53,6 +54,8 @@ export default function ExamAttemptScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const submitted = useRef(false);
+  // The question strip along the top keeps the current number in view.
+  const strip = useRef<ScrollView>(null);
   const pending = useRef(0);
 
   // ── Load ────────────────────────────────────────────────────────────────────
@@ -176,6 +179,11 @@ export default function ExamAttemptScreen() {
     return next;
   });
 
+  useEffect(() => {
+    // Each cell is 38 wide + 2×2 ring + 4 gap ≈ 46; keep the current one a cell in from the left.
+    strip.current?.scrollTo({ x: Math.max(0, (current - 1) * 46), animated: true });
+  }, [current]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   if (loading) return <><Stack.Screen options={{ title: 'Exam' }} /><LoaderView /></>;
 
@@ -245,6 +253,20 @@ export default function ExamAttemptScreen() {
         </View>
         <View style={s.track}><View style={[s.trackFill, { width: `${(answeredCount / questions.length) * 100}%` }]} /></View>
 
+        {/* The question panel — at the TOP on a phone (it used to open from
+            the bottom bar): every number, answered / marked / current, one tap
+            away. The grid opens the full panel with its legend. */}
+        <View style={s.topPanel}>
+          <ScrollView ref={strip} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.stripRow}>
+            {questions.map((x, i) => (
+              <Cell key={x._id} i={i} on={isAnswered(x)} flag={review.has(String(x._id))} onPress={() => setCurrent(i)} />
+            ))}
+          </ScrollView>
+          <TouchableOpacity style={s.stripAll} onPress={() => setPalette(true)} accessibilityLabel="All questions">
+            <Ionicons name="grid-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
+
         <ScrollView contentContainerStyle={{ padding: Spacing.md, paddingBottom: 130 }}>
           <View style={s.qCard}>
             <View style={s.qHead}>
@@ -253,7 +275,8 @@ export default function ExamAttemptScreen() {
               <View style={s.chip}><Text style={s.chipText}>{plural(q.marks, 'mark')}</Text></View>
             </View>
 
-            <Text style={s.qText}>{q.questionText}</Text>
+            {q.questionText ? <Text style={s.qText}>{q.questionText}</Text> : null}
+            {q.questionImage ? <View style={{ marginTop: 10, marginBottom: 10 }}><ExamImage src={q.questionImage} maxHeight={260} label={`Question ${current + 1} picture`} /></View> : null}
             {q.questionType === 'mcq_multiple' && (
               <Text style={s.hint}>Select all that apply — it scores only if every correct option is chosen.</Text>
             )}
@@ -275,7 +298,10 @@ export default function ExamAttemptScreen() {
                         {q.questionType === 'true_false' ? (o.optionId === 'true' ? 'T' : 'F') : letter(i)}
                       </Text>
                     </View>
-                    <Text style={[s.optText, on && { fontWeight: '600', color: Colors.primary }]}>{o.text}</Text>
+                    <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+                      {o.text ? <Text style={[s.optText, { flex: 0 }, on && { fontWeight: '600', color: Colors.primary }]}>{o.text}</Text> : null}
+                      {o.image ? <ExamImage src={o.image} maxHeight={150} zoom={false} label={`Option ${letter(i)} picture`} /> : null}
+                    </View>
                     {on && <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />}
                   </TouchableOpacity>
                 );
@@ -302,8 +328,9 @@ export default function ExamAttemptScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.rulesTitle}>Stay on this screen</Text>
               <Text style={s.rulesText}>
-                Leaving the app is recorded. At {exam.maxViolations} your exam is submitted automatically —
-                {' '}{violations} of {exam.maxViolations} used.
+                {Number(exam.maxViolations) === 0
+                  ? 'No app switching is allowed — leaving the app submits your exam straight away.'
+                  : `Leaving the app is recorded. At ${Math.max(1, exam.maxViolations ?? 3)} your exam is submitted automatically — ${violations} of ${Math.max(1, exam.maxViolations ?? 3)} used.`}
               </Text>
             </View>
           </View>
@@ -314,9 +341,6 @@ export default function ExamAttemptScreen() {
           <TouchableOpacity style={[s.navBtn, current === 0 && s.navBtnOff]} disabled={current === 0} onPress={() => setCurrent(c => c - 1)}>
             <Ionicons name="chevron-back" size={18} color={current === 0 ? Colors.textLight : Colors.primary} />
             <Text style={[s.navBtnText, current === 0 && { color: Colors.textLight }]}>Prev</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.gridBtn} onPress={() => setPalette(true)} accessibilityLabel="All questions">
-            <Ionicons name="grid-outline" size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
           {last
             ? <TouchableOpacity style={s.submitBtn} onPress={() => setConfirm(true)}>
@@ -330,7 +354,7 @@ export default function ExamAttemptScreen() {
       </View>
 
       {/* Palette */}
-      <Modal visible={palette} animationType="slide" transparent onRequestClose={() => setPalette(false)}>
+      <Modal visible={palette} animationType="fade" transparent onRequestClose={() => setPalette(false)}>
         <View style={s.sheetWrap}>
           <View style={s.sheet}>
             <View style={s.sheetHead}>
@@ -464,8 +488,12 @@ const s = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 12, color: Colors.textSecondary },
 
-  sheetWrap: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
-  sheet: { maxHeight: '75%', backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
+  // The full panel drops from the top, where the strip it expands lives.
+  sheetWrap: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-start' },
+  sheet: { maxHeight: '75%', backgroundColor: Colors.surface, borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg, paddingTop: 36 },
+  topPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderColor: Colors.border },
+  stripRow: { flexDirection: 'row', gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 6 },
+  stripAll: { width: 46, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderColor: Colors.border },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1, borderColor: Colors.border },
   sheetTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
 

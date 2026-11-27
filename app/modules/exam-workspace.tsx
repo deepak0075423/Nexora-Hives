@@ -17,6 +17,7 @@ import {
   AttemptPill, ScoreBar, Outcome, Pill, fmtExamDay, fmtClockRange, fmtSpent, plural,
   QUESTION_TYPE_LABEL,
 } from '@/components/exams/parts';
+import { MathInput, PicturePick } from '@/components/exams/media';
 
 /**
  * One aptitude exam — for the teacher who wrote it or class-teaches it, and for
@@ -139,7 +140,7 @@ export default function ExamWorkspaceScreen() {
         {tab === 'overview' && <Overview exam={exam} onPublish={publish} busy={busy} goQuestions={() => setTab('questions')} actions={actions} />}
         {tab === 'questions' && <Questions xapi={xapi} exam={exam} reload={load} onPublish={publish} busy={busy} />}
         {tab === 'submissions' && <Submissions xapi={xapi} exam={exam} />}
-        {tab === 'results' && (side === 'admin' ? <OfficeResults exam={exam} reload={load} /> : <Results exam={exam} reload={load} />)}
+        {tab === 'results' && (side === 'admin' ? <OfficeResults exam={exam} reload={load} isSchoolAdmin={user?.role === 'admin'} /> : <Results exam={exam} reload={load} />)}
       </ScrollView>
       <ExamForm visible={editOpen} side={side} exam={exam} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); load(); }} />
     </>
@@ -186,7 +187,9 @@ function Overview({ exam, onPublish, busy, goQuestions, actions }: {
           <Detail label="Sections" value={exam.audience?.items?.join(', ') ?? exam.audience?.label ?? '--'} />
           <Detail label="Schedule" value={`${fmtExamDay(exam)}, ${fmtClockRange(exam)} (${exam.duration} min)`} />
           <Detail label="Paper" value={`${plural(exam.totalQuestions, 'question')} · ${exam.totalMarks} marks · pass mark ${exam.passMark}`} />
-          <Detail label="Anti-cheat" value={`Auto-submits after ${plural(exam.maxViolations ?? 3, 'app switch', 'app switches')}`} />
+          <Detail label="Anti-cheat" value={Number(exam.maxViolations) === 0
+            ? 'No app switching — the first switch submits the paper'
+            : `Auto-submits after ${plural(exam.maxViolations ?? 3, 'app switch', 'app switches')}`} />
           <Detail label="Written by" value={exam.createdBy?.name ?? '--'} />
         </View>
         {exam.canManage && (draft || canUnpublish || canCancel) && (
@@ -212,7 +215,8 @@ const Detail = ({ label, value }: { label: string; value: string }) => (
 // ── Questions ─────────────────────────────────────────────────────────────────
 
 const LETTERS = ['a', 'b', 'c', 'd'];
-const blankQ = () => ({ questionText: '', questionType: 'mcq_single', options: LETTERS.map(l => ({ optionId: l, text: '' })), correctAnswers: [] as string[], marks: '1' });
+const blankQ = () => ({ questionText: '', questionImage: '', questionType: 'mcq_single', options: LETTERS.map(l => ({ optionId: l, text: '', image: '' })), correctAnswers: [] as string[], marks: '1' });
+const filledOpt = (o: any) => !!String(o.text ?? '').trim() || !!o.image;
 
 function Questions({ xapi, exam, reload, onPublish, busy }: { xapi: XApi; exam: any; reload: () => void; onPublish: () => void; busy: boolean }) {
   const [list, setList] = useState<any[] | null>(null);
@@ -239,11 +243,12 @@ function Questions({ xapi, exam, reload, onPublish, busy }: { xapi: XApi; exam: 
     setSaving(true);
     try {
       const body = {
-        questionText: form.questionText.trim(),
+        questionText: String(form.questionText ?? '').trim(),
+        questionImage: form.questionImage || '',
         questionType: form.questionType,
         options: form.questionType === 'true_false'
           ? [{ optionId: 'true', text: 'True' }, { optionId: 'false', text: 'False' }]
-          : form.options.map((o: any) => ({ optionId: o.optionId, text: o.text.trim() })),
+          : form.options.map((o: any) => ({ optionId: o.optionId, text: String(o.text ?? '').trim(), image: o.image || '' })),
         correctAnswers: form.correctAnswers,
         marks: Number(form.marks),
       };
@@ -292,7 +297,7 @@ function Questions({ xapi, exam, reload, onPublish, busy }: { xapi: XApi; exam: 
             keyOnly
             actions={editable ? (
               <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity onPress={() => setEditing({ ...q, marks: String(q.marks), options: q.questionType === 'true_false' ? blankQ().options : q.options.map((o: any) => ({ ...o })) })} hitSlop={8}>
+                <TouchableOpacity onPress={() => setEditing({ ...q, questionText: q.questionText ?? '', questionImage: q.questionImage ?? '', marks: String(q.marks), options: q.questionType === 'true_false' ? blankQ().options : q.options.map((o: any) => ({ ...o, text: o.text ?? '', image: o.image ?? '' })) })} hitSlop={8}>
                   <Ionicons name="create-outline" size={18} color={Colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => remove(q)} hitSlop={8}>
@@ -307,6 +312,7 @@ function Questions({ xapi, exam, reload, onPublish, busy }: { xapi: XApi; exam: 
         visible={!!editing}
         initial={editing}
         exam={exam}
+        upload={(fd: FormData) => xapi.uploadQuestionImage(exam._id, fd)}
         otherMarks={marks - (Number(editing?.marks) || 0)}
         saving={saving}
         onClose={() => setEditing(null)}
@@ -316,8 +322,9 @@ function Questions({ xapi, exam, reload, onPublish, busy }: { xapi: XApi; exam: 
   );
 }
 
-function QuestionForm({ visible, initial, exam, otherMarks, saving, onClose, onSave }: {
+function QuestionForm({ visible, initial, exam, otherMarks, saving, onClose, onSave, upload }: {
   visible: boolean; initial: any; exam: any; otherMarks: number; saving: boolean; onClose: () => void; onSave: (f: any) => void;
+  upload: (fd: FormData) => Promise<any>;
 }) {
   const [f, setF] = useState<any>(blankQ());
   useEffect(() => { if (visible && initial) setF({ ...initial, marks: String(initial.marks ?? '1'), correctAnswers: [...(initial.correctAnswers ?? [])] }); }, [visible, initial]);
@@ -335,8 +342,9 @@ function QuestionForm({ visible, initial, exam, otherMarks, saving, onClose, onS
 
   const after = Math.round((otherMarks + (Number(f.marks) || 0)) * 100) / 100;
   const problems: string[] = [];
-  if (!String(f.questionText).trim()) problems.push('Write the question');
-  if (f.questionType !== 'true_false' && f.options.filter((o: any) => o.text.trim()).length < 2) problems.push('Give at least two options');
+  if (!String(f.questionText ?? '').trim() && !f.questionImage) problems.push('Write the question, or add a picture of it');
+  if (f.questionType !== 'true_false' && f.options.filter(filledOpt).length < 2) problems.push('Give at least two options');
+  if (f.questionType !== 'true_false' && f.options.some((o: any) => !filledOpt(o))) problems.push('Fill in or remove the empty option');
   if (!f.correctAnswers.length) problems.push('Mark the correct answer');
   if (!(Number(f.marks) >= 0.5)) problems.push('Marks must be 0.5 or more');
 
@@ -355,7 +363,10 @@ function QuestionForm({ visible, initial, exam, otherMarks, saving, onClose, onS
         onChange={setType}
         options={Object.entries(QUESTION_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
       />
-      <Input label="Question" value={f.questionText} onChange={(v) => setF((x: any) => ({ ...x, questionText: v }))} multiline placeholder="e.g. If 3x + 5 = 20, what is x?" />
+      <MathInput label="Question — any language; keys below for x², √, π" value={f.questionText ?? ''} maxLength={2000}
+        onChange={(v) => setF((x: any) => ({ ...x, questionText: v }))} multiline placeholder="e.g. If x² + 5 = 21, what is x?" />
+      <PicturePick value={f.questionImage} upload={upload} label="Add a picture to the question"
+        onChange={(url) => setF((x: any) => ({ ...x, questionImage: url }))} />
 
       <Text style={s.formLabel}>
         {f.questionType === 'true_false' ? 'Correct answer' : 'Options'} · tick the correct {f.questionType === 'mcq_multiple' ? 'options' : 'option'}
@@ -370,12 +381,15 @@ function QuestionForm({ visible, initial, exam, otherMarks, saving, onClose, onS
             {f.questionType === 'true_false' ? (
               <Text style={s.optFixed}>{o.text}</Text>
             ) : (
-              <View style={{ flex: 1 }}>
-                <Input
-                  label={`Option ${o.optionId.toUpperCase()}`}
-                  value={o.text}
+              <View style={{ flex: 1, gap: 6 }}>
+                <MathInput
+                  label={`Option ${o.optionId.toUpperCase()}${o.image ? ' (words optional)' : ''}`}
+                  value={o.text ?? ''}
+                  maxLength={500}
                   onChange={(v) => setF((x: any) => ({ ...x, options: x.options.map((q: any, j: number) => (j === i ? { ...q, text: v } : q)) }))}
                 />
+                <PicturePick compact value={o.image} upload={upload} label="Picture"
+                  onChange={(url) => setF((x: any) => ({ ...x, options: x.options.map((q: any, j: number) => (j === i ? { ...q, image: url } : q)) }))} />
               </View>
             )}
           </View>
@@ -562,7 +576,7 @@ function Results({ exam, reload }: { exam: any; reload: () => void }) {
  * The school office's sign-off: release (now or on a date) or withhold. It
  * stands in for both teacher steps — whoever signs is recorded on each.
  */
-function OfficeResults({ exam, reload }: { exam: any; reload: () => void }) {
+function OfficeResults({ exam, reload, isSchoolAdmin }: { exam: any; reload: () => void; isSchoolAdmin: boolean }) {
   const [busy, setBusy] = useState(false);
   const [publishDate, setPublishDate] = useState('');
   const [reason, setReason] = useState('');
@@ -584,6 +598,16 @@ function OfficeResults({ exam, reload }: { exam: any; reload: () => void }) {
   const withhold = async () => {
     if (!await confirmAsync('Withhold results', 'Students and parents will not see the scores until you release them.', 'Withhold')) return;
     decide({ action: 'withhold', reason }, 'Results withheld');
+  };
+  // Results already out: a school admin only, and only after a warning —
+  // students and parents may have seen them (server: confirm: true).
+  const withholdReleased = async () => {
+    if (!await confirmAsync(
+      'Withhold released results?',
+      `Results for “${exam.title}” are already out — students and their parents can see the scores now. Withholding hides them again until you release them.`,
+      'Yes, withhold',
+    )) return;
+    decide({ action: 'withhold', reason, confirm: true }, 'Results withheld');
   };
 
   if (exam.stage !== 'completed') {
@@ -627,9 +651,9 @@ function OfficeResults({ exam, reload }: { exam: any; reload: () => void }) {
             </View>
           </View>
         )}
-        {r.state === 'released' && (
+        {r.state === 'released' && isSchoolAdmin && (
           <View style={{ marginTop: Spacing.md }}>
-            <ActionBtn label="Withhold results" tone="danger" disabled={busy} onPress={withhold} />
+            <ActionBtn label="Withhold released results" tone="danger" disabled={busy} onPress={withholdReleased} />
           </View>
         )}
       </Card>

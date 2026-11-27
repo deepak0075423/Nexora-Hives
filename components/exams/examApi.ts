@@ -26,6 +26,9 @@ export function examApi(side: ExamSide) {
     addQuestion:     (id: string, data: object) => api.post(`${base}/${id}/questions`, data),
     updateQuestion:  (id: string, qid: string, data: object) => api.put(`${base}/${id}/questions/${qid}`, data),
     deleteQuestion:  (id: string, qid: string) => api.delete(`${base}/${id}/questions/${qid}`),
+    // A picture for a question or an option (field "image") → { url }.
+    uploadQuestionImage: (id: string, fd: FormData) =>
+      api.post(`${base}/${id}/questions/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
     submissions:     (id: string) => api.get(`${base}/${id}/submissions`),
     studentResponse: (id: string, studentId: string) => api.get(`${base}/${id}/submissions/${studentId}`),
     analytics:       (params?: object) => api.get(`${base}/analytics`, { params }),

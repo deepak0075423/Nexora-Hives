@@ -84,6 +84,7 @@ export default function ExamForm({ visible, side, exam, onClose, onSaved }: {
   if (!(Number(f.duration) >= 1)) problems.push('Duration must be at least 1 minute');
   if (!(Number(f.totalQuestions) >= 1)) problems.push('Total questions must be at least 1');
   if (!(Number(f.totalMarks) >= 1)) problems.push('Total marks must be at least 1');
+  if (String(f.maxViolations).trim() !== '' && !(Number.isInteger(Number(f.maxViolations)) && Number(f.maxViolations) >= 0 && Number(f.maxViolations) <= 20)) problems.push('Allowed app switches must be 0 to 20');
 
   const submit = async () => {
     if (problems.length) { Alert.alert('Check the form', problems[0]); return; }
@@ -92,7 +93,8 @@ export default function ExamForm({ visible, side, exam, onClose, onSaved }: {
       title: f.title.trim(), subjectId: f.subjectId || null, sectionIds: f.sectionIds,
       examDate: f.examDate, startTime: f.startTime,
       duration: Number(f.duration), totalQuestions: Number(f.totalQuestions), totalMarks: Number(f.totalMarks),
-      maxViolations: Number(f.maxViolations) || 3,
+      // 0 is a setting (no switching at all) — `Number(x) || 3` saved it as 3.
+      maxViolations: String(f.maxViolations).trim() === '' ? 3 : Number(f.maxViolations),
     };
     try {
       const saved = unwrap(editing ? await xapi.update(exam._id, body) : await xapi.create(body));
@@ -167,7 +169,7 @@ export default function ExamForm({ visible, side, exam, onClose, onSaved }: {
       <Input text="digits" label="Duration (minutes)" value={f.duration} onChange={(v) => setF(x => ({ ...x, duration: v }))} keyboardType="numeric" />
       <Input text="digits" label="Total questions" value={f.totalQuestions} onChange={(v) => setF(x => ({ ...x, totalQuestions: v }))} keyboardType="numeric" />
       <Input text="digits" label="Total marks" value={f.totalMarks} onChange={(v) => setF(x => ({ ...x, totalMarks: v }))} keyboardType="numeric" />
-      <Input text="digits" label="Allowed app switches before auto-submit" value={f.maxViolations} onChange={(v) => setF(x => ({ ...x, maxViolations: v }))} keyboardType="numeric" />
+      <Input text="digits" label="Allowed app switches before auto-submit (0 = first switch submits)" value={f.maxViolations} onChange={(v) => setF(x => ({ ...x, maxViolations: v }))} keyboardType="numeric" />
       <Text style={s.hint}>
         To publish, the exam needs exactly {plural(Number(f.totalQuestions) || 0, 'question')} whose marks add up to {Number(f.totalMarks) || 0}.
       </Text>

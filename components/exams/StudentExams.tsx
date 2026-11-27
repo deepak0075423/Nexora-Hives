@@ -30,7 +30,9 @@ function standing(e: any, now: number) {
   if (done) return 'awaiting';
   if (e.canAttempt) return 'live';
   if (now < new Date(e.opensAt).getTime()) return 'upcoming';
-  return 'missed';
+  // A missed exam waits with the rest until its results are out, then moves
+  // to Results as "did not sit" — it used to stay under Awaiting for good.
+  return e.resultsReleased ? 'missedOut' : 'missed';
 }
 
 export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
@@ -54,7 +56,7 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
   const g = useMemo(() => {
-    const out: Record<string, any[]> = { live: [], upcoming: [], awaiting: [], missed: [], result: [] };
+    const out: Record<string, any[]> = { live: [], upcoming: [], awaiting: [], missed: [], missedOut: [], result: [] };
     exams.forEach((e) => out[standing(e, now)].push(e));
     out.upcoming.sort((a, b) => +new Date(a.opensAt) - +new Date(b.opensAt));
     return out;
@@ -63,8 +65,9 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
   if (loading) return <LoaderView />;
 
   const results = g.result;
+  const resultRows = [...results, ...g.missedOut].sort((a, b) => +new Date(b.opensAt) - +new Date(a.opensAt));
   const avg = results.length ? Math.round(results.reduce((n, e) => n + (e.result?.percentage ?? 0), 0) / results.length) : null;
-  const active = tab ?? (g.upcoming.length ? 'upcoming' : results.length ? 'results' : 'awaiting');
+  const active = tab ?? (g.upcoming.length ? 'upcoming' : resultRows.length ? 'results' : 'awaiting');
 
   return (
     <>
@@ -100,7 +103,7 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
         <Figures>
           <Figure label="Upcoming" value={g.upcoming.length} icon="calendar" tone="info" />
           <Figure label="Awaiting" value={g.awaiting.length} icon="hourglass" tone="warning" />
-          <Figure label="Results" value={results.length} icon="trophy" tone="success" />
+          <Figure label="Results" value={resultRows.length} icon="trophy" tone="success" />
           <Figure label="Average" value={avg == null ? '--' : `${avg}%`} icon="stats-chart" tone="neutral" />
         </Figures>
 
@@ -110,7 +113,7 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
           tabs={[
             { key: 'upcoming', label: `Upcoming ${g.upcoming.length}` },
             { key: 'awaiting', label: `Awaiting results ${g.awaiting.length + g.missed.length}` },
-            { key: 'results', label: `Results ${results.length}` },
+            { key: 'results', label: `Results ${resultRows.length}` },
           ]}
         />
 
@@ -164,9 +167,23 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
             );
           }))}
 
-        {active === 'results' && (results.length === 0
+        {active === 'results' && (resultRows.length === 0
           ? <Empty icon="trophy-outline" text="No results published yet" />
-          : results.map((e) => (
+          : resultRows.map((e) => (!e.result ? (
+            <Card key={e._id}>
+              <View style={s.row}>
+                <ExamMark exam={e} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={s.title} numberOfLines={2}>{e.title}</Text>
+                  <Text style={s.sub}>{e.subject?.subjectName ?? 'General Aptitude'} · {fmtExamDay(e)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <AttemptPill status="missed" />
+                  <Text style={s.sub}>Did not sit</Text>
+                </View>
+              </View>
+            </Card>
+          ) : (
             <TouchableOpacity key={e._id} activeOpacity={0.8} onPress={() => router.push({ pathname: '/modules/exam-result', params: { id: e._id } } as any)}>
               <Card>
                 <View style={s.row}>
@@ -186,7 +203,7 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
                 </View>
               </Card>
             </TouchableOpacity>
-          )))}
+          ))))}
       </ScrollView>
 
       <FormModal
@@ -207,7 +224,9 @@ export default function StudentExams({ onBlocked }: { onBlocked: () => void }) {
             {[
               `The timer starts as soon as the paper opens and does not pause. The exam also ends at ${fmtEndClock(starting)}.`,
               'Answers save the moment you pick them. You can move between questions until you submit.',
-              `Leaving the app is recorded. After ${plural(starting.maxViolations ?? 3, 'switch', 'switches')} your paper is submitted automatically.`,
+              Number(starting.maxViolations) === 0
+                ? 'Do not leave the app — the first switch submits your paper automatically.'
+                : `Leaving the app is recorded. After ${plural(starting.maxViolations ?? 3, 'switch', 'switches')} your paper is submitted automatically.`,
               'Multiple-choice questions score only when every correct option is chosen.',
             ].map((t) => (
               <View key={t} style={s.rule}>

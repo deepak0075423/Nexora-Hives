@@ -10,6 +10,7 @@ import {
   ExamMark, StagePill, Insights, Pill, AttemptPill, Outcome, ScoreBar, FactCell, Figures, Figure,
   QUESTION_TYPE_LABEL, fmtExamDay, fmtClockRange, fmtSpent, plural,
 } from '@/components/exams/parts';
+import { ExamImage } from '@/components/exams/media';
 
 /**
  * One aptitude exam's analytics report — for the school office and for the
@@ -270,7 +271,8 @@ export default function ExamReportScreen() {
                     <View style={{ flex: 1 }} />
                     <Text style={s.qMarks}>{plural(q.marks, 'mark')}</Text>
                   </View>
-                  <Text style={s.qText}>{q.questionText}</Text>
+                  {q.questionText ? <Text style={s.qText}>{q.questionText}</Text> : null}
+                  {q.questionImage ? <View style={{ marginVertical: 6 }}><ExamImage src={q.questionImage} maxHeight={180} label={`Question ${q.number} picture`} /></View> : null}
                   <Meter label="Fully right" value={q.successRate} right={q.successRate == null ? '--' : `${q.successRate}% · ${q.correct} of ${sat}`} />
                   <Text style={s.rowNote}>{q.incorrect} wrong · {q.unanswered} left blank</Text>
                   <View style={{ marginTop: 10, gap: 6 }}>
@@ -283,7 +285,7 @@ export default function ExamReportScreen() {
                           </View>
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <View style={s.optHead}>
-                              <Text style={s.optText} numberOfLines={2}>{o.text}{o.isKey ? '  ✓ key' : ''}</Text>
+                              <Text style={s.optText} numberOfLines={2}>{o.text || (o.image ? '(picture)' : '')}{o.isKey ? '  ✓ key' : ''}</Text>
                               <Text style={s.optCount}>{o.chosen}</Text>
                             </View>
                             <View style={s.optTrack}>

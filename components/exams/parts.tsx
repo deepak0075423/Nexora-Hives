@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography } from '@/constants/theme';
 import { VIZ, TONE_COLOR, toneForPercent } from '@/components/ui/viz';
+import { ExamImage } from './media';
 
 /**
  * The pieces every aptitude exam screen in the app is built from — the same
@@ -353,7 +354,8 @@ export function QuestionCard({ q, index, keyOnly, viewer = 'student', actions }:
         </Text>
         {actions}
       </View>
-      <Text style={p.qText}>{q.questionText}</Text>
+      {q.questionText ? <Text style={p.qText}>{q.questionText}</Text> : null}
+      {q.questionImage ? <View style={{ marginBottom: 8 }}><ExamImage src={q.questionImage} label={`Question ${index + 1} picture`} /></View> : null}
       <View style={{ gap: 6 }}>
         {(q.options ?? []).map((o: any, i: number) => {
           const isKey = key.includes(o.optionId);
@@ -365,7 +367,10 @@ export function QuestionCard({ q, index, keyOnly, viewer = 'student', actions }:
                   {q.questionType === 'true_false' ? (o.optionId === 'true' ? 'T' : 'F') : letter(i)}
                 </Text>
               </View>
-              <Text style={p.optText}>{o.text}</Text>
+              <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                {o.text ? <Text style={[p.optText, { flex: 0 }]}>{o.text}</Text> : null}
+                {o.image ? <ExamImage src={o.image} maxHeight={130} label="Option picture" /> : null}
+              </View>
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {!keyOnly && isSel && <Pill label={viewer === 'student' ? 'Your answer' : 'Chosen'} tone={isKey ? 'accent' : 'bad'} />}
                 {isKey && <Pill label={keyOnly ? 'Correct' : 'Correct answer'} tone="good" />}
